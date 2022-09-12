@@ -1,5 +1,5 @@
 import fire
-from pythonic.data import download_data
+from CitizenUAV.data import download_data
 
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ from torchvision.transforms.functional import pil_to_tensor
 from typing import Optional
 
 
-def download_data(species, output_dir):
+def download_data(species, output_dir, max_images=None):
     quality = "research"
 
     if not os.path.isdir(output_dir):
@@ -40,6 +40,8 @@ def download_data(species, output_dir):
         print(f"No observations found for species {species}")
         return False
 
+    images_stored = 0
+
     for obs in tqdm(obss):
 
         n_photos = len(obs.photos)
@@ -61,9 +63,16 @@ def download_data(species, output_dir):
             row = [species, obs.id, n_photos, np.nan]
             metadata.loc[photo.id] = row
 
+            images_stored += 1
+            if images_stored >= max_images:
+                break
+
         metadata.species = metadata.species.astype('category')
         metadata.label = metadata.species.cat.codes
         metadata.to_csv(metadata_path)
+
+        if len(metadata) >= max_images:
+            return True
 
     return True
 
