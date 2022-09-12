@@ -21,9 +21,8 @@ def download_data(species, output_dir, max_images=None):
     metadata_path = os.path.join(output_dir, 'metadata.csv')
     if os.path.exists(metadata_path):
         metadata = pd.read_csv(metadata_path)
-        metadata.reset_index(inplace=True)
+        metadata.reset_index(drop=True, inplace=True)
         metadata.set_index('photo_id', inplace=True)
-        metadata.drop(columns='index', inplace=True)
     else:
         metadata = pd.DataFrame(columns=['species', 'obs_id', 'n_photos', 'label'])
         metadata.index.name = 'photo_id'
@@ -129,7 +128,10 @@ class InatDataModule(pl.LightningDataModule):
 
     def setup(self, stage: Optional[str] = None) -> None:
 
-        # TODO: balance classes
+        # TODO: fill other classes somewhere else
+        # balance classes
+        groupby = self.metadata.groupby('label')
+        groupby.apply(lambda x: x.sample(groupby.size().min()).reset_index(drop=True))
 
         if stage == "fit" or stage is None:
             pass

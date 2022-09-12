@@ -17,13 +17,3 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
-
-dependencies = [
-    "torch",
-    "torchvision",
-    "pandas",
-    "tqdm",
-    "Pillow",
-    "pyinaturalist",
-    "pytorch-lightning"
-]

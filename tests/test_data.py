@@ -1,8 +1,7 @@
 import pytest
-from CitizenUAV.data import *
 import shutil
 import torch
-import os
+from CitizenUAV.data import *
 
 
 tmp_dir = os.path.join('.', 'tmp')
