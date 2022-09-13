@@ -37,8 +37,8 @@ def test_datamodule():
     # check balance
     samples_per_class = list(dict(Counter(dm.ds.targets)).values())
     for n in samples_per_class:
-        # tolerance of +-3
-        assert samples_per_class[0] - 3 <= n <= samples_per_class[0] + 3
+        # tolerance of +-1
+        assert samples_per_class[0] - 1 <= n <= samples_per_class[0] + 1
 
     # test with species
     img_size = 128
