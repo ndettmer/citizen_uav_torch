@@ -1,18 +1,18 @@
 import pytest
 import shutil
-import torch
 from CitizenUAV.data import *
 from collections import Counter
 
 
 tmp_dir = os.path.join('.', 'tmp')
 data_dir = os.path.join(tmp_dir, 'data')
-n_samples = 10
-species = 'Zostera marina'
+n_samples = 5
+species = ['Zostera marina', 'Ruppia maritima']
 
 
 def setup():
-    download_data(species, data_dir, n_samples)
+    for spec in species:
+        download_data(spec, data_dir, n_samples)
 
 
 def teardown():
