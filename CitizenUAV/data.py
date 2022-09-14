@@ -62,6 +62,8 @@ def download_data(species: str, output_dir: os.PathLike, max_images: Optional[in
 
     images_stored = 0
     # iterate over observations
+    p_bar = tqdm(obss)
+    p_bar.set_description(f"Downloading data for species {species} ...")
     for obs in tqdm(obss):
 
         n_photos = len(obs.photos)
