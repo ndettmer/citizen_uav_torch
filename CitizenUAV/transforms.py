@@ -1,9 +1,12 @@
-from torchvision.transforms.functional import crop
+from torchvision.transforms.functional import crop, adjust_brightness, adjust_saturation, adjust_contrast
 import torch
 import numpy as np
 
 
 class QuadCrop(object):
+    """
+    Quadratic cropping to center square.
+    """
 
     def __call__(self, img: torch.Tensor) -> torch.Tensor:
         """
@@ -21,3 +24,42 @@ class QuadCrop(object):
 
     def __repr__(self):
         return self.__class__.__name__+'()'
+
+
+class RandomBrightness(object):
+    """
+    Adjust brightness by random.
+    """
+
+    def __init__(self, rand_range: float = .5):
+        self.rand_range = rand_range
+
+    def __call__(self, img: torch.Tensor):
+        factor = np.random.rand() / 2. * self.rand_range + (1 - self.rand_range / 2.)
+        return adjust_brightness(img, factor)
+
+
+class RandomContrast(object):
+    """
+    Adjust contrast by random.
+    """
+
+    def __init__(self, rand_range: float = .5):
+        self.rand_range = rand_range
+
+    def __call__(self, img: torch.Tensor):
+        factor = np.random.rand() / 2. * self.rand_range + (1 - self.rand_range / 2.)
+        return adjust_contrast(img, factor)
+
+
+class RandomSaturation(object):
+    """
+    Adjust saturation by random.
+    """
+
+    def __init__(self, rand_range: float = .5):
+        self.rand_range = rand_range
+
+    def __call__(self, img: torch.Tensor):
+        factor = np.random.rand() / 2. * self.rand_range + (1 - self.rand_range / 2.)
+        return adjust_saturation(img, factor)

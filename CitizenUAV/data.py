@@ -9,21 +9,29 @@ from tqdm import tqdm
 from PIL import Image
 import pyinaturalist as pin
 
-import numpy as np
-
 from typing import Optional, Union
 from io import BytesIO
 import os
+from collections import Counter
 
-from CitizenUAV.transforms import QuadCrop
+from CitizenUAV.transforms import *
 
 
 def download_data(species: str, output_dir: os.PathLike, max_images: Optional[int] = None):
+    """
+    Download inaturalist image data for a certain species.
+    :param species: species to collect data for
+    :param output_dir: output directory
+    :param max_images: maximum number of images to download
+    :return: True, if the process succeeded
+    """
     quality = "research"
 
+    # create directory
     if not os.path.isdir(output_dir):
         os.makedirs(output_dir)
 
+    # load or create metadata DataFrame
     metadata_path = os.path.join(output_dir, 'metadata.csv')
     if os.path.exists(metadata_path):
         metadata = pd.read_csv(metadata_path)
@@ -33,6 +41,7 @@ def download_data(species: str, output_dir: os.PathLike, max_images: Optional[in
         metadata = pd.DataFrame(columns=['species', 'obs_id', 'n_photos', 'label'])
         metadata.index.name = 'photo_id'
 
+    # collect data from inaturalist
     response = pin.get_observations(
         taxon_name=species,
         quality_grade=quality,
@@ -41,73 +50,154 @@ def download_data(species: str, output_dir: os.PathLike, max_images: Optional[in
     )
     obss = pin.Observations.from_json_list(response)
 
+    # break process if no data was found
     if not len(obss):
         print(f"No observations found for species {species}")
         return False
 
-    images_stored = 0
+    # create species directory if it doesn't exist
+    spec_dir = os.path.join(output_dir, species)
+    if not os.path.isdir(spec_dir):
+        os.makedirs(spec_dir)
 
+    images_stored = 0
+    # iterate over observations
     for obs in tqdm(obss):
 
         n_photos = len(obs.photos)
 
+        # iterate over images in observation
         for i, photo in enumerate(obs.photos):
 
-            spec_dir = os.path.join(output_dir, species)
-            if not os.path.isdir(spec_dir):
-                os.makedirs(spec_dir)
+            # set file name with photo id
             filename = f'{photo.id}.png'
             img_path = os.path.join(spec_dir, filename)
+
+            # skip photo, if already downloaded
             if os.path.exists(img_path) and photo.id in metadata.index:
                 continue
 
+            # download image
             fp = photo.open()
             img = Image.open(BytesIO(fp.data))
             img.save(img_path, 'png')
 
+            # create entry in metadata
             row = [species, obs.id, n_photos, np.nan]
             metadata.loc[photo.id] = row
 
+            # count image and stop if enough images have been downloaded
             images_stored += 1
             if max_images is not None and images_stored >= max_images:
                 break
 
+        # format class label column in metadata
         metadata.species = metadata.species.astype('category')
         metadata.label = metadata.species.cat.codes
         metadata.to_csv(metadata_path)
 
+        # stop whole procedure if enough images have been downloaded
         if max_images is not None and len(metadata[metadata.species == species]) >= max_images:
             return True
 
     return True
 
 
-class InatDataModule(pl.LightningDataModule):
+def offline_augmentation(data_dir: os.PathLike, target_n):
+    """
+    Perform offline augmentation on present images.
+    :param data_dir: The directory where the data lies.
+    :param target_n: Target number of samples per class.
+    :return: True, if the procedure succeeded.
+    """
+    # create dataset
+    ds = ImageFolder(data_dir, transform=transforms.Compose([transforms.ToTensor(), QuadCrop()]))
 
-    # 10% test, split rest into 80% train and 20% val
+    # count samples per class
+    n_samples = dict(Counter(ds.targets))
+
+    # define repertoire of augmentation techniques
+    techniques = [RandomBrightness(), RandomContrast(), RandomSaturation()]
+
+    # postprocessing including random flips
+    do_anyway_after = [transforms.RandomHorizontalFlip(), transforms.RandomVerticalFlip(), transforms.ToPILImage()]
+
+    # iterate over classes
+    for cls, n in n_samples.items():
+        pbar = tqdm(range(target_n - n))
+        pbar.set_description(f"Augmenting for {ds.classes[cls]}")
+
+        # only consider indices of current class for augmentation sampling
+        cls_idx = [i for i in range(len(ds)) if ds.targets[i] == cls]
+
+        for _ in pbar:
+            # sample image to be modified
+            rand_idx = np.random.choice(cls_idx)
+            img, y = ds[rand_idx]
+
+            # Apply each technique with a probability of 0.5 (don't confuse with internal random parameters).
+            random_apply = transforms.RandomApply(techniques)
+
+            # compose and apply modification pipeline
+            transform = transforms.Compose([random_apply] + do_anyway_after)
+            augmented = transform(img)
+
+            # determine new file name
+            orig_filepath = ds.samples[rand_idx][0]
+            filepath = os.path.splitext(orig_filepath)[0]
+            n_copies = 1
+            # make sure the filename doesn't exist yet
+            while os.path.exists(f"{filepath}_{n_copies}.png"):
+                n_copies += 1
+            filepath = f"{filepath}_{n_copies}.png"
+            # save new image
+            augmented.save(filepath, 'png')
+
+    return True
+
+
+class InatDataModule(pl.LightningDataModule):
+    """
+    Data module for the inaturalist image dataset based on previously downloaded images.
+    """
+
+    # 10% test, split rest into 80% train and 20% val by default
     def __init__(self, data_dir: os.PathLike, species: Optional[Union[list | str]] = None, batch_size: int = 4,
-                 split: tuple = (.72, .18, .1), balance: bool = True, img_size: int = 256):
+                 split: tuple = (.72, .18, .1), balance: bool = True, img_size: int = 128):
+        """
+        :param data_dir: Directory where the data lies.
+        :param species: Species to consider.
+        :param batch_size: Batch size.
+        :param split: Split into train, validation, test.
+        :param balance: If true, the dataset will be balanced.
+        :param img_size: Quadratic image output size (length of an edge).
+        """
         super().__init__()
 
+        # Make sure species is a list.
         if species is None:
             species = []
         if isinstance(species, str):
             species = [species]
 
+        # Make sure split sums up to 1.
         InatDataModule.validate_split(split)
         self.split = split
 
+        # Make sure the data directory is valid.
         InatDataModule.validate_data_dir(data_dir)
         self.data_dir = data_dir
 
         self.metadata = self.read_metadata(species)
         self.batch_size = batch_size
 
+        # Compose transformations for the output samples and create the dataset object.
         img_transforms = transforms.Compose([transforms.ToTensor(), QuadCrop(), transforms.Resize(img_size)])
         self.ds = ImageFolder(str(self.data_dir), transform=img_transforms)
 
         self.species = species
 
+        # Filter dataset for species and/or balance the dataset by removing samples from over-represented classes.
         if self.species and balance:
             self._balance_and_filter()
         elif self.species:
@@ -120,20 +210,35 @@ class InatDataModule(pl.LightningDataModule):
         self.test_ds = None
 
     @staticmethod
-    def validate_split(split):
+    def validate_split(split: tuple) -> bool:
+        """
+        Validate the split tuple.
+        :param split: Split
+        :return: True, if valid.
+        """
         if (split_sum := np.round(np.sum(split), 10)) != 1.:
             raise ValueError(f"The sum of split has to be 1. Got {split_sum}")
         return True
 
     @staticmethod
-    def validate_data_dir(data_dir):
+    def validate_data_dir(data_dir: os.PathLike) -> bool:
+        """
+        Validate the data directory.
+        :param data_dir: Data directory path.
+        :return: True, if valid.
+        """
         if not os.path.isdir(data_dir):
             raise ValueError(f"data_dir={data_dir}: No such directory found.")
         if not os.path.exists(os.path.join(data_dir, "metadata.csv")):
             raise ValueError(f"No metadata.csv file found in {data_dir}")
         return True
 
-    def read_metadata(self, species: Optional[list] = None):
+    def read_metadata(self, species: Optional[list] = None) -> pd.DataFrame:
+        """
+        Read the metadata DataFrame.
+        :param species: Species to filter for.
+        :return: The metadata DataFrame.
+        """
         metadata = pd.read_csv(os.path.join(self.data_dir, "metadata.csv"))
         metadata.reset_index(inplace=True)
         metadata.drop(columns='index', inplace=True)
@@ -145,11 +250,17 @@ class InatDataModule(pl.LightningDataModule):
         return metadata
 
     def _balance_metadata(self):
+        """
+        Balance the metadata DataFrame by removing samples from overrepresented classes.
+        """
         gb = self.metadata.groupby('label')
         balanced_metadata = gb.apply(lambda x: x.sample(gb.size().min()).reset_index(drop=True)).reset_index(drop=True)
         self.metadata = balanced_metadata
 
     def _balance_dataset(self):
+        """
+        Balance the dataset based on a balanced metadata DataFrame.
+        """
         self._balance_metadata()
         file_paths = [os.path.join(self.data_dir, row.species, f"{row.photo_id}.png") for _, row in
                       self.metadata.iterrows()]
@@ -157,11 +268,17 @@ class InatDataModule(pl.LightningDataModule):
         self._replace_ds(idx)
 
     def _filter_species(self):
+        """
+        Filter dataset for species to be considered.
+        """
         class_idx = [self.ds.class_to_idx[spec] for spec in self.species]
         idx = [i for i in range(len(self.ds)) if self.ds[i][1] in class_idx]
         self._replace_ds(idx)
 
     def _balance_and_filter(self):
+        """
+        Filter dataset for species to be considered and balance data based on a balanced metadata DataFrame.
+        """
         class_idx = [self.ds.class_to_idx[spec] for spec in self.species]
 
         # filter for species
@@ -174,7 +291,11 @@ class InatDataModule(pl.LightningDataModule):
         idx = [i for i in idx if self.ds.samples[i][0] in file_paths]
         self._replace_ds(idx)
 
-    def _replace_ds(self, idx):
+    def _replace_ds(self, idx: list):
+        """
+        Replace dataset based on indices.
+        :param idx: List of indices to keep.
+        """
         old_targets = np.array(self.ds.targets)
         new_targets = old_targets[idx]
         new_ds = Subset(self.ds, idx)
@@ -183,8 +304,7 @@ class InatDataModule(pl.LightningDataModule):
 
     def setup(self, stage: Optional[str] = None) -> None:
 
-        # TODO: fill other classes somewhere else
-
+        # Calculate absolute number of samples from split percentages.
         abs_split = list(np.floor(np.array(self.split)[:2] * len(self.metadata)).astype(np.int32))
         abs_split.append(len(self.metadata) - np.sum(abs_split))
 
