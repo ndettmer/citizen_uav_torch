@@ -5,6 +5,7 @@ from CitizenUAV.models import *
 from collections import Counter
 import re
 import pytorch_lightning as pl
+from pytorch_lightning import loggers as pl_loggers
 import torch
 
 
@@ -97,5 +98,6 @@ def test_model():
 def test_training():
     dm = InatDataModule(data_dir, species, img_size=64)
     model = InatClassifier(len(species), 'resnet18')
-    trainer = pl.Trainer(max_epochs=1, max_steps=3)
+    logger = pl_loggers.TensorBoardLogger(save_dir=os.path.join(data_dir, 'pl_logs'))
+    trainer = pl.Trainer(max_epochs=1, max_steps=3, logger=logger)
     trainer.fit(model, dm)
