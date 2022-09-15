@@ -1,8 +1,11 @@
 import pytest
 import shutil
 from CitizenUAV.data import *
+from CitizenUAV.models import *
 from collections import Counter
 import re
+import pytorch_lightning as pl
+import torch
 
 
 tmp_dir = os.path.join('.', 'tmp')
@@ -75,3 +78,24 @@ def test_datamodule():
     assert x.shape[0] == batch_size
     assert x.shape[2] == x.shape[3]
     assert x.shape[2] == img_size
+
+
+def test_model():
+    batch_size = 1
+    img_size = 64
+    n_classes = 2
+    model = InatClassifier(n_classes, 'resnet18')
+    x = torch.randn(1, 3, img_size, img_size)
+    model.eval()
+    y_hat = model(x)
+    assert y_hat.shape[0] == batch_size
+    assert y_hat.shape[1] == n_classes
+    assert (y_hat.flatten(1) <= 1).all()
+    assert (y_hat.flatten(1) >= 0).all()
+
+
+def test_training():
+    dm = InatDataModule(data_dir, species, img_size=64)
+    model = InatClassifier(len(species), 'resnet18')
+    trainer = pl.Trainer(max_epochs=1, max_steps=3)
+    trainer.fit(model, dm)
