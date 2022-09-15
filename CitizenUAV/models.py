@@ -10,9 +10,7 @@ class InatClassifier(pl.LightningModule):
         super().__init__()
 
         # backbone
-        # TODO use ResNet50_V2
         # default is weights=None
-
         backbone = eval(f"{backbone_model}()")
         n_backbone_features = backbone.fc.in_features
         fe_layers = list(backbone.children())[:-2]
