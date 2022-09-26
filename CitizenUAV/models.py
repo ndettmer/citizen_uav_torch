@@ -6,8 +6,17 @@ import torch.nn.functional as F
 
 
 class InatClassifier(pl.LightningModule):
-    def __init__(self, n_classes, backbone_model):
+
+    @staticmethod
+    def add_model_specific_args(parent_parser):
+        parser = parent_parser.add_argument_group("InatClassifier")
+        parser.add_argument("--n_classes", type=int)
+        parser.add_argument("--backbone_model", type=str)
+        return parent_parser
+
+    def __init__(self, n_classes, backbone_model, **kwargs):
         super().__init__()
+        self.save_hyperparameters()
 
         # backbone
         # default is weights=None
@@ -44,3 +53,49 @@ class InatClassifier(pl.LightningModule):
         y_hat = self(x)
         loss = F.cross_entropy(y_hat, y)
         return loss
+
+
+class InatRegressor(pl.LightningModule):
+    def __init__(self, backbone_model):
+        super().__init__()
+
+        # backbone
+        # default is weights=None
+        backbone = eval(f"{backbone_model}()")
+        n_backbone_features = backbone.fc.in_features
+        fe_layers = list(backbone.children())[:-2]
+        self.feature_extractor = nn.Sequential(*fe_layers)
+
+        self.regressor = nn.Sequential(
+            nn.Dropout(p=.5),
+            nn.Linear(n_backbone_features, 512),
+            nn.ReLU(),
+            nn.Linear(512, 512),
+            nn.ReLU(),
+            nn.Linear(512, 256),
+            nn.ReLU(),
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            nn.Linear(128, 1),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        # 1. feature extraction
+        features = self.feature_extractor(x)
+        # 2. global max pooling
+        x = F.max_pool2d(features, kernel_size=features.size()[2:]).flatten(1)
+        # 3. regression
+        x = self.regressor(x)
+        return x
+
+    def configure_optimizers(self):
+        # weight decay > 0 is the L2 regularization
+        return torch.optim.Adam(self.parameters(), lr=.0001, weight_decay=.001)
+
+    def training_step(self, batch, batch_idx):
+        x, y = batch
+        y_hat = self(x)
+        loss = F.mse_loss(y_hat, y)
+        return loss
+

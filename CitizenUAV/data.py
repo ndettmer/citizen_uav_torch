@@ -23,7 +23,7 @@ def download_data(species: str, output_dir: os.PathLike, max_images: Optional[in
     :param species: species to collect data for
     :param output_dir: output directory
     :param max_images: maximum number of images to download
-    :return: True, if the process succeeded
+    :return pd.DataFrame: collected metadata
     """
     quality = "research"
 
@@ -64,7 +64,7 @@ def download_data(species: str, output_dir: os.PathLike, max_images: Optional[in
     # iterate over observations
     p_bar = tqdm(obss)
     p_bar.set_description(f"Downloading data for species {species} ...")
-    for obs in tqdm(obss):
+    for obs in p_bar:
 
         n_photos = len(obs.photos)
 
@@ -75,18 +75,18 @@ def download_data(species: str, output_dir: os.PathLike, max_images: Optional[in
             filename = f'{photo.id}.png'
             img_path = os.path.join(spec_dir, filename)
 
+            # create entry in metadata
+            row = [species, obs.id, n_photos, np.nan]
+            metadata.loc[photo.id] = row
+
             # skip photo, if already downloaded
-            if os.path.exists(img_path) and photo.id in metadata.index:
+            if os.path.exists(img_path):
                 continue
 
             # download image
             fp = photo.open()
             img = Image.open(BytesIO(fp.data))
             img.save(img_path, 'png')
-
-            # create entry in metadata
-            row = [species, obs.id, n_photos, np.nan]
-            metadata.loc[photo.id] = row
 
             # count image and stop if enough images have been downloaded
             images_stored += 1
@@ -100,9 +100,68 @@ def download_data(species: str, output_dir: os.PathLike, max_images: Optional[in
 
         # stop whole procedure if enough images have been downloaded
         if max_images is not None and len(metadata[metadata.species == species]) >= max_images:
-            return True
+            return metadata
 
-    return True
+    return metadata
+
+
+def extend_metadata(data_dir):
+    csv_path = os.path.join(data_dir, 'metadata.csv')
+    ds = ImageFolder(data_dir, transform=transforms.ToTensor())
+    metadata = pd.read_csv(csv_path)
+    metadata.set_index('photo_id', inplace=True)
+
+    # skip augmented images
+    idx = [i for i in range(len(ds)) if "_" not in os.path.basename(ds.samples[i][0])]
+
+    max_vals = pd.Series(index=metadata.index, dtype='float32')
+    min_vals = pd.Series(index=metadata.index, dtype='float32')
+    mean_vals = pd.Series(index=metadata.index, dtype='float32')
+    paths = pd.Series(index=metadata.index, dtype=str)
+    heights = pd.Series(index=metadata.index, dtype='int32')
+    widths = pd.Series(index=metadata.index, dtype='int32')
+    contrasts = pd.Series(index=metadata.index, dtype='float32')
+    saturations = pd.Series(index=metadata.index, dtype='float32')
+
+    for i in tqdm(idx):
+        path, _ = ds.samples[i]
+        filename = os.path.splitext(os.path.basename(path))[0]
+        pid = int(filename)
+
+        img, cls_idx = ds[i]
+        cls = ds.classes[cls_idx]
+
+        try:
+            row = metadata.loc[pid]
+        except KeyError:
+            metadata.loc[pid] = [cls, np.nan, np.nan, cls_idx]
+            row = metadata.loc[pid]
+        if cls != row.species:
+            raise ValueError(f"Classes {cls} and {metadata['species']} do not match for image {pid}!")
+
+        max_val = float(torch.max(img).numpy())
+        max_vals[pid] = max_val
+        min_val = float(torch.min(img).numpy())
+        min_vals[pid] = min_val
+        mean_vals[pid] = float(torch.mean(img).numpy())
+        channels, heights[pid], widths[pid],  = img.size()
+        contrast = max_val - min_val
+        contrasts[pid] = contrast
+        saturations[pid] = contrast / max_val
+        paths[pid] = path
+
+    metadata['max_val'] = max_vals
+    metadata['min_val'] = min_vals
+    metadata['mean_val'] = mean_vals
+    metadata['path'] = paths
+    metadata['height'] = heights
+    metadata['width'] = widths
+    metadata['contrast'] = contrasts
+    metadata['saturation'] = saturations
+
+    metadata.to_csv(csv_path)
+
+    return metadata
 
 
 def offline_augmentation(data_dir: os.PathLike, target_n):
@@ -163,9 +222,20 @@ class InatDataModule(pl.LightningDataModule):
     Data module for the inaturalist image dataset based on previously downloaded images.
     """
 
+    @staticmethod
+    def add_dm_specific_args(parent_parser):
+        parser = parent_parser.add_argument_group("InatDataModule")
+        parser.add_argument("--data_dir", type=str)
+        parser.add_argument("--species", type=str, nargs='+', required=True)
+        parser.add_argument("--batch_size", type=int, default=4)
+        parser.add_argument("--split", type=tuple, default=(.72, .18, .1))
+        parser.add_argument("--balance", type=bool, default=True)
+        parser.add_argument("--img_size", type=int, default=128, choices=[2 ** x for x in range(6, 10)])
+        return parent_parser
+
     # 10% test, split rest into 80% train and 20% val by default
     def __init__(self, data_dir: os.PathLike, species: Optional[Union[list | str]] = None, batch_size: int = 4,
-                 split: tuple = (.72, .18, .1), balance: bool = True, img_size: int = 128):
+                 split: tuple = (.72, .18, .1), balance: bool = True, img_size: int = 128, **kwargs):
         """
         :param data_dir: Directory where the data lies.
         :param species: Species to consider.
@@ -324,3 +394,23 @@ class InatDataModule(pl.LightningDataModule):
 
     def test_dataloader(self) -> TRAIN_DATALOADERS:
         return DataLoader(self.test_ds, batch_size=self.batch_size, shuffle=True)
+
+
+class InatDistAngDataset(ImageFolder):
+
+    def __getitem__(self, idx):
+        x, y = super().__getitem__(idx)
+        # TODO: overwrite y with distance/angle label
+        return x, y
+
+
+class InatDistAngDataModule(InatDataModule):
+
+    def __init__(self, data_dir: os.PathLike, species: Optional[Union[list | str]] = None, batch_size: int = 4,
+                 split: tuple = (.72, .18, .1), balance: bool = True, img_size: int = 128):
+        super().__init__(data_dir, species, batch_size, split, balance, img_size)
+
+        # Compose transformations for the output samples and create the dataset object.
+        # TODO: Check min and max value of images
+        img_transforms = transforms.Compose([transforms.ToTensor(), QuadCrop(), transforms.Resize(img_size), Log10()])
+        self.ds = InatDistAngDataset(str(self.data_dir), transform=img_transforms)
