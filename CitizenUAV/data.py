@@ -17,12 +17,13 @@ from collections import Counter
 from CitizenUAV.transforms import *
 
 
-def download_data(species: str, output_dir: os.PathLike, max_images: Optional[int] = None):
+def download_data(species: str, output_dir: os.PathLike, max_images: Optional[int] = None, min_year: int = 2010):
     """
     Download inaturalist image data for a certain species.
     :param species: species to collect data for
     :param output_dir: output directory
     :param max_images: maximum number of images to download
+    :param min_year: year of the earliest observations to collect
     :return pd.DataFrame: collected metadata
     """
     quality = "research"
@@ -46,7 +47,8 @@ def download_data(species: str, output_dir: os.PathLike, max_images: Optional[in
         taxon_name=species,
         quality_grade=quality,
         photos=True,
-        page='all'
+        page='all',
+        year=range(int(min_year), 2024)
     )
     obss = pin.Observations.from_json_list(response)
 
@@ -77,6 +79,9 @@ def download_data(species: str, output_dir: os.PathLike, max_images: Optional[in
 
             # create entry in metadata
             row = [species, obs.id, n_photos, np.nan]
+            if len(metadata.columns) > len(row):
+                # deal with existing extended metadata
+                row += [np.nan] * (len(metadata.columns) - len(row))
             metadata.loc[photo.id] = row
 
             # skip photo, if already downloaded
@@ -105,14 +110,16 @@ def download_data(species: str, output_dir: os.PathLike, max_images: Optional[in
     return metadata
 
 
-def extend_metadata(data_dir):
+def extend_metadata(data_dir, consider_augmented=False):
     csv_path = os.path.join(data_dir, 'metadata.csv')
     ds = ImageFolder(data_dir, transform=transforms.ToTensor())
     metadata = pd.read_csv(csv_path)
     metadata.set_index('photo_id', inplace=True)
 
-    # skip augmented images
-    idx = [i for i in range(len(ds)) if "_" not in os.path.basename(ds.samples[i][0])]
+    idx = range(len(ds))
+    if not consider_augmented:
+        # skip augmented images
+        idx = [i for i in idx if "_" not in os.path.basename(ds.samples[i][0])]
 
     max_vals = pd.Series(index=metadata.index, dtype='float32')
     min_vals = pd.Series(index=metadata.index, dtype='float32')
@@ -122,19 +129,31 @@ def extend_metadata(data_dir):
     widths = pd.Series(index=metadata.index, dtype='int32')
     contrasts = pd.Series(index=metadata.index, dtype='float32')
     saturations = pd.Series(index=metadata.index, dtype='float32')
+    broken = pd.Series(index=metadata.index, dtype=bool)
+    broken[:] = False
 
     for i in tqdm(idx):
         path, _ = ds.samples[i]
         filename = os.path.splitext(os.path.basename(path))[0]
         pid = int(filename)
 
-        img, cls_idx = ds[i]
+        try:
+            img, cls_idx = ds[i]
+        except OSError:
+            # skip and mark broken files
+            broken[pid] = True
+            print(f"Skipping broken file with id {pid} ...")
+            continue
+
         cls = ds.classes[cls_idx]
 
         try:
             row = metadata.loc[pid]
         except KeyError:
-            metadata.loc[pid] = [cls, np.nan, np.nan, cls_idx]
+            new_row = [cls, np.nan, np.nan, cls_idx]
+            if len(metadata.columns) > len(new_row):
+                new_row += [np.nan] * (len(metadata.columns) - len(new_row))
+            metadata.loc[pid] = new_row
             row = metadata.loc[pid]
         if cls != row.species:
             raise ValueError(f"Classes {cls} and {metadata['species']} do not match for image {pid}!")
@@ -150,6 +169,9 @@ def extend_metadata(data_dir):
         saturations[pid] = contrast / max_val
         paths[pid] = path
 
+    # NaN entries might have been created. Replace them with the default value.
+    broken.fillna(False, inplace=True)
+
     metadata['max_val'] = max_vals
     metadata['min_val'] = min_vals
     metadata['mean_val'] = mean_vals
@@ -158,6 +180,7 @@ def extend_metadata(data_dir):
     metadata['width'] = widths
     metadata['contrast'] = contrasts
     metadata['saturation'] = saturations
+    metadata['broken'] = broken
 
     metadata.to_csv(csv_path)
 
@@ -396,15 +419,15 @@ class InatDataModule(pl.LightningDataModule):
         return DataLoader(self.test_ds, batch_size=self.batch_size, shuffle=True)
 
 
-class InatDistAngDataset(ImageFolder):
+class InatDistDataset(ImageFolder):
 
     def __getitem__(self, idx):
         x, y = super().__getitem__(idx)
-        # TODO: overwrite y with distance/angle label
+        # TODO: overwrite y with distance label
         return x, y
 
 
-class InatDistAngDataModule(InatDataModule):
+class InatDistDataModule(InatDataModule):
 
     def __init__(self, data_dir: os.PathLike, species: Optional[Union[list | str]] = None, batch_size: int = 4,
                  split: tuple = (.72, .18, .1), balance: bool = True, img_size: int = 128):
@@ -413,4 +436,4 @@ class InatDistAngDataModule(InatDataModule):
         # Compose transformations for the output samples and create the dataset object.
         # TODO: Check min and max value of images
         img_transforms = transforms.Compose([transforms.ToTensor(), QuadCrop(), transforms.Resize(img_size), Log10()])
-        self.ds = InatDistAngDataset(str(self.data_dir), transform=img_transforms)
+        self.ds = InatDistDataset(str(self.data_dir), transform=img_transforms)

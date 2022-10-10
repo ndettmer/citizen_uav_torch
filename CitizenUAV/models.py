@@ -56,6 +56,8 @@ class InatClassifier(pl.LightningModule):
 
 
 class InatRegressor(pl.LightningModule):
+    # Only Distance is needed!!
+    # Filtering by angle had no positive effects!
     def __init__(self, backbone_model):
         super().__init__()
 

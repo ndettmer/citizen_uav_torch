@@ -25,7 +25,7 @@ def train_regressor(data_dir, species, img_per_class=None, max_epochs=None, img_
     for spec in species:
         download_data(spec, data_dir, img_per_class)
 
-    dm = InatDistAngDataModule(data_dir, species, img_size=img_size, batch_size=batch_size)
+    dm = InatDistDataModule(data_dir, species, img_size=img_size, batch_size=batch_size)
     model = InatRegressor(backbone)
     trainer = pl.Trainer(max_epochs=max_epochs)
 
