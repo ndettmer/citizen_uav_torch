@@ -17,7 +17,8 @@ from collections import Counter
 from CitizenUAV.transforms import *
 
 
-def download_data(species: str, output_dir: os.PathLike, max_images: Optional[int] = None, min_year: int = 2010):
+def download_data(species: str, output_dir: os.PathLike, max_images: Optional[int] = None,
+                  min_year: Optional[int] = 2010):
     """
     Download inaturalist image data for a certain species.
     :param species: species to collect data for
@@ -163,7 +164,7 @@ def extend_metadata(data_dir, consider_augmented=False):
         min_val = float(torch.min(img).numpy())
         min_vals[pid] = min_val
         mean_vals[pid] = float(torch.mean(img).numpy())
-        channels, heights[pid], widths[pid],  = img.size()
+        channels, heights[pid], widths[pid], = img.size()
         contrast = max_val - min_val
         contrasts[pid] = contrast
         saturations[pid] = contrast / max_val

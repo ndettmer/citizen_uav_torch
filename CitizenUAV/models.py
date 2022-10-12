@@ -2,7 +2,7 @@ import pytorch_lightning as pl
 import torch.optim
 from torchvision.models import resnet18, resnet50, wide_resnet50_2
 from torch import nn
-import torch.nn.functional as F
+from torch.nn import functional as F
 
 
 class InatClassifier(pl.LightningModule):
@@ -11,7 +11,7 @@ class InatClassifier(pl.LightningModule):
     def add_model_specific_args(parent_parser):
         parser = parent_parser.add_argument_group("InatClassifier")
         parser.add_argument("--n_classes", type=int)
-        parser.add_argument("--backbone_model", type=str)
+        parser.add_argument("--backbone_model", type=str, default='resnet18')
         return parent_parser
 
     def __init__(self, n_classes, backbone_model, **kwargs):
@@ -35,6 +35,8 @@ class InatClassifier(pl.LightningModule):
             nn.Softmax()
         )
 
+        self.loss_function = nn.CrossEntropyLoss()
+
     def forward(self, x):
         # 1. feature extraction
         features = self.feature_extractor(x)
@@ -51,7 +53,7 @@ class InatClassifier(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         x, y = batch
         y_hat = self(x)
-        loss = F.cross_entropy(y_hat, y)
+        loss = self.loss_function(y_hat, y)
         return loss
 
 
