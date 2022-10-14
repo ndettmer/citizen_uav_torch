@@ -1,5 +1,5 @@
 from argparse import ArgumentParser
-from CitizenUAV.data import offline_augmentation
+from CitizenUAV.processes import offline_augmentation
 
 if __name__ == "__main__":
     parser = ArgumentParser()

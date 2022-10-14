@@ -1,6 +1,7 @@
 import pytest
 import shutil
 from CitizenUAV.data import *
+from CitizenUAV.processes import *
 from CitizenUAV.models import *
 from collections import Counter
 import re
@@ -95,9 +96,9 @@ def test_model():
     assert (y_hat.flatten(1) >= 0).all()
 
 
-def test_training():
+def test_classifier():
     dm = InatDataModule(data_dir, species, img_size=64)
     model = InatClassifier(len(species), 'resnet18')
     logger = pl_loggers.TensorBoardLogger(save_dir=os.path.join(data_dir, 'pl_logs'))
-    trainer = pl.Trainer(max_epochs=1, max_steps=3, logger=logger)
+    trainer = pl.Trainer(max_epochs=1, max_steps=3, logger=logger, accelerator='cpu')
     trainer.fit(model, dm)

@@ -1,243 +1,41 @@
 import pytorch_lightning as pl
+import torch
 from pytorch_lightning.utilities.types import TRAIN_DATALOADERS
-from torch.utils.data import DataLoader, random_split, Subset
+from torch.utils.data import DataLoader, random_split, Subset, Dataset
 from torchvision.datasets import ImageFolder
 from torchvision import transforms
 
 import pandas as pd
-from tqdm import tqdm
 from PIL import Image
-import pyinaturalist as pin
 
 from typing import Optional, Union
-from io import BytesIO
 import os
-from collections import Counter
 
 from CitizenUAV.transforms import *
 
 
-def download_data(species: str, output_dir: os.PathLike, max_images: Optional[int] = None,
-                  min_year: Optional[int] = 2010):
+def validate_split(split: tuple) -> bool:
     """
-    Download inaturalist image data for a certain species.
-    :param species: species to collect data for
-    :param output_dir: output directory
-    :param max_images: maximum number of images to download
-    :param min_year: year of the earliest observations to collect
-    :return pd.DataFrame: collected metadata
+    Validate the split tuple.
+    :param split: Split
+    :return: True, if valid.
     """
-    quality = "research"
-
-    # create directory
-    if not os.path.isdir(output_dir):
-        os.makedirs(output_dir)
-
-    # load or create metadata DataFrame
-    metadata_path = os.path.join(output_dir, 'metadata.csv')
-    if os.path.exists(metadata_path):
-        metadata = pd.read_csv(metadata_path)
-        metadata.reset_index(drop=True, inplace=True)
-        metadata.set_index('photo_id', inplace=True)
-    else:
-        metadata = pd.DataFrame(columns=['species', 'obs_id', 'n_photos', 'label'])
-        metadata.index.name = 'photo_id'
-
-    # collect data from inaturalist
-    response = pin.get_observations(
-        taxon_name=species,
-        quality_grade=quality,
-        photos=True,
-        page='all',
-        year=range(int(min_year), 2024)
-    )
-    obss = pin.Observations.from_json_list(response)
-
-    # break process if no data was found
-    if not len(obss):
-        print(f"No observations found for species {species}")
-        return False
-
-    # create species directory if it doesn't exist
-    spec_dir = os.path.join(output_dir, species)
-    if not os.path.isdir(spec_dir):
-        os.makedirs(spec_dir)
-
-    images_stored = 0
-    # iterate over observations
-    p_bar = tqdm(obss)
-    p_bar.set_description(f"Downloading data for species {species} ...")
-    for obs in p_bar:
-
-        n_photos = len(obs.photos)
-
-        # iterate over images in observation
-        for i, photo in enumerate(obs.photos):
-
-            # set file name with photo id
-            filename = f'{photo.id}.png'
-            img_path = os.path.join(spec_dir, filename)
-
-            # create entry in metadata
-            row = [species, obs.id, n_photos, np.nan]
-            if len(metadata.columns) > len(row):
-                # deal with existing extended metadata
-                row += [np.nan] * (len(metadata.columns) - len(row))
-            metadata.loc[photo.id] = row
-
-            # skip photo, if already downloaded
-            if os.path.exists(img_path):
-                continue
-
-            # download image
-            fp = photo.open()
-            img = Image.open(BytesIO(fp.data))
-            img.save(img_path, 'png')
-
-            # count image and stop if enough images have been downloaded
-            images_stored += 1
-            if max_images is not None and images_stored >= max_images:
-                break
-
-        # format class label column in metadata
-        metadata.species = metadata.species.astype('category')
-        metadata.label = metadata.species.cat.codes
-        metadata.to_csv(metadata_path)
-
-        # stop whole procedure if enough images have been downloaded
-        if max_images is not None and len(metadata[metadata.species == species]) >= max_images:
-            return metadata
-
-    return metadata
+    if (split_sum := np.round(np.sum(split), 10)) != 1.:
+        raise ValueError(f"The sum of split has to be 1. Got {split_sum}")
+    return True
 
 
-def extend_metadata(data_dir, consider_augmented=False):
-    csv_path = os.path.join(data_dir, 'metadata.csv')
-    ds = ImageFolder(data_dir, transform=transforms.ToTensor())
-    metadata = pd.read_csv(csv_path)
-    metadata.set_index('photo_id', inplace=True)
-
-    idx = range(len(ds))
-    if not consider_augmented:
-        # skip augmented images
-        idx = [i for i in idx if "_" not in os.path.basename(ds.samples[i][0])]
-
-    max_vals = pd.Series(index=metadata.index, dtype='float32')
-    min_vals = pd.Series(index=metadata.index, dtype='float32')
-    mean_vals = pd.Series(index=metadata.index, dtype='float32')
-    paths = pd.Series(index=metadata.index, dtype=str)
-    heights = pd.Series(index=metadata.index, dtype='int32')
-    widths = pd.Series(index=metadata.index, dtype='int32')
-    contrasts = pd.Series(index=metadata.index, dtype='float32')
-    saturations = pd.Series(index=metadata.index, dtype='float32')
-    broken = pd.Series(index=metadata.index, dtype=bool)
-    broken[:] = False
-
-    for i in tqdm(idx):
-        path, _ = ds.samples[i]
-        filename = os.path.splitext(os.path.basename(path))[0]
-        pid = int(filename)
-
-        try:
-            img, cls_idx = ds[i]
-        except OSError:
-            # skip and mark broken files
-            broken[pid] = True
-            print(f"Skipping broken file with id {pid} ...")
-            continue
-
-        cls = ds.classes[cls_idx]
-
-        try:
-            row = metadata.loc[pid]
-        except KeyError:
-            new_row = [cls, np.nan, np.nan, cls_idx]
-            if len(metadata.columns) > len(new_row):
-                new_row += [np.nan] * (len(metadata.columns) - len(new_row))
-            metadata.loc[pid] = new_row
-            row = metadata.loc[pid]
-        if cls != row.species:
-            raise ValueError(f"Classes {cls} and {metadata['species']} do not match for image {pid}!")
-
-        max_val = float(torch.max(img).numpy())
-        max_vals[pid] = max_val
-        min_val = float(torch.min(img).numpy())
-        min_vals[pid] = min_val
-        mean_vals[pid] = float(torch.mean(img).numpy())
-        channels, heights[pid], widths[pid], = img.size()
-        contrast = max_val - min_val
-        contrasts[pid] = contrast
-        saturations[pid] = contrast / max_val
-        paths[pid] = path
-
-    # NaN entries might have been created. Replace them with the default value.
-    broken.fillna(False, inplace=True)
-
-    metadata['max_val'] = max_vals
-    metadata['min_val'] = min_vals
-    metadata['mean_val'] = mean_vals
-    metadata['path'] = paths
-    metadata['height'] = heights
-    metadata['width'] = widths
-    metadata['contrast'] = contrasts
-    metadata['saturation'] = saturations
-    metadata['broken'] = broken
-
-    metadata.to_csv(csv_path)
-
-    return metadata
-
-
-def offline_augmentation(data_dir: os.PathLike, target_n):
+def validate_data_dir(data_dir: os.PathLike) -> bool:
     """
-    Perform offline augmentation on present images.
-    :param data_dir: The directory where the data lies.
-    :param target_n: Target number of samples per class.
-    :return: True, if the procedure succeeded.
+    Validate the data directory.
+    :param data_dir: Data directory path.
+    :return: True, if valid.
     """
-    # create dataset
-    ds = ImageFolder(data_dir, transform=transforms.Compose([transforms.ToTensor(), QuadCrop()]))
-
-    # count samples per class
-    n_samples = dict(Counter(ds.targets))
-
-    # define repertoire of augmentation techniques
-    techniques = [RandomBrightness(), RandomContrast(), RandomSaturation()]
-
-    # postprocessing including random flips
-    do_anyway_after = [transforms.RandomHorizontalFlip(), transforms.RandomVerticalFlip(), transforms.ToPILImage()]
-
-    # iterate over classes
-    for cls, n in n_samples.items():
-        pbar = tqdm(range(target_n - n))
-        pbar.set_description(f"Augmenting for {ds.classes[cls]}")
-
-        # only consider indices of current class for augmentation sampling
-        cls_idx = [i for i in range(len(ds)) if ds.targets[i] == cls]
-
-        for _ in pbar:
-            # sample image to be modified
-            rand_idx = np.random.choice(cls_idx)
-            img, y = ds[rand_idx]
-
-            # Apply each technique with a probability of 0.5 (don't confuse with internal random parameters).
-            random_apply = transforms.RandomApply(techniques)
-
-            # compose and apply modification pipeline
-            transform = transforms.Compose([random_apply] + do_anyway_after)
-            augmented = transform(img)
-
-            # determine new file name
-            orig_filepath = ds.samples[rand_idx][0]
-            filepath = os.path.splitext(orig_filepath)[0]
-            n_copies = 1
-            # make sure the filename doesn't exist yet
-            while os.path.exists(f"{filepath}_{n_copies}.png"):
-                n_copies += 1
-            filepath = f"{filepath}_{n_copies}.png"
-            # save new image
-            augmented.save(filepath, 'png')
-
+    if not os.path.isdir(data_dir):
+        raise ValueError(f"data_dir={data_dir}: No such directory found.")
+    if not os.path.exists(os.path.join(data_dir, "metadata.csv")) and not os.path.exists(
+            os.path.join(data_dir, "distances.csv")):
+        raise ValueError(f"No metadata.csv or distances.csv file found in {data_dir}")
     return True
 
 
@@ -277,11 +75,11 @@ class InatDataModule(pl.LightningDataModule):
             species = [species]
 
         # Make sure split sums up to 1.
-        InatDataModule.validate_split(split)
+        validate_split(split)
         self.split = split
 
         # Make sure the data directory is valid.
-        InatDataModule.validate_data_dir(data_dir)
+        validate_data_dir(data_dir)
         self.data_dir = data_dir
 
         self.metadata = self.read_metadata(species)
@@ -304,30 +102,6 @@ class InatDataModule(pl.LightningDataModule):
         self.train_ds = None
         self.val_ds = None
         self.test_ds = None
-
-    @staticmethod
-    def validate_split(split: tuple) -> bool:
-        """
-        Validate the split tuple.
-        :param split: Split
-        :return: True, if valid.
-        """
-        if (split_sum := np.round(np.sum(split), 10)) != 1.:
-            raise ValueError(f"The sum of split has to be 1. Got {split_sum}")
-        return True
-
-    @staticmethod
-    def validate_data_dir(data_dir: os.PathLike) -> bool:
-        """
-        Validate the data directory.
-        :param data_dir: Data directory path.
-        :return: True, if valid.
-        """
-        if not os.path.isdir(data_dir):
-            raise ValueError(f"data_dir={data_dir}: No such directory found.")
-        if not os.path.exists(os.path.join(data_dir, "metadata.csv")):
-            raise ValueError(f"No metadata.csv file found in {data_dir}")
-        return True
 
     def read_metadata(self, species: Optional[list] = None) -> pd.DataFrame:
         """
@@ -404,37 +178,90 @@ class InatDataModule(pl.LightningDataModule):
         abs_split = list(np.floor(np.array(self.split)[:2] * len(self.metadata)).astype(np.int32))
         abs_split.append(len(self.metadata) - np.sum(abs_split))
 
-        if stage == "fit" or stage is None:
-            self.train_ds, self.val_ds, _ = random_split(self.ds, abs_split)
-
-        if stage == "test" or stage is None:
-            _, _, self.test_ds = random_split(self.ds, abs_split)
+        self.train_ds, self.val_ds, self.test_ds = random_split(self.ds, abs_split)
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
-        return DataLoader(self.train_ds, batch_size=self.batch_size, shuffle=True)
+        return DataLoader(self.train_ds, batch_size=self.batch_size)
 
     def val_dataloader(self) -> TRAIN_DATALOADERS:
-        return DataLoader(self.val_ds, batch_size=self.batch_size, shuffle=True)
+        return DataLoader(self.val_ds, batch_size=self.batch_size)
 
     def test_dataloader(self) -> TRAIN_DATALOADERS:
-        return DataLoader(self.test_ds, batch_size=self.batch_size, shuffle=True)
+        return DataLoader(self.test_ds, batch_size=self.batch_size)
 
 
-class InatDistDataset(ImageFolder):
+class InatDistDataset(Dataset):
+
+    def __init__(self, data_dir, transform):
+        self.data_dir = data_dir
+        df = pd.read_csv(os.path.join(data_dir, "distances.csv"))
+        self.transform = transform
+        self.targets = df.Distance.values.astype(np.float32)
+        self.samples = list(df.itertuples(index=False, name=None))
 
     def __getitem__(self, idx):
-        x, y = super().__getitem__(idx)
-        # TODO: overwrite y with distance label
+        filename, y = self.samples[idx]
+        filepath = os.path.join(self.data_dir, filename)
+        img = Image.open(filepath)
+        x = self.transform(img)
+        if x.shape[0] == 1:
+            x = torch.concat([x, x, x], dim=0)
+        if x.shape[0] > 3:
+            x_mean = x.mean(dim=0).unsqueeze(0)
+            x = torch.concat([x_mean, x_mean, x_mean], dim=0)
+
         return x, y
 
+    def __len__(self):
+        return len(self.samples)
 
-class InatDistDataModule(InatDataModule):
 
-    def __init__(self, data_dir: os.PathLike, species: Optional[Union[list | str]] = None, batch_size: int = 4,
-                 split: tuple = (.72, .18, .1), balance: bool = True, img_size: int = 128):
-        super().__init__(data_dir, species, batch_size, split, balance, img_size)
+class InatDistDataModule(pl.LightningDataModule):
+
+    @staticmethod
+    def add_dm_specific_args(parent_parser):
+        parser = parent_parser.add_argument_group("InatDistDataModule")
+        parser.add_argument("--data_dir", type=str)
+        parser.add_argument("--batch_size", type=int, default=4)
+        parser.add_argument("--split", type=tuple, default=(.72, .18, .1))
+        parser.add_argument("--img_size", type=int, default=128, choices=[2 ** x for x in range(6, 10)])
+        return parent_parser
+
+    def __init__(self, data_dir: os.PathLike, batch_size: int = 4, split: tuple = (.72, .18, .1), img_size: int = 128,
+                 **kwargs):
+        super().__init__()
+
+        self.num_workers = os.cpu_count()
+
+        validate_split(split)
+        self.split = split
+
+        validate_data_dir(data_dir)
+        self.data_dir = data_dir
+
+        self.batch_size = batch_size
 
         # Compose transformations for the output samples and create the dataset object.
         # TODO: Check min and max value of images
         img_transforms = transforms.Compose([transforms.ToTensor(), QuadCrop(), transforms.Resize(img_size), Log10()])
         self.ds = InatDistDataset(str(self.data_dir), transform=img_transforms)
+
+        self.train_ds = None
+        self.val_ds = None
+        self.test_ds = None
+
+    def setup(self, stage: Optional[str] = None) -> None:
+        # Calculate absolute number of samples from split percentages.
+        abs_split = list(np.floor(np.array(self.split)[:2] * len(self.ds)).astype(np.int32))
+        abs_split.append(len(self.ds) - np.sum(abs_split))
+
+        self.train_ds, self.val_ds, self.test_ds = random_split(self.ds, abs_split)
+
+    def train_dataloader(self) -> TRAIN_DATALOADERS:
+        return DataLoader(self.train_ds, batch_size=self.batch_size, num_workers=self.num_workers)
+
+    def val_dataloader(self) -> TRAIN_DATALOADERS:
+        return DataLoader(self.val_ds, batch_size=self.batch_size, num_workers=self.num_workers)
+
+    def test_dataloader(self) -> TRAIN_DATALOADERS:
+        return DataLoader(self.val_ds, batch_size=self.batch_size, num_workers=self.num_workers)

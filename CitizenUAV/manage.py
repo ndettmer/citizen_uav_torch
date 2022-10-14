@@ -1,4 +1,5 @@
 from CitizenUAV.data import *
+from CitizenUAV.processes import *
 from CitizenUAV.models import *
 import pytorch_lightning as pl
 

@@ -1,5 +1,5 @@
 from argparse import ArgumentParser, ArgumentTypeError
-from CitizenUAV.data import download_data
+from CitizenUAV.processes import download_data
 
 
 MIN_YEAR = 2010

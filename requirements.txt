@@ -1,0 +1,9 @@
+torch
+torchvision
+pandas
+tqdm
+Pillow
+pyinaturalist
+pytorch-lightning
+numpy
+scipy

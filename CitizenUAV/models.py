@@ -54,13 +54,28 @@ class InatClassifier(pl.LightningModule):
         x, y = batch
         y_hat = self(x)
         loss = self.loss_function(y_hat, y)
+        self.log_dict({"train_loss": loss})
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        x, y = batch
+        y_hat = self(x)
+        loss = self.loss_function(y_hat, y)
+        self.log_dict({"val_loss": loss})
         return loss
 
 
 class InatRegressor(pl.LightningModule):
     # Only Distance is needed!!
     # Filtering by angle had no positive effects!
-    def __init__(self, backbone_model):
+
+    @staticmethod
+    def add_model_specific_args(parent_parser):
+        parser = parent_parser.add_argument_group("InatRegressor")
+        parser.add_argument("--backbone_model", type=str, default='resnet18')
+        return parent_parser
+
+    def __init__(self, backbone_model, **kwargs):
         super().__init__()
 
         # backbone
@@ -99,7 +114,17 @@ class InatRegressor(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         x, y = batch
+        y = y.float().unsqueeze(-1)
         y_hat = self(x)
         loss = F.mse_loss(y_hat, y)
+        self.log_dict({"train_loss": loss})
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        x, y = batch
+        y = y.float().unsqueeze(-1)
+        y_hat = self(x)
+        loss = F.mse_loss(y_hat, y)
+        self.log_dict({"val_loss": loss})
         return loss
 

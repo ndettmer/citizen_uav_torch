@@ -1,5 +1,5 @@
 from argparse import ArgumentParser
-from CitizenUAV.data import extend_metadata
+from CitizenUAV.processes import extend_metadata
 
 
 if __name__ == "__main__":
