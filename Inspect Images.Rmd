@@ -1,0 +1,106 @@
+---
+jupyter:
+  jupytext:
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.2'
+      jupytext_version: 1.14.0
+  kernelspec:
+    display_name: Python 3 (ipykernel)
+    language: python
+    name: python3
+---
+
+```{python}
+import pandas as pd
+import os
+from torchvision.datasets import ImageFolder
+from torchvision import transforms
+import numpy as np
+import torch
+import matplotlib.pyplot as plt
+from tqdm import tqdm
+```
+
+```{python}
+data_dir = '/home/ndettmer/data/inat'
+ds = ImageFolder(data_dir, transform=transforms.ToTensor())
+to_pil = transforms.ToPILImage()
+```
+
+```{python}
+df = pd.DataFrame(columns=['max_val', 'min_val', 'mean_val', 'width', 'height', 'path', 'class', 'class_idx', 'contrast', 'saturation'])
+df.index.name = 'pid'
+for i in tqdm(range(len(ds))):
+    img, cls_idx = ds[i]
+    gray_img = torch.mean(img, 0)
+    cls = ds.classes[cls_idx]
+    max_val = float(torch.max(img).numpy())
+    min_val = float(torch.min(img).numpy())
+    mean_val = torch.mean(gray_img)
+    channels, height, width = img.size()
+    path, _ = ds.samples[i]
+    contrast = max_val - min_val
+    saturation = contrast / max_val
+    pid = os.path.splitext(os.path.basename(path))[0].split('_')[0]
+    
+    row = [max_val, min_val, mean_val, width, height, path, cls, cls_idx, contrast, saturation]
+    
+    df.loc[pid] = row
+    
+```
+
+```{python}
+df.to_csv(os.path.join(data_dir, 'extended_metadata.csv'))
+```
+
+```{python}
+new_df = pd.read_csv(os.path.join(data_dir, 'extended_metadata.csv'))
+df = new_df
+```
+
+```{python}
+new_df.set_index('pid', inplace=True)
+new_df.describe()
+```
+
+```{python}
+plt.figure()
+df.contrast.plot.density()
+df.saturation.plot.density()
+df.max_val.plot.density()
+plt.legend(['conrast', 'saturation', 'brightness'])
+plt.show()
+```
+
+```{python}
+df.groupby('class').saturation.plot(kind='kde', legend=True)
+```
+
+```{python}
+df.groupby('class').contrast.plot(kind='kde', legend=True)
+```
+
+```{python}
+df.groupby('class_idx').size().plot(kind='bar')
+```
+
+```{python}
+rnd_idx = np.random.randint(len(ds))
+img, target = ds[rnd_idx]
+print(img.size())
+plt.imshow(to_pil(img))
+```
+
+```{python}
+metadata = pd.read_csv(os.path.join(data_dir, 'metadata.csv'))
+```
+
+```{python}
+metadata.describe()
+```
+
+```{python}
+
+```
