@@ -77,6 +77,7 @@ class InatRegressor(pl.LightningModule):
 
     def __init__(self, backbone_model, **kwargs):
         super().__init__()
+        self.save_hyperparameters()
 
         # backbone
         # default is weights=None
@@ -126,5 +127,13 @@ class InatRegressor(pl.LightningModule):
         y_hat = self(x)
         loss = F.mse_loss(y_hat, y)
         self.log_dict({"val_loss": loss})
+        return loss
+
+    def test_step(self, batch, batch_idx):
+        x, y = batch
+        y = y.float().unsqueeze(-1)
+        y_hat = self(x)
+        loss = F.mse_loss(y_hat, y)
+        self.log_dict({"test_loss": loss})
         return loss
 

@@ -147,8 +147,10 @@ class InatDataModule(pl.LightningDataModule):
 
     def _balance_and_filter(self):
         """
-        Filter dataset for species to be considered and balance data based on a balanced metadata DataFrame.
+        Filter dataset for species to be considered and balance data based on a
+        balanced metadata DataFrame.
         """
+
         class_idx = [self.ds.class_to_idx[spec] for spec in self.species]
 
         # filter for species
@@ -159,6 +161,7 @@ class InatDataModule(pl.LightningDataModule):
         file_paths = [os.path.join(self.data_dir, row.species, f"{row.photo_id}.png") for _, row in
                       self.metadata.iterrows()]
         idx = [i for i in idx if self.ds.samples[i][0] in file_paths]
+
         self._replace_ds(idx)
 
     def _replace_ds(self, idx: list):
@@ -192,12 +195,29 @@ class InatDataModule(pl.LightningDataModule):
 
 class InatDistDataset(Dataset):
 
-    def __init__(self, data_dir, transform):
-        self.data_dir = data_dir
-        df = pd.read_csv(os.path.join(data_dir, "distances.csv"))
+    def __init__(self, data_dir, transform, use_normalized=True):
         self.transform = transform
-        self.targets = df.Distance.values.astype(np.float32)
-        self.samples = list(df.itertuples(index=False, name=None))
+        self.data_dir = data_dir
+        df_path = os.path.join(data_dir, "distances.csv")
+        df = pd.read_csv(df_path)
+
+        self.min_dist = df.Distance.min()
+        self.max_dist = df.Distance.max()
+
+        # normalize between 0 and 1
+        if 'standard_dist' not in df:
+            df['standard_dist'] = \
+                (df.Distance - self.min_dist) / (self.max_dist - self.min_dist)
+            df.to_csv(df_path)
+
+        self.use_normalized = use_normalized
+        if self.use_normalized:
+            self.targets = df.standard_dist.values.astype(np.float32)
+            subset = df[['Image', 'standard_dist']]
+        else:
+            self.targets = df.Distance.values.astype(np.float32)
+            subset = df[['Image', 'Distance']]
+        self.samples = list(subset.itertuples(index=False, name=None))
 
     def __getitem__(self, idx):
         filename, y = self.samples[idx]
@@ -264,4 +284,4 @@ class InatDistDataModule(pl.LightningDataModule):
         return DataLoader(self.val_ds, batch_size=self.batch_size, num_workers=self.num_workers)
 
     def test_dataloader(self) -> TRAIN_DATALOADERS:
-        return DataLoader(self.val_ds, batch_size=self.batch_size, num_workers=self.num_workers)
+        return DataLoader(self.test_ds, batch_size=self.batch_size, num_workers=self.num_workers)

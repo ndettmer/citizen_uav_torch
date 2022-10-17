@@ -10,7 +10,9 @@ from collections import Counter
 from torchvision.datasets import ImageFolder
 from torchvision import transforms
 
+from CitizenUAV.models import InatRegressor
 from CitizenUAV.transforms import *
+from CitizenUAV.data import InatDistDataset, InatDistDataModule
 
 
 def download_data(species: str, output_dir: os.PathLike, max_images: Optional[int] = None,
@@ -142,18 +144,18 @@ def extend_metadata(data_dir, consider_augmented=False):
             print(f"Skipping broken file with id {pid} ...")
             continue
 
-        cls = ds.classes[cls_idx]
+        #cls = ds.classes[cls_idx]
 
-        try:
-            row = metadata.loc[pid]
-        except KeyError:
-            new_row = [cls, np.nan, np.nan, cls_idx]
-            if len(metadata.columns) > len(new_row):
-                new_row += [np.nan] * (len(metadata.columns) - len(new_row))
-            metadata.loc[pid] = new_row
-            row = metadata.loc[pid]
-        if cls != row.species:
-            raise ValueError(f"Classes {cls} and {metadata['species']} do not match for image {pid}!")
+        #try:
+        #    row = metadata.loc[pid]
+        #except KeyError:
+        #    new_row = [cls, np.nan, np.nan, cls_idx]
+        #    if len(metadata.columns) > len(new_row):
+        #        new_row += [np.nan] * (len(metadata.columns) - len(new_row))
+        #    metadata.loc[pid] = new_row
+        #    row = metadata.loc[pid]
+        #if cls != row.species:
+        #    raise ValueError(f"Classes {cls} and {metadata['species']} do not match for image {pid}!")
 
         max_val = float(torch.max(img).numpy())
         max_vals[pid] = max_val
@@ -165,6 +167,66 @@ def extend_metadata(data_dir, consider_augmented=False):
         contrasts[pid] = contrast
         saturations[pid] = contrast / max_val
         paths[pid] = path
+
+    # NaN entries might have been created. Replace them with the default value.
+    broken.fillna(False, inplace=True)
+
+    metadata['max_val'] = max_vals
+    metadata['min_val'] = min_vals
+    metadata['mean_val'] = mean_vals
+    metadata['path'] = paths
+    metadata['height'] = heights
+    metadata['width'] = widths
+    metadata['contrast'] = contrasts
+    metadata['saturation'] = saturations
+    metadata['broken'] = broken
+
+    metadata.to_csv(csv_path)
+
+    return metadata
+
+
+def extend_dist_metadata(data_dir, consider_augmented=False):
+    csv_path = os.path.join(data_dir, 'distances.csv')
+    ds = InatDistDataset(data_dir, transforms.ToTensor())
+    metadata = pd.read_csv(csv_path)
+
+    max_vals = pd.Series(index=metadata.index, dtype='float32')
+    min_vals = pd.Series(index=metadata.index, dtype='float32')
+    mean_vals = pd.Series(index=metadata.index, dtype='float32')
+    paths = pd.Series(index=metadata.index, dtype=str)
+    heights = pd.Series(index=metadata.index, dtype='int32')
+    widths = pd.Series(index=metadata.index, dtype='int32')
+    contrasts = pd.Series(index=metadata.index, dtype='float32')
+    saturations = pd.Series(index=metadata.index, dtype='float32')
+    broken = pd.Series(index=metadata.index, dtype=bool)
+    broken[:] = False
+
+    p_bar = tqdm(range(len(ds)))
+    p_bar.set_description("Extending metadata for dataset ...")
+    for i in p_bar:
+
+        filename, distance = ds.samples[i]
+        path = os.path.join(data_dir, filename)
+
+        try:
+            img, t = ds[i]
+        except OSError:
+            # skip and mark broken files
+            broken[i] = True
+            print(f"Skipping broken file with index {i} ...")
+            continue
+
+        max_val = float(torch.max(img).numpy())
+        max_vals[i] = max_val
+        min_val = float(torch.min(img).numpy())
+        min_vals[i] = min_val
+        mean_vals[i] = float(torch.mean(img).numpy())
+        channels, heights[i], widths[i], = img.size()
+        contrast = max_val - min_val
+        contrasts[i] = contrast
+        saturations[i] = contrast / max_val
+        paths[i] = path
 
     # NaN entries might have been created. Replace them with the default value.
     broken.fillna(False, inplace=True)
@@ -235,3 +297,43 @@ def offline_augmentation(data_dir: os.PathLike, target_n):
             augmented.save(filepath, 'png')
 
     return True
+
+
+def predict_distances(data_dir, model_path, train_min, train_max, img_size=256):
+    csv_path = os.path.join(data_dir, "metadata.csv")
+    ds = ImageFolder(data_dir, transform=transforms.Compose([
+        transforms.ToTensor(), QuadCrop(), transforms.Resize(img_size), Log10()
+    ]))
+    metadata = pd.read_csv(csv_path)
+    metadata.set_index('photo_id', inplace=True)
+
+    distances = pd.Series(index=metadata.index, dtype='float32')
+
+    model = InatRegressor.load_from_checkpoint(model_path)
+    model.eval()
+
+    idx = range(len(ds))
+
+    p_bar = tqdm(idx)
+    p_bar.set_description(f"Predicting distances ...")
+    for i in p_bar:
+
+        path, _ = ds.samples[i]
+        filename = os.path.splitext(os.path.basename(path))[0]
+        pid = int(filename)
+
+        try:
+            img, _ = ds[i]
+        except OSError:
+            print(f"Skipping broken file with id {pid}")
+            distances[pid] = np.nan
+            continue
+
+        img = img.unsqueeze(0)
+        y_hat = model(img).detach().numpy()[0, 0]
+        raw_distance = y_hat * (train_max - train_min) + train_min
+        distances[pid] = raw_distance
+
+    metadata['distance'] = distances
+    metadata.to_csv(csv_path)
+    return metadata
