@@ -62,7 +62,17 @@ for i in tqdm(range(len(ds))):
     df.loc[i] = row
 ```
 
-df.to_csv('./test_eval.csv')
+```{python}
+df['correct_border'] = (df.target_raw >= 5) & (df.prediction_raw >= 5) ^ (df.target_raw < 5) & (df.prediction_raw < 5)
+```
+
+```{python}
+len(df[~df.correct_border]) / len(df)
+```
+
+```{python}
+df.to_csv('/home/ndettmer/experiments/ma/distance_regression/22-10-17_eval.csv')
+```
 
 ```{python}
 df.mse = df.mse.astype(float)
@@ -98,6 +108,16 @@ ds.min_dist
 
 ```{python}
 ds.max_dist
+```
+
+```{python}
+for idx, row in tqdm(df.sample(frac=.2).iterrows()):
+    fig = plt.figure(figsize=(20, 20))
+    plt.title(f"target={int(row.target_raw)}; prediction={int(row.prediction_raw)}; {'correct' if row.correct_border else 'not correct'}")
+    img = Image.open(os.path.join(data_dir, row.filename))
+    plt.imshow(img)
+    plt.savefig(f'/home/ndettmer/experiments/ma/distance_regression/eval_img/{idx}.png')
+    plt.close()
 ```
 
 ```{python}

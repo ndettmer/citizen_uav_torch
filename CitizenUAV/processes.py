@@ -16,13 +16,14 @@ from CitizenUAV.data import InatDistDataset, InatDistDataModule
 
 
 def download_data(species: str, output_dir: os.PathLike, max_images: Optional[int] = None,
-                  min_year: Optional[int] = 2010):
+                  min_year: Optional[int] = 2010, max_year: Optional[int] = 2024):
     """
     Download inaturalist image data for a certain species.
     :param species: species to collect data for
     :param output_dir: output directory
     :param max_images: maximum number of images to download
     :param min_year: year of the earliest observations to collect
+    :param max_year: year of the latest observations to collect
     :return pd.DataFrame: collected metadata
     """
     quality = "research"
@@ -47,7 +48,7 @@ def download_data(species: str, output_dir: os.PathLike, max_images: Optional[in
         quality_grade=quality,
         photos=True,
         page='all',
-        year=range(int(min_year), 2024)
+        year=range(int(min_year), int(max_year))
     )
     obss = pin.Observations.from_json_list(response)
 
