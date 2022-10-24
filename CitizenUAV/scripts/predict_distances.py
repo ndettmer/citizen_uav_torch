@@ -9,6 +9,7 @@ if __name__ == "__main__":
     parser.add_argument("--img_size", type=int, choices=[2 ** x for x in range(6, 10)], required=False, default=256)
     parser.add_argument("--train_min", type=float, required=True)
     parser.add_argument("--train_max", type=float, required=True)
+    parser.add_argument("--species", type=str, nargs='+', required=False)
 
     args = parser.parse_args()
     dict_args = vars(args)

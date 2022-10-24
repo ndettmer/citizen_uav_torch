@@ -2,6 +2,7 @@ from typing import Optional
 import os
 import pandas as pd
 import pyinaturalist as pin
+from torch.utils.data import Subset
 from tqdm import tqdm
 from PIL import Image
 from io import BytesIO
@@ -70,6 +71,8 @@ def download_data(species: str, output_dir: os.PathLike, max_images: Optional[in
 
         n_photos = len(obs.photos)
 
+        n_changes = 0
+
         # iterate over images in observation
         for i, photo in enumerate(obs.photos):
 
@@ -77,15 +80,8 @@ def download_data(species: str, output_dir: os.PathLike, max_images: Optional[in
             filename = f'{photo.id}.png'
             img_path = os.path.join(spec_dir, filename)
 
-            # create entry in metadata
-            row = [species, obs.id, n_photos, np.nan]
-            if len(metadata.columns) > len(row):
-                # deal with existing extended metadata
-                row += [np.nan] * (len(metadata.columns) - len(row))
-            metadata.loc[photo.id] = row
-
-            # skip photo, if already downloaded
-            if os.path.exists(img_path):
+            # skip photo, if already downloaded and information collected
+            if os.path.exists(img_path) and photo.id in metadata.index:
                 continue
 
             # download image
@@ -93,15 +89,24 @@ def download_data(species: str, output_dir: os.PathLike, max_images: Optional[in
             img = Image.open(BytesIO(fp.data))
             img.save(img_path, 'png')
 
+            # create entry in metadata
+            row = [species, obs.id, n_photos, np.nan]
+            if len(metadata.columns) > len(row):
+                # deal with existing extended metadata
+                row += [np.nan] * (len(metadata.columns) - len(row))
+            metadata.loc[photo.id] = row
+            n_changes += 1
+
             # count image and stop if enough images have been downloaded
             images_stored += 1
             if max_images is not None and images_stored >= max_images:
                 break
 
         # format class label column in metadata
-        metadata.species = metadata.species.astype('category')
-        metadata.label = metadata.species.cat.codes
-        metadata.to_csv(metadata_path)
+        if n_changes > 0:
+            metadata.species = metadata.species.astype('category')
+            metadata.label = metadata.species.cat.codes
+            metadata.to_csv(metadata_path)
 
         # stop whole procedure if enough images have been downloaded
         if max_images is not None and len(metadata[metadata.species == species]) >= max_images:
@@ -300,11 +305,17 @@ def offline_augmentation(data_dir: os.PathLike, target_n):
     return True
 
 
-def predict_distances(data_dir, model_path, train_min, train_max, img_size=256):
+def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, species: list[str] = None):
     csv_path = os.path.join(data_dir, "metadata.csv")
     ds = ImageFolder(data_dir, transform=transforms.Compose([
         transforms.ToTensor(), QuadCrop(), transforms.Resize(img_size), Log10()
     ]))
+
+    idx = range(len(ds))
+
+    if species:
+        idx = [i for i in idx if ds.classes[ds.targets[i]] in species]
+
     metadata = pd.read_csv(csv_path)
     metadata.set_index('photo_id', inplace=True)
 
@@ -312,8 +323,6 @@ def predict_distances(data_dir, model_path, train_min, train_max, img_size=256):
 
     model = InatRegressor.load_from_checkpoint(model_path)
     model.eval()
-
-    idx = range(len(ds))
 
     p_bar = tqdm(idx)
     p_bar.set_description(f"Predicting distances ...")

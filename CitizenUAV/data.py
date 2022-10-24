@@ -171,8 +171,11 @@ class InatDataModule(pl.LightningDataModule):
         """
         old_targets = np.array(self.ds.targets)
         new_targets = old_targets[idx]
+        new_samples = [self.ds.samples[i] for i in idx]
         new_ds = Subset(self.ds, idx)
         new_ds.targets = new_targets
+        new_ds.samples = new_samples
+        new_ds.classes = self.ds.classes
         self.ds = new_ds
 
     def setup(self, stage: Optional[str] = None) -> None:

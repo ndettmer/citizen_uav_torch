@@ -73,6 +73,13 @@ def test_datamodule():
     assert len(dm.val_ds) <= len(dm.metadata) * dm.split[1]
     assert len(dm.test_ds) < len(dm.metadata)
 
+    # test dataset
+    for _ in range(10):
+        idx = np.random.randint(len(dm.ds))
+        path, target = dm.ds.samples[idx]
+        assert os.path.exists(path)
+        assert dm.ds.classes[target] in path
+
     # test data loader
     dl = dm.train_dataloader()
     x, y = next(iter(dl))
