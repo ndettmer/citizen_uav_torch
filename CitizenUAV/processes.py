@@ -43,6 +43,9 @@ def download_data(species: str, output_dir: os.PathLike, max_images: Optional[in
         metadata = pd.DataFrame(columns=['species', 'obs_id', 'n_photos', 'label'])
         metadata.index.name = 'photo_id'
 
+    if max_images is not None and len(metadata[metadata.species == species]) >= max_images:
+        return metadata
+
     # collect data from inaturalist
     response = pin.get_observations(
         taxon_name=species,
