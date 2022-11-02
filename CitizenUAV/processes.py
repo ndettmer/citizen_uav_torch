@@ -153,17 +153,17 @@ def extend_metadata(data_dir, consider_augmented=False):
             print(f"Skipping broken file with id {pid} ...")
             continue
 
-        #cls = ds.classes[cls_idx]
+        # cls = ds.classes[cls_idx]
 
-        #try:
+        # try:
         #    row = metadata.loc[pid]
-        #except KeyError:
+        # except KeyError:
         #    new_row = [cls, np.nan, np.nan, cls_idx]
         #    if len(metadata.columns) > len(new_row):
         #        new_row += [np.nan] * (len(metadata.columns) - len(new_row))
         #    metadata.loc[pid] = new_row
         #    row = metadata.loc[pid]
-        #if cls != row.species:
+        # if cls != row.species:
         #    raise ValueError(f"Classes {cls} and {metadata['species']} do not match for image {pid}!")
 
         max_val = float(torch.max(img).numpy())
@@ -308,7 +308,40 @@ def offline_augmentation(data_dir: os.PathLike, target_n):
     return True
 
 
-def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, species: list[str] = None):
+def check_images(data_dir):
+    csv_path = os.path.join(data_dir, "metadata.csv")
+    metadata = pd.read_csv(csv_path)
+    metadata.set_index('photo_id', inplace=True)
+    ds = ImageFolder(data_dir, transform=transforms.ToTensor())
+
+    image_okay = pd.Series(index=metadata.index, dtype=bool)
+
+    p_bar = tqdm(range(len(ds)))
+    p_bar.set_description(f"Checking images in {data_dir} ...")
+    for i in p_bar:
+        path, _ = ds.samples[i]
+        filename = os.path.splitext(os.path.basename(path))[0]
+        pid = int(filename)
+
+        try:
+            img, t = ds[i]
+            image_okay[pid] = True
+        except OSError:
+            image_okay[pid] = False
+
+    metadata['image_okay'] = image_okay
+    metadata.to_csv(csv_path)
+
+
+def get_pid_from_path(path):
+    # TODO: move to utils
+    filename = os.path.splitext(os.path.basename(path))[0]
+    return int(filename)
+
+
+def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, species: list[str] = None,
+                      batch_size: int = 1, gpu: bool = True):
+    # TODO: test
     csv_path = os.path.join(data_dir, "metadata.csv")
     ds = ImageFolder(data_dir, transform=transforms.Compose([
         transforms.ToTensor(), QuadCrop(), transforms.Resize(img_size), Log10()
@@ -322,31 +355,63 @@ def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, 
     metadata = pd.read_csv(csv_path)
     metadata.set_index('photo_id', inplace=True)
 
+    if 'image_okay' not in metadata.columns:
+        del metadata
+        check_images(data_dir)
+        metadata = pd.read_csv(csv_path)
+        metadata.set_index('photo_id', inplace=True)
+
+    # filter for loadable images
+    metadata = metadata[metadata.image_okay]
+    idx = [i for i in idx if get_pid_from_path(ds.samples[i][0]) in metadata.index]
+
     distances = pd.Series(index=metadata.index, dtype='float32')
 
     model = InatRegressor.load_from_checkpoint(model_path)
     model.eval()
 
-    p_bar = tqdm(idx)
+    if gpu:
+        model.cuda()
+
+    idx = np.array(idx)
+    p_bar = tqdm(range(len(idx) // batch_size))
     p_bar.set_description(f"Predicting distances ...")
-    for i in p_bar:
+    for batch_no in p_bar:
 
-        path, _ = ds.samples[i]
-        filename = os.path.splitext(os.path.basename(path))[0]
-        pid = int(filename)
+        # build batch
+        pids = []
+        images = []
+        for i in idx[batch_no * batch_size:(batch_no+1) * batch_size]:
+            path, _ = ds.samples[i]
+            filename = os.path.splitext(os.path.basename(path))[0]
 
-        try:
+            pid = int(filename)
+            pids.append(pid)
+
             img, _ = ds[i]
-        except OSError:
-            print(f"Skipping broken file with id {pid}")
-            distances[pid] = np.nan
-            continue
+            images.append(img)
 
-        img = img.unsqueeze(0)
-        y_hat = model(img).detach().numpy()[0, 0]
-        raw_distance = y_hat * (train_max - train_min) + train_min
-        distances[pid] = raw_distance
+        batch = torch.stack(images, dim=0)
+        if gpu:
+            batch.cuda()
 
+        # make predictions
+        with torch.no_grad():
+            preds = model(batch)
+
+        # predict raw/real distances
+        raw_distances = preds * (train_max - train_min) + train_min
+        raw_distances = raw_distances.squeeze(1).numpy()
+
+        # write to series
+        for pid, dist in zip(pids, raw_distances):
+            distances[pid] = dist
+
+        # TODO: remove debug
+        if batch_no >= 10:
+            break
+
+    # TODO: make security saves
     metadata['distance'] = distances
     metadata.to_csv(csv_path)
     return metadata
