@@ -341,7 +341,6 @@ def get_pid_from_path(path):
 
 def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, species: list[str] = None,
                       batch_size: int = 1, gpu: bool = True):
-    # TODO: test
     csv_path = os.path.join(data_dir, "metadata.csv")
     ds = ImageFolder(data_dir, transform=transforms.Compose([
         transforms.ToTensor(), QuadCrop(), transforms.Resize(img_size), Log10()
@@ -365,7 +364,10 @@ def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, 
     metadata = metadata[metadata.image_okay]
     idx = [i for i in idx if get_pid_from_path(ds.samples[i][0]) in metadata.index]
 
-    distances = pd.Series(index=metadata.index, dtype='float32')
+    if 'distance' in metadata.columns:
+        distances = metadata.distance
+    else:
+        distances = pd.Series(index=metadata.index, dtype='float32')
 
     model = InatRegressor.load_from_checkpoint(model_path)
     model.eval()
@@ -389,11 +391,12 @@ def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, 
             pids.append(pid)
 
             img, _ = ds[i]
+            img = img.float()
             images.append(img)
 
         batch = torch.stack(images, dim=0)
         if gpu:
-            batch.cuda()
+            batch = batch.cuda()
 
         # make predictions
         with torch.no_grad():
@@ -401,17 +404,17 @@ def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, 
 
         # predict raw/real distances
         raw_distances = preds * (train_max - train_min) + train_min
-        raw_distances = raw_distances.squeeze(1).numpy()
+        raw_distances = raw_distances.squeeze(1).cpu().numpy()
 
         # write to series
         for pid, dist in zip(pids, raw_distances):
             distances[pid] = dist
 
-        # TODO: remove debug
-        if batch_no >= 10:
-            break
+        # make intermediate saves
+        if not batch_no % 5:
+            metadata['distance'] = distances
+            metadata.to_csv(csv_path)
 
-    # TODO: make security saves
     metadata['distance'] = distances
     metadata.to_csv(csv_path)
     return metadata
