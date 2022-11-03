@@ -199,6 +199,7 @@ class InatDataModule(pl.LightningDataModule):
 class InatDistDataset(Dataset):
 
     def __init__(self, data_dir, transform, use_normalized=True):
+        super().__init__()
         self.transform = transform
         self.data_dir = data_dir
         df_path = os.path.join(data_dir, "distances.csv")
@@ -208,7 +209,7 @@ class InatDistDataset(Dataset):
         self.max_dist = df.Distance.max()
 
         # normalize between 0 and 1
-        if 'standard_dist' not in df:
+        if 'standard_dist' not in df or ('standard_dist' in df and sum(df.standard_dist.isna())):
             df['standard_dist'] = \
                 (df.Distance - self.min_dist) / (self.max_dist - self.min_dist)
             df.to_csv(df_path)
@@ -252,6 +253,12 @@ class InatDistDataModule(pl.LightningDataModule):
 
     def __init__(self, data_dir: os.PathLike, batch_size: int = 4, split: tuple = (.72, .18, .1), img_size: int = 128,
                  **kwargs):
+        """
+        :param data_dir: Directory where the data lies.
+        :param batch_size: Batch size.
+        :param split: Split into train, validation, test.
+        :param img_size: Quadratic image output size (length of an edge).
+        """
         super().__init__()
 
         self.num_workers = os.cpu_count()

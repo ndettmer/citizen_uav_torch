@@ -196,6 +196,13 @@ def extend_metadata(data_dir, consider_augmented=False):
 
 
 def extend_dist_metadata(data_dir, consider_augmented=False):
+    """
+    Extend metadata of distance regression dataset.
+    :param data_dir: Path to the image dataset.
+    :param consider_augmented: If true, also consider images created in an augmentation process
+        (currently not implemented).
+    :return pd.DataFrame: Extended metadata.
+    """
     csv_path = os.path.join(data_dir, 'distances.csv')
     ds = InatDistDataset(data_dir, transforms.ToTensor())
     metadata = pd.read_csv(csv_path)
@@ -250,20 +257,28 @@ def extend_dist_metadata(data_dir, consider_augmented=False):
     metadata['saturation'] = saturations
     metadata['broken'] = broken
 
-    metadata.to_csv(csv_path)
+    metadata.to_csv(csv_path, index=False)
 
     return metadata
 
 
-def offline_augmentation(data_dir: os.PathLike, target_n):
+def offline_augmentation(data_dir: os.PathLike, target_n, subdirs: list[str] = None, distances: bool = False):
     """
     Perform offline augmentation on present images.
     :param data_dir: The directory where the data lies.
     :param target_n: Target number of samples per class.
+    :param subdirs: Sub-directories to consider (handled as targets in the ImageFolder class).
+    :param distances: If True, we are dealing with a distance regression dataset. Therefore, we need to extend the
+        corresponding csv file.
     :return: True, if the procedure succeeded.
     """
     # create dataset
     ds = ImageFolder(data_dir, transform=transforms.Compose([transforms.ToTensor(), QuadCrop()]))
+
+    # only consider samples of specified classes
+    idx = range(len(ds))
+    if subdirs:
+        idx = [i for i in idx if ds.classes[ds.targets[i]] in subdirs]
 
     # count samples per class
     n_samples = dict(Counter(ds.targets))
@@ -280,7 +295,15 @@ def offline_augmentation(data_dir: os.PathLike, target_n):
         pbar.set_description(f"Augmenting for {ds.classes[cls]}")
 
         # only consider indices of current class for augmentation sampling
-        cls_idx = [i for i in range(len(ds)) if ds.targets[i] == cls]
+        cls_idx = [i for i in idx if ds.targets[i] == cls]
+
+        if not len(cls_idx):
+            continue
+
+        # load distances.csv
+        if distances:
+            csv_path = os.path.join(data_dir, ds.classes[ds.targets[cls]], 'distances.csv')
+            dist_df = pd.read_csv(csv_path)
 
         for _ in pbar:
             # sample image to be modified
@@ -302,13 +325,33 @@ def offline_augmentation(data_dir: os.PathLike, target_n):
             while os.path.exists(f"{filepath}_{n_copies}.png"):
                 n_copies += 1
             filepath = f"{filepath}_{n_copies}.png"
+
+            # Add entry to distances.csv
+            if distances:
+                row = pd.Series(index=dist_df.columns, dtype=float)
+                row.Image = os.path.basename(filepath)
+                orig_slice = dist_df[dist_df.path == orig_filepath]
+
+                if not len(orig_slice):
+                    continue
+
+                row.Distance = orig_slice.iloc[0].Distance
+                row.path = filepath
+                row.broken = False
+                dist_df.loc[len(dist_df)] = row
+                dist_df.to_csv(csv_path, index=False)
+
             # save new image
             augmented.save(filepath, 'png')
 
     return True
 
 
-def check_images(data_dir):
+def check_images_files(data_dir):
+    """
+    Check image files in directory for being loadable.
+    :param data_dir: Directory of the image data set
+    """
     csv_path = os.path.join(data_dir, "metadata.csv")
     metadata = pd.read_csv(csv_path)
     metadata.set_index('photo_id', inplace=True)
@@ -317,7 +360,7 @@ def check_images(data_dir):
     image_okay = pd.Series(index=metadata.index, dtype=bool)
 
     p_bar = tqdm(range(len(ds)))
-    p_bar.set_description(f"Checking images in {data_dir} ...")
+    p_bar.set_description(f"Checking image files in {data_dir} ...")
     for i in p_bar:
         path, _ = ds.samples[i]
         filename = os.path.splitext(os.path.basename(path))[0]
@@ -333,14 +376,23 @@ def check_images(data_dir):
     metadata.to_csv(csv_path)
 
 
-def get_pid_from_path(path):
-    # TODO: move to utils
-    filename = os.path.splitext(os.path.basename(path))[0]
-    return int(filename)
-
-
 def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, species: list[str] = None,
-                      batch_size: int = 1, gpu: bool = True):
+                      batch_size: int = 1, gpu: bool = True, overwrite: bool = False) -> pd.DataFrame:
+    """
+    Predicts acquisition distances for an image dataset.
+    :param data_dir: Directory holding the image data
+    :param model_path: Path to the trained model (pytorch checkpoint).
+    :param train_min: Minimum real distance in the training dataset of the model.
+    :param train_max: Maximum real distance in the training dataset of the model.
+    :param img_size: Input image size of the model.
+    :param species: List of subdirectories to be considered
+        (in INaturalist datasets they are named by the plant species)
+    :param batch_size: Batch size
+    :param gpu: If true, use GPU for model inference
+    :param overwrite: If true, overwrite previously assigned distances
+    :return pd.DataFrame: Updated metadata containing distance predictions in column "distance"
+    """
+
     csv_path = os.path.join(data_dir, "metadata.csv")
     ds = ImageFolder(data_dir, transform=transforms.Compose([
         transforms.ToTensor(), QuadCrop(), transforms.Resize(img_size), Log10()
@@ -356,13 +408,24 @@ def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, 
 
     if 'image_okay' not in metadata.columns:
         del metadata
-        check_images(data_dir)
+        check_images_files(data_dir)
         metadata = pd.read_csv(csv_path)
         metadata.set_index('photo_id', inplace=True)
 
+    if not overwrite:
+        # only consider samples that don't have a distance assigned yet
+        na_pids = metadata[metadata.distance.isna()].index
+        idx = [i for i in idx if get_pid_from_path(ds.samples[i][0]) in na_pids]
+        del na_pids
+
     # filter for loadable images
-    metadata = metadata[metadata.image_okay]
-    idx = [i for i in idx if get_pid_from_path(ds.samples[i][0]) in metadata.index]
+    okay_pids = metadata[metadata.image_okay].index
+    idx = [i for i in idx if get_pid_from_path(ds.samples[i][0]) in okay_pids]
+    del okay_pids
+
+    # if no samples are left after filtering, end process
+    if not len(idx):
+        return metadata
 
     if 'distance' in metadata.columns:
         distances = metadata.distance
@@ -374,6 +437,9 @@ def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, 
 
     if gpu:
         model.cuda()
+
+    if batch_size > len(idx):
+        batch_size = len(idx)
 
     idx = np.array(idx)
     p_bar = tqdm(range(len(idx) // batch_size))

@@ -67,6 +67,9 @@ class RandomSaturation(object):
 
 
 class Log10(object):
+    """
+    Take the log10 of the image.
+    """
 
     def __init__(self, out_max: int = 255, in_max: int = 255):
         self.c = out_max / math.log(float(in_max + 1), 10)

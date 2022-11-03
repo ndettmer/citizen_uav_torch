@@ -12,6 +12,7 @@ if __name__ == "__main__":
     parser.add_argument("--species", type=str, nargs='+', required=False)
     parser.add_argument("--batch_size", type=int, required=False, default=1)
     parser.add_argument("--gpu", type=bool, required=False, default=True)
+    parser.add_argument("--overwrite", type=bool, required=False, default=False)
 
     args = parser.parse_args()
     dict_args = vars(args)

@@ -6,7 +6,6 @@ from CitizenUAV.data import InatDistDataModule
 from CitizenUAV.processes import extend_dist_metadata
 from CitizenUAV.models import InatRegressor
 from pytorch_lightning import Trainer
-from CitizenUAV.manage import train_regressor
 from pytorch_lightning.callbacks import EarlyStopping
 from pytorch_lightning.loggers import TensorBoardLogger
 import os
