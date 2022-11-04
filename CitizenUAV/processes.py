@@ -14,6 +14,7 @@ from torchvision import transforms
 from CitizenUAV.models import InatRegressor
 from CitizenUAV.transforms import *
 from CitizenUAV.data import InatDistDataset, InatDistDataModule
+from CitizenUAV.utils import get_pid_from_path
 
 
 def download_data(species: str, output_dir: os.PathLike, max_images: Optional[int] = None,
