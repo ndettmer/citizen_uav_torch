@@ -317,6 +317,7 @@ def offline_augmentation_regression_data(data_dir: os.PathLike, target_n, debug:
 
         # If the original file has no entry in the dataframe, something went wrong.
         # Therefore, skip storing the new image.
+        # TODO: here is a dependency to extend_metadata
         orig_slice = dist_df[dist_df.path == orig_filepath]
         if not len(orig_slice):
             continue
@@ -332,8 +333,10 @@ def offline_augmentation_regression_data(data_dir: os.PathLike, target_n, debug:
         row = pd.Series(index=dist_df.columns, dtype=float)
         row.Image = os.path.basename(filepath)
         row.Distance = orig_slice.iloc[0].Distance
-        row.path = filepath
-        row.broken = False
+        if 'path' in dist_df.columns:
+            row.path = filepath
+        if 'broken' in dist_df.columns:
+            row.broken = False
         dist_df.loc[len(dist_df)] = row
         if not debug:
             dist_df.to_csv(dist_csv_path, index=False)
@@ -397,10 +400,6 @@ def offline_augmentation_classification_data(data_dir: os.PathLike, target_n, su
 
     # iterate over classes
     for cls, n in n_samples.items():
-        # The number of augmented images to be created is the difference between the target number of samples per class
-        # and the actual number of samples for that class.
-        pbar = tqdm(range(target_n - n))
-        pbar.set_description(f"Augmenting for class: {ds.classes[cls]}")
 
         # Only consider indices of current class for augmentation sampling.
         cls_idx = [i for i in idx if ds.targets[i] == cls]
@@ -408,6 +407,11 @@ def offline_augmentation_classification_data(data_dir: os.PathLike, target_n, su
         # If no indices are left after filtering, skip this class.
         if not len(cls_idx):
             continue
+
+        # The number of augmented images to be created is the difference between the target number of samples per class
+        # and the actual number of samples for that class.
+        pbar = tqdm(range(target_n - n))
+        pbar.set_description(f"Augmenting for class: {ds.classes[cls]}")
 
         for _ in pbar:
             # sample image to be modified
