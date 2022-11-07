@@ -274,16 +274,16 @@ def offline_augmentation_regression_data(data_dir: os.PathLike, target_n, debug:
     # create dataset
     ds = ImageFolder(data_dir, transform=transforms.Compose([transforms.ToTensor(), QuadCrop()]))
 
-    # define repertoire of augmentation techniques
-    techniques = [RandomBrightness(), RandomContrast(), RandomSaturation()]
-
-    # postprocessing including random flips
-    do_anyway_after = [
+    # define augmentation pipeline
+    transform = transforms.Compose([
+        RandomBrightness(),
+        RandomContrast(),
+        RandomSaturation(),
         transforms.RandomHorizontalFlip(),
         transforms.RandomVerticalFlip(),
         Clamp(),
         transforms.ToPILImage()
-    ]
+    ])
 
     # iterate over classes
     pbar = tqdm(range(target_n - len(ds)))
@@ -302,11 +302,7 @@ def offline_augmentation_regression_data(data_dir: os.PathLike, target_n, debug:
         if img.min() < 0 or img.max() > 1:
             raise ValueError("Image is not normalized to [0;1]!")
 
-        # Apply each technique with a probability of 0.5 (don't confuse with internal random parameters).
-        random_apply = transforms.RandomApply(techniques)
-
-        # compose and apply modification pipeline
-        transform = transforms.Compose([random_apply] + do_anyway_after)
+        # apply augmentation pipeline
         augmented = transform(img)
 
         # determine new file name
@@ -378,16 +374,16 @@ def offline_augmentation_classification_data(data_dir: os.PathLike, target_n, su
     else:
         n_samples = dict(Counter(ds.targets))
 
-    # define repertoire of augmentation techniques
-    techniques = [RandomBrightness(), RandomContrast(), RandomSaturation()]
-
-    # postprocessing including random flips
-    do_anyway_after = [
+    # define augmentation pipeline
+    transform = transforms.Compose([
+        RandomBrightness(),
+        RandomContrast(),
+        RandomSaturation(),
         transforms.RandomHorizontalFlip(),
         transforms.RandomVerticalFlip(),
         Clamp(),
         transforms.ToPILImage()
-    ]
+    ])
 
     # iterate over classes
     for cls, n in n_samples.items():
@@ -411,11 +407,7 @@ def offline_augmentation_classification_data(data_dir: os.PathLike, target_n, su
             if img.min() < 0 or img.max() > 1:
                 raise ValueError("Image is not normalized to [0;1]!")
 
-            # Apply each technique with a probability of 0.5 (don't confuse with internal random parameters).
-            random_apply = transforms.RandomApply(techniques)
-
-            # compose and apply modification pipeline
-            transform = transforms.Compose([random_apply] + do_anyway_after)
+            # apply augmentation pipeline
             augmented = transform(img)
 
             # determine new file name
