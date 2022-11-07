@@ -22,8 +22,8 @@ import numpy as np
 ```
 
 ```{python}
-data_dir = '/home/ndettmer/data/distance_regression/1_Distance_train'
-data_dir2 = '/home/ndettmer/data/distance_regression/2_Distance_train2'
+data_dir = '***'
+data_dir2 = '***'
 df = pd.read_csv(data_dir + '/distances.csv')
 df2 = pd.read_csv(data_dir2 + '/distances.csv')
 ```

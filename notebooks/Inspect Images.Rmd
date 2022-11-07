@@ -24,7 +24,7 @@ from tqdm import tqdm
 ```
 
 ```{python}
-data_dir = '/home/ndettmer/data/inat'
+data_dir = '***'
 ds = ImageFolder(data_dir, transform=transforms.ToTensor())
 to_pil = transforms.ToPILImage()
 ```

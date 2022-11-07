@@ -18,7 +18,7 @@ from matplotlib import pyplot as plt
 ```
 
 ```{python}
-csv_path = '/home/ndettmer/data/inat/metadata.csv'
+csv_path = '***'
 df = pd.read_csv(csv_path)
 ```
 

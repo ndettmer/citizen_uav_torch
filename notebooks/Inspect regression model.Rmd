@@ -24,8 +24,8 @@ import numpy as np
 ```
 
 ```{python}
-data_dir = '/home/ndettmer/data/distance_regression/mixed'
-model_path = '/home/ndettmer/experiments/ma/distance_regression/lightning_logs/version_1/checkpoints/epoch=15-step=3248.ckpt'
+data_dir = '***'
+model_path = '***/epoch=15-step=3248.ckpt'
 seed = 42
 torch.manual_seed(seed)
 dm = InatDistDataModule(data_dir, img_size=256)
@@ -71,7 +71,7 @@ len(df[~df.correct_border]) / len(df)
 ```
 
 ```{python}
-df.to_csv('/home/ndettmer/experiments/ma/distance_regression/22-10-17_eval.csv')
+df.to_csv('***/distance_regression/22-10-17_eval.csv')
 ```
 
 ```{python}
@@ -116,7 +116,7 @@ for idx, row in tqdm(df.sample(frac=.2).iterrows()):
     plt.title(f"target={int(row.target_raw)}; prediction={int(row.prediction_raw)}; {'correct' if row.correct_border else 'not correct'}")
     img = Image.open(os.path.join(data_dir, row.filename))
     plt.imshow(img)
-    plt.savefig(f'/home/ndettmer/experiments/ma/distance_regression/eval_img/{idx}.png')
+    plt.savefig(f'***/distance_regression/eval_img/{idx}.png')
     plt.close()
 ```
 
