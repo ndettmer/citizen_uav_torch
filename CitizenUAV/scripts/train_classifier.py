@@ -26,10 +26,14 @@ if __name__ == "__main__":
     log_dir = args.log_dir
     torch.manual_seed(args.seed)
 
-    args.n_classes = len(species)
+    if not species:
+        # if no subset is defined take all present species
+        args.n_classes = len(next(os.walk(args.data_dir))[1])
+    else:
+        args.n_classes = len(species)
 
-    for spec in species:
-        download_data(spec, data_dir, img_per_class)
+    #for spec in species:
+    #    download_data(spec, data_dir, img_per_class)
 
     extend_metadata(data_dir)
 

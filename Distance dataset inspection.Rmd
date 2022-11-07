@@ -22,8 +22,8 @@ import numpy as np
 ```
 
 ```{python}
-data_dir = '***'
-data_dir2 = '***'
+data_dir = '/home/ndettmer/data/soltani_distance/1_Distance_train'
+data_dir2 = '/home/ndettmer/data/soltani_distance/2_Distance_train2'
 df = pd.read_csv(data_dir + '/distances.csv')
 df2 = pd.read_csv(data_dir2 + '/distances.csv')
 ```
@@ -187,6 +187,54 @@ df2['Dist_z'] = np.abs(df2.Distance - df2.Distance.median()) / df2.Distance.std(
 
 outliers2 = df2[df2.Dist_z > 3.5]
 print(f"We have {len(outliers2)} outliers. That is {len(outliers2) / len(df2) * 100}% of the dataset.")
+```
+
+## Manually check for correct labels
+
+```{python}
+from torchvision.datasets import ImageFolder
+```
+
+```{python}
+mixed_dir = '/home/ndettmer/data/distance_regression/'
+ds = ImageFolder(mixed_dir)
+distances = pd.read_csv(os.path.join(mixed_dir, 'mixed/distances.csv'))
+idxs = np.array(range(len(ds)))
+np.random.shuffle(idxs)
+i = 0
+```
+
+```{python}
+idx = idxs[i]
+img, _ = ds[idx]
+filename, _ = ds.samples[idx]
+filename = os.path.basename(filename)
+dist = distances[distances.Image == filename].iloc[0].Distance
+
+print(f"Distance: {dist}; Index: {idx}")
+
+plt.figure()
+plt.imshow(img)
+plt.show()
+i += 1
+```
+
+<div style="color:green"><b>Labels seem to be correct!</b></div>
+
+
+## Check value range of images
+
+```{python}
+from torchvision.transforms import ToTensor
+ds = ImageFolder(mixed_dir, transform=ToTensor())
+samples = np.random.choice(idxs, size=10)
+```
+
+```{python}
+for idx in samples:
+    img, _ = ds[idx]
+    print(f"Min value{img.min()}")
+    print(f"Max value{img.max()}\n")
 ```
 
 ```{python}

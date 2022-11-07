@@ -32,7 +32,7 @@ class RandomBrightness(object):
     Adjust brightness by random.
     """
 
-    def __init__(self, rand_range: float = .5):
+    def __init__(self, rand_range: float = .1):
         self.rand_range = rand_range
 
     def __call__(self, img: torch.Tensor):
@@ -45,7 +45,7 @@ class RandomContrast(object):
     Adjust contrast by random.
     """
 
-    def __init__(self, rand_range: float = .5):
+    def __init__(self, rand_range: float = .1):
         self.rand_range = rand_range
 
     def __call__(self, img: torch.Tensor):
@@ -58,7 +58,7 @@ class RandomSaturation(object):
     Adjust saturation by random.
     """
 
-    def __init__(self, rand_range: float = .5):
+    def __init__(self, rand_range: float = .1):
         self.rand_range = rand_range
 
     def __call__(self, img: torch.Tensor):
@@ -71,8 +71,22 @@ class Log10(object):
     Take the log10 of the image.
     """
 
-    def __init__(self, out_max: int = 255, in_max: int = 255):
+    def __init__(self, out_max: int = 1., in_max: int = 1.):
         self.c = out_max / math.log(float(in_max + 1), 10)
 
     def __call__(self, img: torch.Tensor):
         return torch.log10(img + 1.) * self.c
+
+
+class Clamp(object):
+    """
+    Transform version of torch.clamp()
+    """
+
+    def __init__(self, min=0, max=1):
+        self.min = min
+        self.max = max
+
+    def __call__(self, img: torch.Tensor):
+        return torch.clamp(img, min=self.min, max=self.max)
+

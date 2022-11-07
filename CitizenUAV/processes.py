@@ -98,7 +98,7 @@ def download_data(species: str, output_dir: os.PathLike, max_images: Optional[in
             if len(metadata.columns) > len(row):
                 # deal with existing extended metadata
                 row += [np.nan] * (len(metadata.columns) - len(row))
-            metadata.loc[photo.id] = row
+            metadata.loc[str(photo.id)] = row
             n_changes += 1
 
             # count image and stop if enough images have been downloaded
@@ -263,14 +263,94 @@ def extend_dist_metadata(data_dir, consider_augmented=False):
     return metadata
 
 
-def offline_augmentation(data_dir: os.PathLike, target_n, subdirs: list[str] = None, distances: bool = False):
+def offline_augmentation_regression_data(data_dir: os.PathLike, target_n, debug: bool = False):
     """
-    Perform offline augmentation on present images.
+    Perform offline augmentation on distance-labelled image dataset.
+    :param data_dir: The directory where the data lies.
+    :param target_n: Target number of samples per class.
+    :param debug: In debug mode no file changes or new files are saved.
+    :return: True, if the procedure succeeded.
+    """
+    # create dataset
+    ds = ImageFolder(data_dir, transform=transforms.Compose([transforms.ToTensor(), QuadCrop()]))
+
+    # define repertoire of augmentation techniques
+    techniques = [RandomBrightness(), RandomContrast(), RandomSaturation()]
+
+    # postprocessing including random flips
+    do_anyway_after = [
+        transforms.RandomHorizontalFlip(),
+        transforms.RandomVerticalFlip(),
+        Clamp(),
+        transforms.ToPILImage()
+    ]
+
+    # iterate over classes
+    pbar = tqdm(range(target_n - len(ds)))
+    pbar.set_description(f"Augmenting for distance regression training data in directory: {data_dir}")
+
+    # load distances.csv
+    subdir = next(os.walk(data_dir))[1][0]
+    dist_csv_path = os.path.join(data_dir, subdir, 'distances.csv')
+    dist_df = pd.read_csv(dist_csv_path)
+
+    for _ in pbar:
+        # sample image to be modified
+        rand_idx = np.random.choice(range(len(ds)))
+        img, y = ds[rand_idx]
+
+        if img.min() < 0 or img.max() > 1:
+            raise ValueError("Image is not normalized to [0;1]!")
+
+        # Apply each technique with a probability of 0.5 (don't confuse with internal random parameters).
+        random_apply = transforms.RandomApply(techniques)
+
+        # compose and apply modification pipeline
+        transform = transforms.Compose([random_apply] + do_anyway_after)
+        augmented = transform(img)
+
+        # determine new file name
+        orig_filepath = ds.samples[rand_idx][0]
+
+        # If the original file has no entry in the dataframe, something went wrong.
+        # Therefore, skip storing the new image.
+        orig_slice = dist_df[dist_df.path == orig_filepath]
+        if not len(orig_slice):
+            continue
+
+        # make sure the filename doesn't exist yet
+        filepath = os.path.splitext(orig_filepath)[0]
+        n_copies = 1
+        while os.path.exists(f"{filepath}_augmented_{n_copies}.png"):
+            n_copies += 1
+        filepath = f"{filepath}_augmented_{n_copies}.png"
+
+        # Add entry to distances.csv
+        row = pd.Series(index=dist_df.columns, dtype=float)
+        row.Image = os.path.basename(filepath)
+        row.Distance = orig_slice.iloc[0].Distance
+        row.path = filepath
+        row.broken = False
+        dist_df.loc[len(dist_df)] = row
+        if not debug:
+            dist_df.to_csv(dist_csv_path, index=False)
+
+        # save new image
+        if not debug:
+            augmented.save(filepath, 'png')
+
+    return True
+
+
+def offline_augmentation_classification_data(data_dir: os.PathLike, target_n, subdirs: list[str] = None,
+                                             min_distance: float = None, debug: bool = False):
+    """
+    Perform offline augmentation on species-labelled image dataset.
     :param data_dir: The directory where the data lies.
     :param target_n: Target number of samples per class.
     :param subdirs: Sub-directories to consider (handled as targets in the ImageFolder class).
-    :param distances: If True, we are dealing with a distance regression dataset. Therefore, we need to extend the
-        corresponding csv file.
+    :param min_distance: Minimum distance to be considered for augmentation source.
+    :param debug: In debug mode no file changes or new files are saved.
     :return: True, if the procedure succeeded.
     """
     # create dataset
@@ -281,35 +361,55 @@ def offline_augmentation(data_dir: os.PathLike, target_n, subdirs: list[str] = N
     if subdirs:
         idx = [i for i in idx if ds.classes[ds.targets[i]] in subdirs]
 
-    # count samples per class
-    n_samples = dict(Counter(ds.targets))
+    if min_distance:
+        # load metadata file and filter samples by distance
+        metadata_path = os.path.join(data_dir, "metadata.csv")
+        if not os.path.exists(metadata_path):
+            raise FileNotFoundError(f"No metadata.csv found in {data_dir}.")
+        metadata = pd.read_csv(metadata_path)
+        metadata.photo_id = metadata.photo_id.astype(str)
+        metadata.set_index('photo_id', inplace=True)
+        min_dist_pids = metadata[metadata.distance >= min_distance].index
+        idx = [i for i in idx if get_pid_from_path(ds.samples[i][0]) in min_dist_pids]
+
+        # count samples per class
+        dist_cleaned_targets = [ds.targets[i] for i in idx]
+        n_samples = dict(Counter(dist_cleaned_targets))
+    else:
+        n_samples = dict(Counter(ds.targets))
 
     # define repertoire of augmentation techniques
     techniques = [RandomBrightness(), RandomContrast(), RandomSaturation()]
 
     # postprocessing including random flips
-    do_anyway_after = [transforms.RandomHorizontalFlip(), transforms.RandomVerticalFlip(), transforms.ToPILImage()]
+    do_anyway_after = [
+        transforms.RandomHorizontalFlip(),
+        transforms.RandomVerticalFlip(),
+        Clamp(),
+        transforms.ToPILImage()
+    ]
 
     # iterate over classes
     for cls, n in n_samples.items():
+        # The number of augmented images to be created is the difference between the target number of samples per class
+        # and the actual number of samples for that class.
         pbar = tqdm(range(target_n - n))
-        pbar.set_description(f"Augmenting for {ds.classes[cls]}")
+        pbar.set_description(f"Augmenting for class: {ds.classes[cls]}")
 
-        # only consider indices of current class for augmentation sampling
+        # Only consider indices of current class for augmentation sampling.
         cls_idx = [i for i in idx if ds.targets[i] == cls]
 
+        # If no indices are left after filtering, skip this class.
         if not len(cls_idx):
             continue
-
-        # load distances.csv
-        if distances:
-            csv_path = os.path.join(data_dir, ds.classes[ds.targets[cls]], 'distances.csv')
-            dist_df = pd.read_csv(csv_path)
 
         for _ in pbar:
             # sample image to be modified
             rand_idx = np.random.choice(cls_idx)
             img, y = ds[rand_idx]
+
+            if img.min() < 0 or img.max() > 1:
+                raise ValueError("Image is not normalized to [0;1]!")
 
             # Apply each technique with a probability of 0.5 (don't confuse with internal random parameters).
             random_apply = transforms.RandomApply(techniques)
@@ -327,28 +427,21 @@ def offline_augmentation(data_dir: os.PathLike, target_n, subdirs: list[str] = N
                 n_copies += 1
             filepath = f"{filepath}_{n_copies}.png"
 
-            # Add entry to distances.csv
-            if distances:
-                row = pd.Series(index=dist_df.columns, dtype=float)
-                row.Image = os.path.basename(filepath)
-                orig_slice = dist_df[dist_df.path == orig_filepath]
-
-                if not len(orig_slice):
-                    continue
-
-                row.Distance = orig_slice.iloc[0].Distance
-                row.path = filepath
-                row.broken = False
-                dist_df.loc[len(dist_df)] = row
-                dist_df.to_csv(csv_path, index=False)
+            if min_distance:
+                row = metadata.loc[get_pid_from_path(orig_filepath)].copy()
+                # TODO: deal with extended metadata
+                metadata.loc[get_pid_from_path(filepath)] = row
+                if not debug:
+                    metadata.save(metadata_path)
 
             # save new image
-            augmented.save(filepath, 'png')
+            if not debug:
+                augmented.save(filepath, 'png')
 
     return True
 
 
-def check_images_files(data_dir):
+def check_image_files(data_dir):
     """
     Check image files in directory for being loadable.
     :param data_dir: Directory of the image data set
@@ -450,7 +543,7 @@ def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, 
         # build batch
         pids = []
         images = []
-        for i in idx[batch_no * batch_size:(batch_no+1) * batch_size]:
+        for i in idx[batch_no * batch_size:(batch_no + 1) * batch_size]:
             path, _ = ds.samples[i]
             filename = os.path.splitext(os.path.basename(path))[0]
 

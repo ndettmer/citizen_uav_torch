@@ -8,4 +8,4 @@ def get_pid_from_path(path):
     :return int: INaturalist photo ID
     """
     filename = os.path.splitext(os.path.basename(path))[0]
-    return int(filename)
+    return str(filename)

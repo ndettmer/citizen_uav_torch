@@ -1,5 +1,4 @@
 import pytorch_lightning as pl
-import torch
 from pytorch_lightning.utilities.types import TRAIN_DATALOADERS
 from torch.utils.data import DataLoader, random_split, Subset, Dataset
 from torchvision.datasets import ImageFolder
@@ -8,10 +7,11 @@ from torchvision import transforms
 import pandas as pd
 from PIL import Image
 
-from typing import Optional, Union
+from typing import Optional, Union, Sequence
 import os
 
 from CitizenUAV.transforms import *
+from CitizenUAV.utils import get_pid_from_path
 
 
 def validate_split(split: tuple) -> bool:
@@ -48,16 +48,16 @@ class InatDataModule(pl.LightningDataModule):
     def add_dm_specific_args(parent_parser):
         parser = parent_parser.add_argument_group("InatDataModule")
         parser.add_argument("--data_dir", type=str)
-        parser.add_argument("--species", type=str, nargs='+', required=True)
+        parser.add_argument("--species", type=str, nargs='+', required=False)
         parser.add_argument("--batch_size", type=int, default=4)
         parser.add_argument("--split", type=tuple, default=(.72, .18, .1))
-        parser.add_argument("--balance", type=bool, default=True)
         parser.add_argument("--img_size", type=int, default=128, choices=[2 ** x for x in range(6, 10)])
         return parent_parser
 
     # 10% test, split rest into 80% train and 20% val by default
     def __init__(self, data_dir: os.PathLike, species: Optional[Union[list | str]] = None, batch_size: int = 4,
-                 split: tuple = (.72, .18, .1), balance: bool = True, img_size: int = 128, **kwargs):
+                 split: tuple = (.72, .18, .1), img_size: int = 128, min_distance: float = None,
+                 **kwargs):
         """
         :param data_dir: Directory where the data lies.
         :param species: Species to consider.
@@ -88,16 +88,23 @@ class InatDataModule(pl.LightningDataModule):
         # Compose transformations for the output samples and create the dataset object.
         img_transforms = transforms.Compose([transforms.ToTensor(), QuadCrop(), transforms.Resize(img_size)])
         self.ds = ImageFolder(str(self.data_dir), transform=img_transforms)
+        self.idx = range(len(self.ds))
 
         self.species = species
+        self.min_distance = min_distance or 0.
 
         # Filter dataset for species and/or balance the dataset by removing samples from over-represented classes.
-        if self.species and balance:
-            self._balance_and_filter()
-        elif self.species:
+        #if self.species and balance:
+        #    self._balance_and_filter()
+        #elif self.species:
+        #    self._filter_species()
+        #elif balance:
+        #    self._balance_dataset()
+
+        if self.species:
             self._filter_species()
-        elif balance:
-            self._balance_dataset()
+        if self.min_distance:
+            self._filter_distance()
 
         self.train_ds = None
         self.val_ds = None
@@ -119,52 +126,58 @@ class InatDataModule(pl.LightningDataModule):
 
         return metadata
 
-    def _balance_metadata(self):
-        """
-        Balance the metadata DataFrame by removing samples from overrepresented classes.
-        """
-        gb = self.metadata.groupby('label')
-        balanced_metadata = gb.apply(lambda x: x.sample(gb.size().min()).reset_index(drop=True)).reset_index(drop=True)
-        self.metadata = balanced_metadata
+    #def _balance_metadata(self):
+    #    """
+    #    Balance the metadata DataFrame by removing samples from overrepresented classes.
+    #    """
+    #    gb = self.metadata.groupby('label')
+    #    balanced_metadata = gb.apply(lambda x: x.sample(gb.size().min()).reset_index(drop=True)).reset_index(drop=True)
+    #    self.metadata = balanced_metadata
 
-    def _balance_dataset(self):
-        """
-        Balance the dataset based on a balanced metadata DataFrame.
-        """
-        self._balance_metadata()
-        file_paths = [os.path.join(self.data_dir, row.species, f"{row.photo_id}.png") for _, row in
-                      self.metadata.iterrows()]
-        idx = [i for i in range(len(self.ds)) if self.ds.samples[i][0] in file_paths]
-        self._replace_ds(idx)
+    #def _balance_dataset(self):
+    #    """
+    #    Balance the dataset based on a balanced metadata DataFrame.
+    #    """
+    #    self._balance_metadata()
+    #    file_paths = [os.path.join(self.data_dir, row.species, f"{row.photo_id}.png") for _, row in
+    #                  self.metadata.iterrows()]
+    #    idx = [i for i in range(len(self.ds)) if self.ds.samples[i][0] in file_paths]
+    #    self._replace_ds(idx)
 
     def _filter_species(self):
         """
         Filter dataset for species to be considered.
         """
         class_idx = [self.ds.class_to_idx[spec] for spec in self.species]
-        idx = [i for i in range(len(self.ds)) if self.ds[i][1] in class_idx]
-        self._replace_ds(idx)
+        self.idx = [i for i in self.idx if self.ds[i][1] in class_idx]
 
-    def _balance_and_filter(self):
-        """
-        Filter dataset for species to be considered and balance data based on a
-        balanced metadata DataFrame.
-        """
+    def _filter_distance(self):
+        """Filter dataset for samples with a minimum distance."""
+        if 'distance' not in self.metadata:
+            raise KeyError("The samples have no acquisition distance assigned.")
+        min_dist_subset = self.metadata[self.metadata.distance >= self.min_distance].index
+        self.idx = [i for i in self.idx if get_pid_from_path(self.ds.samples[i][0]) in min_dist_subset]
 
-        class_idx = [self.ds.class_to_idx[spec] for spec in self.species]
+    #def _balance_and_filter(self):
+    #    """
+    #    Filter dataset for species to be considered and balance data based on a
+    #    balanced metadata DataFrame.
+    #    """
 
-        # filter for species
-        idx = [i for i in range(len(self.ds)) if self.ds[i][1] in class_idx]
+    #    class_idx = [self.ds.class_to_idx[spec] for spec in self.species]
 
-        # balance classes
-        self._balance_metadata()
-        file_paths = [os.path.join(self.data_dir, row.species, f"{row.photo_id}.png") for _, row in
-                      self.metadata.iterrows()]
-        idx = [i for i in idx if self.ds.samples[i][0] in file_paths]
+    #    # filter for species
+    #    idx = [i for i in range(len(self.ds)) if self.ds[i][1] in class_idx]
 
-        self._replace_ds(idx)
+    #    # balance classes
+    #    self._balance_metadata()
+    #    file_paths = [os.path.join(self.data_dir, row.species, f"{row.photo_id}.png") for _, row in
+    #                  self.metadata.iterrows()]
+    #    idx = [i for i in idx if self.ds.samples[i][0] in file_paths]
 
-    def _replace_ds(self, idx: list):
+    #    self._replace_ds(idx)
+
+    def _replace_ds(self, idx: Sequence[int]):
         """
         Replace dataset based on indices.
         :param idx: List of indices to keep.
@@ -180,9 +193,11 @@ class InatDataModule(pl.LightningDataModule):
 
     def setup(self, stage: Optional[str] = None) -> None:
 
+        self._replace_ds(self.idx)
+
         # Calculate absolute number of samples from split percentages.
-        abs_split = list(np.floor(np.array(self.split)[:2] * len(self.metadata)).astype(np.int32))
-        abs_split.append(len(self.metadata) - np.sum(abs_split))
+        abs_split = list(np.floor(np.array(self.split)[:2] * len(self.ds)).astype(np.int32))
+        abs_split.append(len(self.ds) - np.sum(abs_split))
 
         self.train_ds, self.val_ds, self.test_ds = random_split(self.ds, abs_split)
 
