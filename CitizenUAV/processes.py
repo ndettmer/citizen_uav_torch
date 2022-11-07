@@ -276,6 +276,11 @@ def offline_augmentation_regression_data(data_dir: os.PathLike, target_n, debug:
     # create dataset
     ds = ImageFolder(data_dir, transform=transforms.Compose([transforms.ToTensor(), QuadCrop()]))
 
+    idx = range(len(ds))
+
+    # filter augmented samples
+    idx = [i for i in idx if 'augmented' not in os.path.basename(ds.samples[i][0])]
+
     # define augmentation pipeline
     transform = transforms.Compose([
         RandomBrightness(),
@@ -298,7 +303,7 @@ def offline_augmentation_regression_data(data_dir: os.PathLike, target_n, debug:
 
     for _ in pbar:
         # sample image to be modified
-        rand_idx = np.random.choice(range(len(ds)))
+        rand_idx = np.random.choice(idx)
         img, y = ds[rand_idx]
 
         if img.min() < 0 or img.max() > 1:
@@ -353,9 +358,12 @@ def offline_augmentation_classification_data(data_dir: os.PathLike, target_n, su
     """
     # create dataset
     ds = ImageFolder(data_dir, transform=transforms.Compose([transforms.ToTensor(), QuadCrop()]))
+    idx = range(len(ds))
+
+    # filter augmented samples
+    idx = [i for i in idx if 'augmented' not in os.path.basename(ds.samples[i][0])]
 
     # only consider samples of specified classes
-    idx = range(len(ds))
     if subdirs:
         idx = [i for i in idx if ds.classes[ds.targets[i]] in subdirs]
 
