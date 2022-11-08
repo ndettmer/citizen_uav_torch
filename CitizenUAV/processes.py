@@ -1,8 +1,5 @@
 from typing import Optional
-import os
-import pandas as pd
 import pyinaturalist as pin
-from torch.utils.data import Subset
 from tqdm import tqdm
 from PIL import Image
 from io import BytesIO
@@ -13,8 +10,8 @@ from torchvision import transforms
 
 from CitizenUAV.models import InatRegressor
 from CitizenUAV.transforms import *
-from CitizenUAV.data import InatDistDataset, InatDistDataModule
-from CitizenUAV.utils import get_pid_from_path
+from CitizenUAV.data import InatDistDataset
+from CitizenUAV.utils import *
 
 
 def download_data(species: str, output_dir: os.PathLike, max_images: Optional[int] = None,
@@ -151,21 +148,8 @@ def extend_metadata(data_dir, consider_augmented=False):
         except OSError:
             # skip and mark broken files
             broken[pid] = True
-            print(f"Skipping broken file with id {pid} ...")
+            print(f"Skipping broken file with id {pid}.")
             continue
-
-        # cls = ds.classes[cls_idx]
-
-        # try:
-        #    row = metadata.loc[pid]
-        # except KeyError:
-        #    new_row = [cls, np.nan, np.nan, cls_idx]
-        #    if len(metadata.columns) > len(new_row):
-        #        new_row += [np.nan] * (len(metadata.columns) - len(new_row))
-        #    metadata.loc[pid] = new_row
-        #    row = metadata.loc[pid]
-        # if cls != row.species:
-        #    raise ValueError(f"Classes {cls} and {metadata['species']} do not match for image {pid}!")
 
         max_val = float(torch.max(img).numpy())
         max_vals[pid] = max_val
@@ -477,7 +461,8 @@ def check_image_files(data_dir):
 
 
 def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, species: list[str] = None,
-                      batch_size: int = 1, gpu: bool = True, overwrite: bool = False) -> pd.DataFrame:
+                      batch_size: int = 1, gpu: bool = True, overwrite: bool = False,
+                      debug: bool = False) -> pd.DataFrame:
     """
     Predicts acquisition distances for an image dataset.
     :param data_dir: Directory holding the image data
@@ -490,6 +475,7 @@ def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, 
     :param batch_size: Batch size
     :param gpu: If true, use GPU for model inference
     :param overwrite: If true, overwrite previously assigned distances
+    :param debug: No files distances are saved in debug mode.
     :return pd.DataFrame: Updated metadata containing distance predictions in column "distance"
     """
 
@@ -504,13 +490,13 @@ def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, 
         idx = [i for i in idx if ds.classes[ds.targets[i]] in species]
 
     metadata = pd.read_csv(csv_path)
+    metadata.photo_id = metadata.photo_id.astype(str)
     metadata.set_index('photo_id', inplace=True)
 
     if 'image_okay' not in metadata.columns:
         del metadata
-        check_images_files(data_dir)
-        metadata = pd.read_csv(csv_path)
-        metadata.set_index('photo_id', inplace=True)
+        check_image_files(data_dir)
+        metadata = read_inat_metadata(data_dir)
 
     if not overwrite:
         # only consider samples that don't have a distance assigned yet
@@ -553,7 +539,7 @@ def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, 
             path, _ = ds.samples[i]
             filename = os.path.splitext(os.path.basename(path))[0]
 
-            pid = int(filename)
+            pid = filename
             pids.append(pid)
 
             img, _ = ds[i]
@@ -579,8 +565,10 @@ def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, 
         # make intermediate saves
         if not batch_no % 5:
             metadata['distance'] = distances
-            metadata.to_csv(csv_path)
+            if not debug:
+                metadata.to_csv(csv_path)
 
     metadata['distance'] = distances
-    metadata.to_csv(csv_path)
+    if not debug:
+        metadata.to_csv(csv_path)
     return metadata
