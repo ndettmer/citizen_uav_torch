@@ -287,7 +287,6 @@ class InatDistDataModule(pl.LightningDataModule):
         self.batch_size = batch_size
 
         # Compose transformations for the output samples and create the dataset object.
-        # TODO: Check min and max value of images
         img_transforms = transforms.Compose([transforms.ToTensor(), QuadCrop(), transforms.Resize(img_size), Log10()])
         self.ds = InatDistDataset(str(self.data_dir), transform=img_transforms)
 

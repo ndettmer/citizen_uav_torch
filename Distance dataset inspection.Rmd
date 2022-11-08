@@ -225,16 +225,11 @@ i += 1
 ## Check value range of images
 
 ```{python}
-from torchvision.transforms import ToTensor
-ds = ImageFolder(mixed_dir, transform=ToTensor())
-samples = np.random.choice(idxs, size=10)
+sum(distances.max_val > 1)
 ```
 
 ```{python}
-for idx in samples:
-    img, _ = ds[idx]
-    print(f"Min value{img.min()}")
-    print(f"Max value{img.max()}\n")
+sum(distances.max_val < 0)
 ```
 
 ```{python}
