@@ -128,7 +128,7 @@ def extend_metadata(data_dir, consider_augmented=False):
     idx = range(len(ds))
     if not consider_augmented:
         # skip augmented images
-        idx = [i for i in idx if "_" not in os.path.basename(ds.samples[i][0])]
+        idx = [i for i in idx if "augmented" not in os.path.basename(ds.samples[i][0])]
 
     max_vals = pd.Series(index=metadata.index, dtype='float32')
     min_vals = pd.Series(index=metadata.index, dtype='float32')
