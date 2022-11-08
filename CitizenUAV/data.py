@@ -126,24 +126,6 @@ class InatDataModule(pl.LightningDataModule):
 
         return metadata
 
-    #def _balance_metadata(self):
-    #    """
-    #    Balance the metadata DataFrame by removing samples from overrepresented classes.
-    #    """
-    #    gb = self.metadata.groupby('label')
-    #    balanced_metadata = gb.apply(lambda x: x.sample(gb.size().min()).reset_index(drop=True)).reset_index(drop=True)
-    #    self.metadata = balanced_metadata
-
-    #def _balance_dataset(self):
-    #    """
-    #    Balance the dataset based on a balanced metadata DataFrame.
-    #    """
-    #    self._balance_metadata()
-    #    file_paths = [os.path.join(self.data_dir, row.species, f"{row.photo_id}.png") for _, row in
-    #                  self.metadata.iterrows()]
-    #    idx = [i for i in range(len(self.ds)) if self.ds.samples[i][0] in file_paths]
-    #    self._replace_ds(idx)
-
     def _filter_species(self):
         """
         Filter dataset for species to be considered.
@@ -157,25 +139,6 @@ class InatDataModule(pl.LightningDataModule):
             raise KeyError("The samples have no acquisition distance assigned.")
         min_dist_subset = self.metadata[self.metadata.distance >= self.min_distance].index
         self.idx = [i for i in self.idx if get_pid_from_path(self.ds.samples[i][0]) in min_dist_subset]
-
-    #def _balance_and_filter(self):
-    #    """
-    #    Filter dataset for species to be considered and balance data based on a
-    #    balanced metadata DataFrame.
-    #    """
-
-    #    class_idx = [self.ds.class_to_idx[spec] for spec in self.species]
-
-    #    # filter for species
-    #    idx = [i for i in range(len(self.ds)) if self.ds[i][1] in class_idx]
-
-    #    # balance classes
-    #    self._balance_metadata()
-    #    file_paths = [os.path.join(self.data_dir, row.species, f"{row.photo_id}.png") for _, row in
-    #                  self.metadata.iterrows()]
-    #    idx = [i for i in idx if self.ds.samples[i][0] in file_paths]
-
-    #    self._replace_ds(idx)
 
     def _replace_ds(self, idx: Sequence[int]):
         """
