@@ -140,8 +140,7 @@ def extend_metadata(data_dir, consider_augmented=False):
 
     for i in tqdm(idx):
         path, _ = ds.samples[i]
-        filename = os.path.splitext(os.path.basename(path))[0]
-        pid = int(filename)
+        pid = get_pid_from_path(path)
 
         try:
             img, cls_idx = ds[i]
@@ -422,7 +421,7 @@ def offline_augmentation_classification_data(data_dir: os.PathLike, target_n, su
                 # TODO: deal with extended metadata
                 metadata.loc[get_pid_from_path(filepath)] = row
                 if not debug:
-                    metadata.save(metadata_path)
+                    metadata.to_csv(metadata_path)
 
             # save new image
             if not debug:
@@ -572,3 +571,32 @@ def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, 
     if not debug:
         metadata.to_csv(csv_path)
     return metadata
+
+
+def create_gim_metadata(data_dir: os.PathLike, classes: list = None, debug: bool = False):
+
+    metadata = pd.DataFrame(columns=["photo_id", "species", "distance", "obs_id", "n_photos", "label", "image_okay"])
+    metadata.set_index('photo_id', inplace=True)
+
+    ds = ImageFolder(str(data_dir))
+    idx = range(len(ds))
+
+    if classes:
+        idx = [i for i in idx if ds.classes[ds[i][1]] in classes]
+
+    p_bar = tqdm(idx)
+    p_bar.set_description(f"Creating metadata for image dataset in {data_dir}.")
+    for i in p_bar:
+        img, _ = ds[i]
+
+        path, t = ds.samples[i]
+        row = [ds.classes[t], 150., np.nan, 1, np.nan, True]
+
+        photo_id = os.path.basename(path)
+        metadata.loc[photo_id] = row
+
+    metadata.species = metadata.species.astype('category')
+    metadata.label = metadata.species.cat.codes
+
+    if not debug:
+        metadata.to_csv(os.path.join(data_dir, "metadata.csv"))
