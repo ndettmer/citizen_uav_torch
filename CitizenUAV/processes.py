@@ -355,12 +355,7 @@ def offline_augmentation_classification_data(data_dir: os.PathLike, target_n, su
 
     if min_distance:
         # load metadata file and filter samples by distance
-        metadata_path = os.path.join(data_dir, "metadata.csv")
-        if not os.path.exists(metadata_path):
-            raise FileNotFoundError(f"No metadata.csv found in {data_dir}.")
-        metadata = pd.read_csv(metadata_path)
-        metadata.photo_id = metadata.photo_id.astype(str)
-        metadata.set_index('photo_id', inplace=True)
+        metadata = read_inat_metadata(data_dir)
         min_dist_pids = metadata[metadata.distance >= min_distance].index
         idx = [i for i in idx if get_pid_from_path(ds.samples[i][0]) in min_dist_pids]
 
@@ -592,7 +587,7 @@ def create_gim_metadata(data_dir: os.PathLike, classes: list = None, debug: bool
         path, t = ds.samples[i]
         row = [ds.classes[t], 150., np.nan, 1, np.nan, True]
 
-        photo_id = os.path.basename(path)
+        photo_id, _ = os.path.splitext(os.path.basename(path))
         metadata.loc[photo_id] = row
 
     metadata.species = metadata.species.astype('category')
