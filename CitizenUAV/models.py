@@ -32,7 +32,7 @@ class InatClassifier(pl.LightningModule):
             nn.Linear(256, 128),
             nn.ReLU(),
             nn.Linear(128, n_classes),
-            nn.Softmax()
+            nn.Softmax(dim=1)
         )
 
         self.loss_function = nn.CrossEntropyLoss()
@@ -51,6 +51,7 @@ class InatClassifier(pl.LightningModule):
         return torch.optim.RMSprop(self.parameters(), lr=.0001, weight_decay=.001)
 
     def training_step(self, batch, batch_idx):
+        # TODO: log accuracy
         x, y = batch
         y_hat = self(x)
         loss = self.loss_function(y_hat, y)
@@ -62,6 +63,13 @@ class InatClassifier(pl.LightningModule):
         y_hat = self(x)
         loss = self.loss_function(y_hat, y)
         self.log_dict({"val_loss": loss})
+        return loss
+
+    def test_step(self, batch, batch_idx):
+        x, y = batch
+        y_hat = self(x)
+        loss = self.loss_function(y_hat, y)
+        self.log_dict({"test_loss": loss})
         return loss
 
 

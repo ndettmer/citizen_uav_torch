@@ -55,6 +55,7 @@ class InatDataModule(pl.LightningDataModule):
         parser.add_argument("--split", type=tuple, default=(.72, .18, .1))
         parser.add_argument("--img_size", type=int, default=128, choices=[2 ** x for x in range(6, 10)])
         parser.add_argument("--balance", type=bool, default=False, required=False)
+        parser.add_argument("--min_distance", type=int, default=None, required=False)
         return parent_parser
 
     # 10% test, split rest into 80% train and 20% val by default
@@ -85,6 +86,7 @@ class InatDataModule(pl.LightningDataModule):
         validate_data_dir(data_dir)
         self.data_dir = data_dir
 
+        # TODO: fix dtype warning
         self.metadata = read_inat_metadata(self.data_dir)
         self.batch_size = batch_size
 
@@ -96,6 +98,7 @@ class InatDataModule(pl.LightningDataModule):
         self.species = species
         self.min_distance = min_distance or 0.
         self.balance = balance
+        self.num_workers = os.cpu_count()
 
         self._filter_broken_images()
         if self.species:
@@ -176,6 +179,10 @@ class InatDataModule(pl.LightningDataModule):
                 [np.random.choice(np.argwhere(tmp_targets == t).flatten(), size=min_n, replace=False) for t in
                  n_samples.keys()]))
 
+        cleaned_targets = [self.ds.targets[i] for i in self.idx]
+        n_samples = dict(Counter(cleaned_targets))
+        logging.info(f"Class sample distribution after balancing procedure: {n_samples}")
+
     def _replace_ds(self, idx: Sequence[int]):
         """
         Replace dataset based on indices.
@@ -201,13 +208,13 @@ class InatDataModule(pl.LightningDataModule):
         self.train_ds, self.val_ds, self.test_ds = random_split(self.ds, abs_split)
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
-        return DataLoader(self.train_ds, batch_size=self.batch_size)
+        return DataLoader(self.train_ds, batch_size=self.batch_size, num_workers=self.num_workers)
 
     def val_dataloader(self) -> TRAIN_DATALOADERS:
-        return DataLoader(self.val_ds, batch_size=self.batch_size)
+        return DataLoader(self.val_ds, batch_size=self.batch_size, num_workers=self.num_workers)
 
     def test_dataloader(self) -> TRAIN_DATALOADERS:
-        return DataLoader(self.test_ds, batch_size=self.batch_size)
+        return DataLoader(self.test_ds, batch_size=self.batch_size, num_workers=self.num_workers)
 
 
 class InatDistDataset(Dataset):

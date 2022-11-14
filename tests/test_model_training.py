@@ -35,6 +35,7 @@ def setup_and_teardown():
     teardown()
 
 
+@pytest.mark.deprecated
 def test_augmentation():
     target_n = 10
     offline_augmentation(data_dir, target_n)
