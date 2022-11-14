@@ -9,6 +9,7 @@ from PIL import Image
 
 from typing import Optional, Union, Sequence
 import os
+from collections import Counter
 
 from CitizenUAV.transforms import *
 from CitizenUAV.utils import get_pid_from_path
@@ -52,11 +53,12 @@ class InatDataModule(pl.LightningDataModule):
         parser.add_argument("--batch_size", type=int, default=4)
         parser.add_argument("--split", type=tuple, default=(.72, .18, .1))
         parser.add_argument("--img_size", type=int, default=128, choices=[2 ** x for x in range(6, 10)])
+        parser.add_argument("--balance", type=bool, default=False, required=False)
         return parent_parser
 
     # 10% test, split rest into 80% train and 20% val by default
     def __init__(self, data_dir: os.PathLike, species: Optional[Union[list | str]] = None, batch_size: int = 4,
-                 split: tuple = (.72, .18, .1), img_size: int = 128, min_distance: float = None,
+                 split: tuple = (.72, .18, .1), img_size: int = 128, min_distance: float = None, balance: bool = False,
                  **kwargs):
         """
         :param data_dir: Directory where the data lies.
@@ -92,19 +94,15 @@ class InatDataModule(pl.LightningDataModule):
 
         self.species = species
         self.min_distance = min_distance or 0.
-
-        # Filter dataset for species and/or balance the dataset by removing samples from over-represented classes.
-        #if self.species and balance:
-        #    self._balance_and_filter()
-        #elif self.species:
-        #    self._filter_species()
-        #elif balance:
-        #    self._balance_dataset()
+        self.balance = balance
 
         if self.species:
             self._filter_species()
         if self.min_distance:
             self._filter_distance()
+        # Balancing should always be the last step of modifying the selection of samples!
+        if self.balance:
+            self._balance_dataset()
 
         self.train_ds = None
         self.val_ds = None
@@ -139,6 +137,32 @@ class InatDataModule(pl.LightningDataModule):
             raise KeyError("The samples have no acquisition distance assigned.")
         min_dist_subset = self.metadata[self.metadata.distance >= self.min_distance].index
         self.idx = [i for i in self.idx if get_pid_from_path(self.ds.samples[i][0]) in min_dist_subset]
+
+    def _balance_dataset(self):
+        """Select an equal number of samples per class."""
+        # check if balanced and determine minimum number of samples per class
+        cleaned_targets = [self.ds.targets[i] for i in self.idx]
+        n_samples = dict(Counter(cleaned_targets))
+        min_n = min(n_samples.values())
+        balanced = True
+        for t, n in n_samples.items():
+            if n != min_n:
+                balanced = False
+
+        tmp_targets = np.array(self.ds.targets)
+
+        # Remove idx candidates from target selection, that have been removed from self.idx earlier.
+        if len(tmp_targets) > len(self.idx):
+            total_idx = set(range(len(self.ds)))
+            tmp_idx = set(self.idx)
+            idx_complement = total_idx ^ tmp_idx
+            tmp_targets[np.array(idx_complement, dypte=int)] = -1
+
+        # randomly choose samples from classes
+        if not balanced:
+            self.idx = list(np.concatenate(
+                [np.random.choice(np.argwhere(tmp_targets == t).flatten(), size=min_n, replace=False) for t in
+                 n_samples.keys()]))
 
     def _replace_ds(self, idx: Sequence[int]):
         """

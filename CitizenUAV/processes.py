@@ -353,9 +353,9 @@ def offline_augmentation_classification_data(data_dir: os.PathLike, target_n, su
     if subdirs:
         idx = [i for i in idx if ds.classes[ds.targets[i]] in subdirs]
 
+    metadata = read_inat_metadata(data_dir)
     if min_distance:
         # load metadata file and filter samples by distance
-        metadata = read_inat_metadata(data_dir)
         min_dist_pids = metadata[metadata.distance >= min_distance].index
         idx = [i for i in idx if get_pid_from_path(ds.samples[i][0]) in min_dist_pids]
 
@@ -411,12 +411,10 @@ def offline_augmentation_classification_data(data_dir: os.PathLike, target_n, su
                 n_copies += 1
             filepath = f"{filepath}_augmented_{n_copies}.png"
 
-            if min_distance:
+            if not debug:
                 row = metadata.loc[get_pid_from_path(orig_filepath)].copy()
-                # TODO: deal with extended metadata
                 metadata.loc[get_pid_from_path(filepath)] = row
-                if not debug:
-                    metadata.to_csv(metadata_path)
+                metadata.to_csv(os.path.join(data_dir, 'metadata.csv'))
 
             # save new image
             if not debug:
@@ -431,8 +429,7 @@ def check_image_files(data_dir):
     :param data_dir: Directory of the image data set
     """
     csv_path = os.path.join(data_dir, "metadata.csv")
-    metadata = pd.read_csv(csv_path)
-    metadata.set_index('photo_id', inplace=True)
+    metadata = read_inat_metadata(data_dir)
     ds = ImageFolder(data_dir, transform=transforms.ToTensor())
 
     image_okay = pd.Series(index=metadata.index, dtype=bool)
@@ -446,7 +443,7 @@ def check_image_files(data_dir):
 
         try:
             img, t = ds[i]
-            image_okay[pid] = True
+            image_okay.loc[pid] = True
         except OSError:
             image_okay[pid] = False
 
