@@ -1,7 +1,7 @@
 from typing import Optional
 import pyinaturalist as pin
 from tqdm import tqdm
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 from io import BytesIO
 from collections import Counter
 
@@ -444,7 +444,7 @@ def check_image_files(data_dir):
         try:
             img, t = ds[i]
             image_okay.loc[pid] = True
-        except OSError:
+        except (OSError, UnidentifiedImageError):
             image_okay[pid] = False
 
     metadata['image_okay'] = image_okay

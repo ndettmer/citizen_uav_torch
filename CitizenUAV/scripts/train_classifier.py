@@ -32,13 +32,6 @@ if __name__ == "__main__":
     else:
         args.n_classes = len(species)
 
-    #for spec in species:
-    #    download_data(spec, data_dir, img_per_class)
-
-    #extend_metadata(data_dir)
-
-    #offline_augmentation(data_dir, img_per_class)
-
     if not os.path.isdir(log_dir):
         os.makedirs(log_dir)
     tb_logger = TensorBoardLogger(save_dir=log_dir)

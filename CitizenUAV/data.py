@@ -10,9 +10,10 @@ from PIL import Image
 from typing import Optional, Union, Sequence
 import os
 from collections import Counter
+import logging
 
 from CitizenUAV.transforms import *
-from CitizenUAV.utils import get_pid_from_path
+from CitizenUAV.utils import get_pid_from_path, read_inat_metadata
 
 
 def validate_split(split: tuple) -> bool:
@@ -84,7 +85,7 @@ class InatDataModule(pl.LightningDataModule):
         validate_data_dir(data_dir)
         self.data_dir = data_dir
 
-        self.metadata = self.read_metadata(species)
+        self.metadata = read_inat_metadata(self.data_dir)
         self.batch_size = batch_size
 
         # Compose transformations for the output samples and create the dataset object.
@@ -96,6 +97,7 @@ class InatDataModule(pl.LightningDataModule):
         self.min_distance = min_distance or 0.
         self.balance = balance
 
+        self._filter_broken_images()
         if self.species:
             self._filter_species()
         if self.min_distance:
@@ -123,6 +125,16 @@ class InatDataModule(pl.LightningDataModule):
             metadata = metadata[metadata.species.isin(species)]
 
         return metadata
+
+    def _filter_broken_images(self):
+        if 'image_okay' not in self.metadata and 'broken' not in self.metadata:
+            logging.warning("No information about broken images in the metadata!")
+        if 'image_okay' in self.metadata:
+            okay_pids = self.metadata[self.metadata.image_okay].index
+            self.idx = [i for i in self.idx if get_pid_from_path(self.ds.samples[i][0]) in okay_pids]
+        if 'broken' in self.metadata:
+            okay_pids = self.metadata[~self.metadata.broken].index
+            self.idx = [i for i in self.idx if get_pid_from_path(self.ds.samples[i][0]) in okay_pids]
 
     def _filter_species(self):
         """
@@ -156,7 +168,7 @@ class InatDataModule(pl.LightningDataModule):
             total_idx = set(range(len(self.ds)))
             tmp_idx = set(self.idx)
             idx_complement = total_idx ^ tmp_idx
-            tmp_targets[np.array(idx_complement, dypte=int)] = -1
+            tmp_targets[np.array(list(idx_complement)).astype(int)] = -1
 
         # randomly choose samples from classes
         if not balanced:
