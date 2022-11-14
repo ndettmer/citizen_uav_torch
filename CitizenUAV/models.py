@@ -3,6 +3,7 @@ import torch.optim
 from torchvision.models import resnet18, resnet50, wide_resnet50_2
 from torch import nn
 from torch.nn import functional as F
+from torchmetrics import F1Score
 
 
 class InatClassifier(pl.LightningModule):
@@ -36,6 +37,7 @@ class InatClassifier(pl.LightningModule):
         )
 
         self.loss_function = nn.CrossEntropyLoss()
+        self.f1 = F1Score(num_classes=n_classes)
 
     def forward(self, x):
         # 1. feature extraction
@@ -51,11 +53,16 @@ class InatClassifier(pl.LightningModule):
         return torch.optim.RMSprop(self.parameters(), lr=.0001, weight_decay=.001)
 
     def training_step(self, batch, batch_idx):
-        # TODO: log accuracy
         x, y = batch
         y_hat = self(x)
         loss = self.loss_function(y_hat, y)
         self.log_dict({"train_loss": loss})
+
+        if not batch_idx % 10:
+            preds = torch.argmax(y_hat, dim=1)
+            f1_score = self.f1(preds, y)
+            self.log_dict({"f1_score": f1_score})
+
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -63,6 +70,11 @@ class InatClassifier(pl.LightningModule):
         y_hat = self(x)
         loss = self.loss_function(y_hat, y)
         self.log_dict({"val_loss": loss})
+
+        preds = torch.argmax(y_hat, dim=1)
+        f1_score = self.f1(preds, y)
+        self.log_dict({"f1_score": f1_score})
+
         return loss
 
     def test_step(self, batch, batch_idx):
@@ -70,6 +82,11 @@ class InatClassifier(pl.LightningModule):
         y_hat = self(x)
         loss = self.loss_function(y_hat, y)
         self.log_dict({"test_loss": loss})
+
+        preds = torch.argmax(y_hat, dim=1)
+        f1_score = self.f1(preds, y)
+        self.log_dict({"f1_score": f1_score})
+
         return loss
 
 
