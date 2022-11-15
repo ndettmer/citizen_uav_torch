@@ -153,11 +153,14 @@ class InatDataModule(pl.LightningDataModule):
         min_dist_subset = self.metadata[self.metadata.distance >= self.min_distance].index
         self.idx = [i for i in self.idx if get_pid_from_path(self.ds.samples[i][0]) in min_dist_subset]
 
+    def get_target_distribution(self):
+        cleaned_targets = [self.ds.targets[i] for i in self.idx]
+        return dict(Counter(cleaned_targets))
+
     def _balance_dataset(self):
         """Select an equal number of samples per class."""
         # check if balanced and determine minimum number of samples per class
-        cleaned_targets = [self.ds.targets[i] for i in self.idx]
-        n_samples = dict(Counter(cleaned_targets))
+        n_samples = self.get_target_distribution()
         min_n = min(n_samples.values())
         balanced = True
         for t, n in n_samples.items():
@@ -179,9 +182,7 @@ class InatDataModule(pl.LightningDataModule):
                 [np.random.choice(np.argwhere(tmp_targets == t).flatten(), size=min_n, replace=False) for t in
                  n_samples.keys()]))
 
-        cleaned_targets = [self.ds.targets[i] for i in self.idx]
-        n_samples = dict(Counter(cleaned_targets))
-        logging.info(f"Class sample distribution after balancing procedure: {n_samples}")
+        logging.info(f"Class sample distribution after balancing procedure: {self.get_target_distribution()}")
 
     def _replace_ds(self, idx: Sequence[int]):
         """

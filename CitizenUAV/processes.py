@@ -346,9 +346,6 @@ def offline_augmentation_classification_data(data_dir: os.PathLike, target_n, su
     ds = ImageFolder(data_dir, transform=transforms.Compose([transforms.ToTensor(), QuadCrop()]))
     idx = range(len(ds))
 
-    # filter augmented samples
-    idx = [i for i in idx if 'augmented' not in os.path.basename(ds.samples[i][0])]
-
     # only consider samples of specified classes
     if subdirs:
         idx = [i for i in idx if ds.classes[ds.targets[i]] in subdirs]
@@ -364,6 +361,9 @@ def offline_augmentation_classification_data(data_dir: os.PathLike, target_n, su
         n_samples = dict(Counter(dist_cleaned_targets))
     else:
         n_samples = dict(Counter(ds.targets))
+
+    # filter augmented samples
+    idx = [i for i in idx if 'augmented' not in os.path.basename(ds.samples[i][0])]
 
     # define augmentation pipeline
     transform = transforms.Compose([
