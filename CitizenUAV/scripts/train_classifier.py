@@ -12,6 +12,7 @@ if __name__ == "__main__":
     parser.add_argument("--img_per_class", type=int, default=None, required=False)
     parser.add_argument("--log_dir", type=str, default='./lightning_logs')
     parser.add_argument("--patience", type=int, default=-1)
+    parser.add_argument("--min_delta", type=float, default=0)
     parser.add_argument("--seed", type=int, default=42)
 
     parser = InatDataModule.add_dm_specific_args(parser)
@@ -42,7 +43,15 @@ if __name__ == "__main__":
 
     callbacks = []
     if args.patience > 0:
-        callbacks.append(EarlyStopping(monitor="val_loss", mode="min", patience=args.patience, verbose=True))
+        callbacks.append(
+            EarlyStopping(
+                monitor="val_loss",
+                mode="min",
+                patience=args.patience,
+                verbose=True,
+                min_delta=args.min_delta
+            )
+        )
 
     trainer = Trainer.from_argparse_args(args, logger=tb_logger)
 

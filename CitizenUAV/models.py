@@ -13,9 +13,11 @@ class InatClassifier(pl.LightningModule):
         parser = parent_parser.add_argument_group("InatClassifier")
         parser.add_argument("--n_classes", type=int)
         parser.add_argument("--backbone_model", type=str, default='resnet18')
+        parser.add_argument("--lr", type=float, required=False, default=.0001)
+        parser.add_argument("--weight_decay", type=float, required=False, default=.001)
         return parent_parser
 
-    def __init__(self, n_classes, backbone_model, **kwargs):
+    def __init__(self, n_classes, backbone_model, lr=.0001, weight_decay=.001, **kwargs):
         super().__init__()
         self.save_hyperparameters()
 
@@ -40,6 +42,9 @@ class InatClassifier(pl.LightningModule):
         self.f1 = F1Score(num_classes=n_classes)
         self.acc = Accuracy(num_classes=n_classes)
 
+        self.lr = lr
+        self.weight_decay = weight_decay
+
     def forward(self, x):
         # 1. feature extraction
         features = self.feature_extractor(x)
@@ -51,7 +56,7 @@ class InatClassifier(pl.LightningModule):
 
     def configure_optimizers(self):
         # weight decay > 0 is the L2 regularization
-        return torch.optim.RMSprop(self.parameters(), lr=.0001, weight_decay=.001)
+        return torch.optim.RMSprop(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
 
     def training_step(self, batch, batch_idx):
         x, y = batch
