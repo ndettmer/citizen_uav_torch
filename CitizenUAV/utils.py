@@ -21,4 +21,6 @@ def read_inat_metadata(data_dir):
     metadata = pd.read_csv(os.path.join(data_dir, 'metadata.csv'))
     metadata.photo_id = metadata.photo_id.astype(str)
     metadata.set_index('photo_id', inplace=True)
+    if 'Unnamed: 0' in metadata:
+        metadata.drop(columns=['Unnamed: 0'], inplace=True)
     return metadata
