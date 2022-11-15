@@ -3,7 +3,7 @@ import torch.optim
 from torchvision.models import resnet18, resnet50, wide_resnet50_2
 from torch import nn
 from torch.nn import functional as F
-from torchmetrics import F1Score
+from torchmetrics import F1Score, Accuracy
 
 
 class InatClassifier(pl.LightningModule):
@@ -38,6 +38,7 @@ class InatClassifier(pl.LightningModule):
 
         self.loss_function = nn.CrossEntropyLoss()
         self.f1 = F1Score(num_classes=n_classes)
+        self.acc = Accuracy(num_classes=n_classes)
 
     def forward(self, x):
         # 1. feature extraction
@@ -56,12 +57,14 @@ class InatClassifier(pl.LightningModule):
         x, y = batch
         y_hat = self(x)
         loss = self.loss_function(y_hat, y)
-        self.log_dict({"train_loss": loss})
+        self.log_dict({"train_cce": loss})
 
         if not batch_idx % 10:
             preds = torch.argmax(y_hat, dim=1)
-            f1_score = self.f1(preds, y)
-            self.log_dict({"f1_score": f1_score})
+            self.log_dict({
+                "train_f1": self.f1(preds, y),
+                "train_acc": self.acc(preds, y)
+            })
 
         return loss
 
@@ -69,11 +72,13 @@ class InatClassifier(pl.LightningModule):
         x, y = batch
         y_hat = self(x)
         loss = self.loss_function(y_hat, y)
-        self.log_dict({"val_loss": loss})
+        self.log_dict({"val_cce": loss})
 
         preds = torch.argmax(y_hat, dim=1)
-        f1_score = self.f1(preds, y)
-        self.log_dict({"f1_score": f1_score})
+        self.log_dict({
+            "val_f1": self.f1(preds, y),
+            "val_acc": self.acc(preds, y)
+        })
 
         return loss
 
@@ -81,11 +86,13 @@ class InatClassifier(pl.LightningModule):
         x, y = batch
         y_hat = self(x)
         loss = self.loss_function(y_hat, y)
-        self.log_dict({"test_loss": loss})
+        self.log_dict({"test_cce": loss})
 
         preds = torch.argmax(y_hat, dim=1)
-        f1_score = self.f1(preds, y)
-        self.log_dict({"f1_score": f1_score})
+        self.log_dict({
+            "test_f1": self.f1(preds, y),
+            "test_acc": self.acc(preds, y)
+        })
 
         return loss
 
