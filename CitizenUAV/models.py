@@ -1,6 +1,7 @@
 import pytorch_lightning as pl
 import torch.optim
 from torchvision.models import resnet18, resnet50, wide_resnet50_2
+from torchvision.models.detection import fasterrcnn_resnet50_fpn_v2, fasterrcnn_resnet50_fpn
 from torch import nn
 from torch.nn import functional as F
 from torchmetrics import F1Score, Accuracy
