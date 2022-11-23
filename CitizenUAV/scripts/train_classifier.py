@@ -2,7 +2,7 @@ from argparse import ArgumentParser
 from CitizenUAV.models import InatClassifier
 from CitizenUAV.data import *
 from CitizenUAV.processes import *
-from pytorch_lightning import Trainer
+from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import EarlyStopping
 
@@ -13,7 +13,7 @@ if __name__ == "__main__":
     parser.add_argument("--log_dir", type=str, default='./lightning_logs')
     parser.add_argument("--patience", type=int, default=-1)
     parser.add_argument("--min_delta", type=float, default=0)
-    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--seed", type=int, default=np.random.rand())
 
     parser = InatDataModule.add_dm_specific_args(parser)
     parser = InatClassifier.add_model_specific_args(parser)
@@ -25,7 +25,7 @@ if __name__ == "__main__":
     data_dir = args.data_dir
     img_per_class = args.img_per_class
     log_dir = args.log_dir
-    torch.manual_seed(args.seed)
+    seed_everything(args.seed, workers=True)
 
     if not species:
         # if no subset is defined take all present species
