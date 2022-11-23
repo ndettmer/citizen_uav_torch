@@ -36,6 +36,7 @@ class RandomBrightness(object):
         self.rand_range = rand_range
 
     def __call__(self, img: torch.Tensor):
+        # TODO: check scaling again! I think the source range is wrong. np.random.rand() is in [0;1], not [-1;1]
         factor = np.random.rand() / 2. * self.rand_range + (1 - self.rand_range / 2.)
         return adjust_brightness(img, factor)
 
