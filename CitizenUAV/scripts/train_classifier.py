@@ -43,7 +43,7 @@ if __name__ == "__main__":
     if args.patience > 0:
         callbacks.append(
             EarlyStopping(
-                monitor="val_loss",
+                monitor="val_cce",
                 mode="min",
                 patience=args.patience,
                 verbose=True,
