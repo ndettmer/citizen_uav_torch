@@ -1,9 +1,14 @@
 import pytorch_lightning as pl
 import torch.optim
+from pytorch_lightning.utilities.types import EPOCH_OUTPUT
 from torchvision.models import resnet18, resnet50, wide_resnet50_2
 from torch import nn
 from torch.nn import functional as F
 from torchmetrics import F1Score, Accuracy
+from torchmetrics.functional import precision_recall, confusion_matrix
+import pandas as pd
+from matplotlib import pyplot as plt
+import seaborn as sns
 
 
 class InatClassifier(pl.LightningModule):
@@ -17,7 +22,7 @@ class InatClassifier(pl.LightningModule):
         parser.add_argument("--weight_decay", type=float, required=False, default=.001)
         return parent_parser
 
-    def __init__(self, n_classes, backbone_model, lr=.0001, weight_decay=.001, **kwargs):
+    def __init__(self, n_classes, backbone_model, lr, weight_decay, **kwargs):
         super().__init__()
         self.save_hyperparameters()
 
@@ -37,6 +42,8 @@ class InatClassifier(pl.LightningModule):
             nn.Linear(128, n_classes),
             nn.Softmax(dim=1)
         )
+
+        self.n_classes = n_classes
 
         self.loss_function = nn.CrossEntropyLoss()
         self.f1 = F1Score(num_classes=n_classes)
@@ -61,17 +68,11 @@ class InatClassifier(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         x, y = batch
         y_hat = self(x)
+        preds = torch.argmax(y_hat, dim=1)
         loss = self.loss_function(y_hat, y)
         self.log_dict({"train_cce": loss})
 
-        if not batch_idx % 10:
-            preds = torch.argmax(y_hat, dim=1)
-            self.log_dict({
-                "train_f1": self.f1(preds, y),
-                "train_acc": self.acc(preds, y)
-            })
-
-        return loss
+        return {'train_preds': preds, 'train_targets': y,  'loss': loss}
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
@@ -80,12 +81,8 @@ class InatClassifier(pl.LightningModule):
         self.log_dict({"val_cce": loss})
 
         preds = torch.argmax(y_hat, dim=1)
-        self.log_dict({
-            "val_f1": self.f1(preds, y),
-            "val_acc": self.acc(preds, y)
-        })
 
-        return loss
+        return {'val_preds': preds, 'val_targets': y,  'loss': loss}
 
     def test_step(self, batch, batch_idx):
         x, y = batch
@@ -94,12 +91,54 @@ class InatClassifier(pl.LightningModule):
         self.log_dict({"test_cce": loss})
 
         preds = torch.argmax(y_hat, dim=1)
+
+        return {'test_preds': preds, 'test_targets': y,  'loss': loss}
+
+    def training_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
+        preds = torch.concat([o['train_preds'] for o in outputs])
+        targets = torch.concat([o['train_targets'] for o in outputs])
+        train_f1 = self.f1(preds, targets)
+        train_prec, train_rec = precision_recall(preds, targets, num_classes=self.n_classes)
+        train_acc = self.acc(preds, targets)
         self.log_dict({
-            "test_f1": self.f1(preds, y),
-            "test_acc": self.acc(preds, y)
+            'train_f1': train_f1,
+            'train_prec': train_prec,
+            'train_rec': train_rec,
+            'train_acc': train_acc
         })
 
-        return loss
+    def validation_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
+        preds = torch.concat([o['val_preds'] for o in outputs])
+        targets = torch.concat([o['val_targets'] for o in outputs])
+        val_f1 = self.f1(preds, targets)
+        val_prec, val_rec = precision_recall(preds, targets, num_classes=self.n_classes)
+        val_acc = self.acc(preds, targets)
+        self.log_dict({
+            'val_f1': val_f1,
+            'val_prec': val_prec,
+            'val_rec': val_rec,
+            'val_acc': val_acc
+        })
+
+    def test_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
+        preds = torch.concat([o['test_preds'] for o in outputs])
+        targets = torch.concat([o['test_targets'] for o in outputs])
+        test_f1 = self.f1(preds, targets)
+        test_prec, test_rec = precision_recall(preds, targets, num_classes=self.n_classes)
+        test_acc = self.acc(preds, targets)
+        conf_mat = confusion_matrix(preds, targets, num_classes=self.n_classes)
+        self.log_dict({
+            'test_f1': test_f1,
+            'test_prec': test_prec,
+            'test_rec': test_rec,
+            'test_acc': test_acc
+        })
+
+        df_cm = pd.DataFrame(conf_mat.cpu().numpy(), index=range(self.n_classes), columns=range(self.n_classes))
+        plt.figure(figsize=(10, 7))
+        fig_ = sns.heatmap(df_cm, annot=True, cmap='Spectral', fmt='g').get_figure()
+        plt.close(fig_)
+        self.logger.experiment.add_figure("Confusion matrix/Test", fig_, self.current_epoch)
 
 
 class InatRegressor(pl.LightningModule):

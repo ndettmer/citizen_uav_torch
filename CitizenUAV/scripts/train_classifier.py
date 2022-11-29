@@ -9,7 +9,6 @@ from pytorch_lightning.callbacks import EarlyStopping
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--img_per_class", type=int, default=None, required=False)
     parser.add_argument("--log_dir", type=str, default='./lightning_logs')
     parser.add_argument("--patience", type=int, default=-1)
     parser.add_argument("--min_delta", type=float, default=0)
@@ -23,7 +22,6 @@ if __name__ == "__main__":
 
     species = args.species
     data_dir = args.data_dir
-    img_per_class = args.img_per_class
     log_dir = args.log_dir
     torch.manual_seed(args.seed)
 

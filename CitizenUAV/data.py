@@ -56,12 +56,13 @@ class InatDataModule(pl.LightningDataModule):
         parser.add_argument("--img_size", type=int, default=128, choices=[2 ** x for x in range(6, 10)])
         parser.add_argument("--balance", type=bool, default=False, required=False)
         parser.add_argument("--min_distance", type=int, default=None, required=False)
+        parser.add_argument("--sample_per_class", type=int, default=None, required=False)
         return parent_parser
 
     # 10% test, split rest into 80% train and 20% val by default
     def __init__(self, data_dir: os.PathLike, species: Optional[Union[list | str]] = None, batch_size: int = 4,
                  split: tuple = (.72, .18, .1), img_size: int = 128, min_distance: float = None, balance: bool = False,
-                 **kwargs):
+                 sample_per_class: int = -1, **kwargs):
         """
         :param data_dir: Directory where the data lies.
         :param species: Species to consider.
@@ -99,6 +100,7 @@ class InatDataModule(pl.LightningDataModule):
         self.min_distance = min_distance or 0.
         self.balance = balance
         self.num_workers = os.cpu_count()
+        self.sample_per_class = sample_per_class
 
         self._filter_broken_images()
         if self.species:
@@ -106,7 +108,7 @@ class InatDataModule(pl.LightningDataModule):
         if self.min_distance:
             self._filter_distance()
         # Balancing should always be the last step of modifying the selection of samples!
-        if self.balance:
+        if self.balance or self.sample_per_class > 0:
             self._balance_dataset()
 
         self.train_ds = None
@@ -162,6 +164,10 @@ class InatDataModule(pl.LightningDataModule):
         # check if balanced and determine minimum number of samples per class
         n_samples = self.get_target_distribution()
         min_n = min(n_samples.values())
+
+        if self.sample_per_class > 0:
+            min_n = min((min_n, self.sample_per_class))
+
         balanced = True
         for t, n in n_samples.items():
             if n != min_n:
@@ -184,19 +190,20 @@ class InatDataModule(pl.LightningDataModule):
 
         logging.info(f"Class sample distribution after balancing procedure: {self.get_target_distribution()}")
 
-    def _replace_ds(self, idx: Sequence[int]):
+    def _replace_ds(self, idx: Sequence[int]) -> None:
         """
         Replace dataset based on indices.
         :param idx: List of indices to keep.
         """
-        old_targets = np.array(self.ds.targets)
-        new_targets = old_targets[idx]
-        new_samples = [self.ds.samples[i] for i in idx]
-        new_ds = Subset(self.ds, idx)
-        new_ds.targets = new_targets
-        new_ds.samples = new_samples
-        new_ds.classes = self.ds.classes
-        self.ds = new_ds
+        if len(idx) < len(self.ds):
+            old_targets = np.array(self.ds.targets)
+            new_targets = old_targets[idx]
+            new_samples = [self.ds.samples[i] for i in idx]
+            new_ds = Subset(self.ds, idx)
+            new_ds.targets = new_targets
+            new_ds.samples = new_samples
+            new_ds.classes = self.ds.classes
+            self.ds = new_ds
 
     def setup(self, stage: Optional[str] = None) -> None:
 
