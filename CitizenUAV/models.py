@@ -47,8 +47,8 @@ class InatClassifier(pl.LightningModule):
         self.n_classes = n_classes
 
         self.loss_function = nn.CrossEntropyLoss()
-        self.f1 = F1Score(num_classes=n_classes)
-        self.acc = Accuracy(num_classes=n_classes)
+        self.f1 = F1Score(num_classes=n_classes, average='macro')
+        self.acc = Accuracy(num_classes=n_classes, average='macro')
 
         self.lr = lr
         self.weight_decay = weight_decay
@@ -125,7 +125,7 @@ class InatClassifier(pl.LightningModule):
         preds = torch.concat([o['test_preds'] for o in outputs])
         targets = torch.concat([o['test_targets'] for o in outputs])
         test_f1 = self.f1(preds, targets)
-        test_prec, test_rec = precision_recall(preds, targets, num_classes=self.n_classes)
+        test_prec, test_rec = precision_recall(preds, targets, num_classes=self.n_classes, average='macro')
         test_acc = self.acc(preds, targets)
         conf_mat = confusion_matrix(preds, targets, num_classes=self.n_classes)
         self.log_dict({
