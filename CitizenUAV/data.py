@@ -14,6 +14,7 @@ import logging
 
 from CitizenUAV.transforms import *
 from CitizenUAV.utils import get_pid_from_path, read_inat_metadata
+from CitizenUAV.style_transfer import Normalization
 
 
 def validate_split(split: tuple) -> bool:
@@ -57,12 +58,13 @@ class InatDataModule(pl.LightningDataModule):
         parser.add_argument("--balance", type=bool, default=False, required=False)
         parser.add_argument("--min_distance", type=int, default=None, required=False)
         parser.add_argument("--sample_per_class", type=int, default=None, required=False)
+        parser.add_argument("--normalize", type=bool, default=False, required=False)
         return parent_parser
 
     # 10% test, split rest into 80% train and 20% val by default
     def __init__(self, data_dir: os.PathLike, species: Optional[Union[list | str]] = None, batch_size: int = 4,
                  split: tuple = (.72, .18, .1), img_size: int = 128, min_distance: float = None, balance: bool = False,
-                 sample_per_class: int = -1, **kwargs):
+                 sample_per_class: int = -1, normalize: bool = False, **kwargs):
         """
         :param data_dir: Directory where the data lies.
         :param species: Species to consider.
@@ -90,10 +92,18 @@ class InatDataModule(pl.LightningDataModule):
         # TODO: fix dtype warning
         self.metadata = read_inat_metadata(self.data_dir)
         self.batch_size = batch_size
+        self.normalize = normalize
 
         # Compose transformations for the output samples and create the dataset object.
-        img_transforms = transforms.Compose([transforms.ToTensor(), QuadCrop(), transforms.Resize(img_size)])
-        self.ds = ImageFolder(str(self.data_dir), transform=img_transforms)
+        transforms_list = [transforms.ToTensor(), QuadCrop(), transforms.Resize(img_size)]
+        if normalize:
+            # source: https://pytorch.org/tutorials/advanced/neural_style_tutorial.html
+            norm_mean = torch.tensor([0.485, 0.456, 0.406])
+            norm_std = torch.tensor([0.229, 0.224, 0.225])
+            #transforms_list.append(Normalization(norm_mean, norm_std))
+
+        img_transform = transforms.Compose(transforms_list)
+        self.ds = ImageFolder(str(self.data_dir), transform=img_transform)
         self.idx = range(len(self.ds))
 
         self.species = species

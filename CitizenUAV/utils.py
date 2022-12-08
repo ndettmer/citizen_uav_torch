@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+from torch.utils.data import Dataset, DataLoader
 
 
 def get_pid_from_path(path):
@@ -25,3 +26,10 @@ def read_inat_metadata(data_dir):
     if 'Unnamed: 0' in metadata:
         metadata.drop(columns=['Unnamed: 0'], inplace=True)
     return metadata
+
+
+def ds_mean_std(ds: Dataset):
+    dl = DataLoader(ds, batch_size=32, num_workers=1)
+    for img, _ in iter(dl):
+        pass
+

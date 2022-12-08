@@ -1,5 +1,6 @@
 from torchvision.transforms.functional import crop, adjust_brightness, adjust_saturation, adjust_contrast
 import torch
+from torch import nn
 import numpy as np
 import math
 
@@ -90,4 +91,5 @@ class Clamp(object):
 
     def __call__(self, img: torch.Tensor):
         return torch.clamp(img, min=self.min, max=self.max)
+
 
