@@ -14,7 +14,6 @@ import logging
 
 from CitizenUAV.transforms import *
 from CitizenUAV.utils import get_pid_from_path, read_inat_metadata
-from CitizenUAV.style_transfer import Normalization
 
 
 def validate_split(split: tuple) -> bool:
