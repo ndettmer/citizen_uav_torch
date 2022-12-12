@@ -95,11 +95,6 @@ class InatDataModule(pl.LightningDataModule):
 
         # Compose transformations for the output samples and create the dataset object.
         transforms_list = [transforms.ToTensor(), QuadCrop(), transforms.Resize(img_size)]
-        if normalize:
-            # source: https://pytorch.org/tutorials/advanced/neural_style_tutorial.html
-            norm_mean = torch.tensor([0.485, 0.456, 0.406])
-            norm_std = torch.tensor([0.229, 0.224, 0.225])
-            #transforms_list.append(Normalization(norm_mean, norm_std))
 
         img_transform = transforms.Compose(transforms_list)
         self.ds = ImageFolder(str(self.data_dir), transform=img_transform)
@@ -204,6 +199,8 @@ class InatDataModule(pl.LightningDataModule):
         Replace dataset based on indices.
         :param idx: List of indices to keep.
         """
+
+        # TODO: As Subset is just a wrapper, all the attributes are already accessible via new_ds.dataset.targets etc.
         if len(idx) < len(self.ds):
             old_targets = np.array(self.ds.targets)
             new_targets = old_targets[idx]
@@ -217,6 +214,7 @@ class InatDataModule(pl.LightningDataModule):
     def setup(self, stage: Optional[str] = None) -> None:
 
         self._replace_ds(self.idx)
+        # TODO: Apply dataset normalization
 
         # Calculate absolute number of samples from split percentages.
         abs_split = list(np.floor(np.array(self.split)[:2] * len(self.ds)).astype(np.int32))

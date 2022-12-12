@@ -19,6 +19,7 @@ from CitizenUAV.data import InatDataModule
 from CitizenUAV.models import InatClassifier
 from torchvision.transforms import ToTensor, Normalize
 from torchvision.transforms.functional import to_pil_image
+import torch
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
@@ -68,11 +69,7 @@ stds
 ```{python}
 # TODO: Is this normal?!
 norm = Normalize(list(means.numpy()), list(stds.numpy()))
-plt.imshow(to_pil_image(norm(img)), vmin=-2.5, vmax=2.5)
-```
-
-```{python}
-plt.imshow(to_pil_image(img))
+plt.imshow(to_pil_image(norm(img).mean(dim=0)))
 ```
 
 ```{python}
@@ -80,10 +77,16 @@ normalized = norm(img)
 normalized = normalized.flatten(start_dim=1, end_dim=2)
 for i in range(normalized.shape[0]):
     channel_values = pd.Series(normalized[i, :].numpy())
+    print(channel_values.max())
+    print(channel_values.mean())
     print(channel_values.mean())
     print(channel_values.std())
     channel_values.plot.kde()
     plt.show()
+```
+
+```{python}
+
 ```
 
 ```{python}
@@ -96,6 +99,18 @@ normalized.max()
 
 ```{python}
 normalized.mean()
+```
+
+```{python}
+from torch.utils.data import Subset
+```
+
+```{python}
+sds = Subset(ds, range(len(ds)))
+```
+
+```{python}
+sds.dataset.transform
 ```
 
 ```{python}
