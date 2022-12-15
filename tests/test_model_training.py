@@ -8,6 +8,7 @@ import re
 import pytorch_lightning as pl
 from pytorch_lightning import loggers as pl_loggers
 import torch
+from torch.utils.data import Subset
 
 
 tmp_dir = os.path.join('.', 'tmp')
@@ -59,12 +60,16 @@ def test_datamodule():
     batch_size = 4
 
     # test without species
-    dm = InatDataModule(data_dir)
+    dm = InatDataModule(data_dir, balance=True, normalize=True)
+    dm.setup()
+    assert isinstance(dm.ds, Subset)
     # check balance
     samples_per_class = list(dict(Counter(dm.ds.targets)).values())
     for n in samples_per_class:
         # tolerance of +-1
         assert samples_per_class[0] - 1 <= n <= samples_per_class[0] + 1
+    # check if _add_normalize worked
+    assert any(['Normalize' in str(t) for t in dm.ds.dataset.transform.transforms])
 
     # test with species
     img_size = 128
@@ -94,7 +99,7 @@ def test_model():
     batch_size = 1
     img_size = 64
     n_classes = 2
-    model = InatClassifier(n_classes, 'resnet18')
+    model = InatClassifier(n_classes, 'resnet18', lr=.0001, weight_decay=.001)
     x = torch.randn(1, 3, img_size, img_size)
     model.eval()
     y_hat = model(x)
@@ -106,7 +111,7 @@ def test_model():
 
 def test_classifier():
     dm = InatDataModule(data_dir, species, img_size=64)
-    model = InatClassifier(len(species), 'resnet18')
+    model = InatClassifier(len(species), 'resnet18', lr=.0001, weight_decay=.001)
     logger = pl_loggers.TensorBoardLogger(save_dir=os.path.join(data_dir, 'pl_logs'))
     trainer = pl.Trainer(max_epochs=1, max_steps=3, logger=logger, accelerator='cpu')
     trainer.fit(model, dm)
