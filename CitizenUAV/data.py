@@ -13,7 +13,7 @@ from collections import Counter
 import logging
 
 from CitizenUAV.transforms import *
-from CitizenUAV.utils import get_pid_from_path, read_inat_metadata
+from CitizenUAV.utils import get_pid_from_path, read_inat_metadata, channel_mean_std
 
 
 def validate_split(split: tuple) -> bool:
@@ -199,22 +199,38 @@ class InatDataModule(pl.LightningDataModule):
         Replace dataset based on indices.
         :param idx: List of indices to keep.
         """
+        old_targets = np.array(self.ds.targets)
+        new_targets = old_targets[idx]
+        new_samples = [self.ds.samples[i] for i in idx]
+        new_ds = Subset(self.ds, idx)
+        new_ds.targets = new_targets
+        new_ds.samples = new_samples
+        new_ds.classes = self.ds.classes
+        self.ds = new_ds
 
-        # TODO: As Subset is just a wrapper, all the attributes are already accessible via new_ds.dataset.targets etc.
-        if len(idx) < len(self.ds):
-            old_targets = np.array(self.ds.targets)
-            new_targets = old_targets[idx]
-            new_samples = [self.ds.samples[i] for i in idx]
-            new_ds = Subset(self.ds, idx)
-            new_ds.targets = new_targets
-            new_ds.samples = new_samples
-            new_ds.classes = self.ds.classes
-            self.ds = new_ds
+    def _add_normalize(self):
+
+        if isinstance(self.ds, Subset):
+            normalize_exists = sum(['Normalize' in str(t) for t in self.ds.dataset.transform.transforms]) > 0
+        elif isinstance(self.ds, ImageFolder):
+            normalize_exists = sum(['Normalize' in str(t) for t in self.ds.transform.transforms]) > 0
+        else:
+            raise TypeError(f"The dataset has the wrong type: {type(self.ds)}")
+
+        if not normalize_exists:
+            means, stds = channel_mean_std(self.ds)
+            norm = transforms.Normalize(means, stds)
+            if isinstance(self.ds, Subset):
+                self.ds.dataset.transform.transforms.append(norm)
+            else:
+                self.ds.transform.transforms.append(norm)
 
     def setup(self, stage: Optional[str] = None) -> None:
 
         self._replace_ds(self.idx)
-        # TODO: Apply dataset normalization
+
+        if self.normalize:
+            self._add_normalize()
 
         # Calculate absolute number of samples from split percentages.
         abs_split = list(np.floor(np.array(self.split)[:2] * len(self.ds)).astype(np.int32))
