@@ -110,7 +110,16 @@ sds = Subset(ds, range(len(ds)))
 ```
 
 ```{python}
-sds.dataset.transform
+sds.dataset.dataset.transform
+```
+
+```{python}
+ds.dataset.transform.transforms.append(norm)
+plt.imshow(to_pil_image(ds[0][0]))
+```
+
+```{python}
+sum(['Normalize' in str(t) for t in ds.dataset.transform.transforms]) == 1
 ```
 
 ```{python}
