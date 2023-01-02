@@ -1,11 +1,13 @@
 import pytorch_lightning as pl
 from pytorch_lightning.utilities.types import TRAIN_DATALOADERS
 from torch.utils.data import DataLoader, random_split, Subset, Dataset
+from torch.utils.data.dataset import T_co
 from torchvision.datasets import ImageFolder
 from torchvision import transforms
 
 import pandas as pd
 from PIL import Image
+import rasterio as rio
 
 from typing import Optional, Union, Sequence
 import os
@@ -115,9 +117,16 @@ class InatDataModule(pl.LightningDataModule):
         if self.balance or self.sample_per_class > 0:
             self._balance_dataset()
 
-        self.train_ds = None
-        self.val_ds = None
-        self.test_ds = None
+        self._replace_ds(self.idx)
+
+        if self.normalize:
+            self._add_normalize()
+
+        # Calculate absolute number of samples from split percentages.
+        abs_split = list(np.floor(np.array(self.split)[:2] * len(self.ds)).astype(np.int32))
+        abs_split.append(len(self.ds) - np.sum(abs_split))
+
+        self.train_ds, self.val_ds, self.test_ds = random_split(self.ds, abs_split)
 
     def read_metadata(self, species: Optional[list] = None) -> pd.DataFrame:
         """
@@ -226,17 +235,7 @@ class InatDataModule(pl.LightningDataModule):
                 self.ds.transform.transforms.append(norm)
 
     def setup(self, stage: Optional[str] = None) -> None:
-
-        self._replace_ds(self.idx)
-
-        if self.normalize:
-            self._add_normalize()
-
-        # Calculate absolute number of samples from split percentages.
-        abs_split = list(np.floor(np.array(self.split)[:2] * len(self.ds)).astype(np.int32))
-        abs_split.append(len(self.ds) - np.sum(abs_split))
-
-        self.train_ds, self.val_ds, self.test_ds = random_split(self.ds, abs_split)
+        super().setup(stage)
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         return DataLoader(self.train_ds, batch_size=self.batch_size, num_workers=self.num_workers)
@@ -327,16 +326,14 @@ class InatDistDataModule(pl.LightningDataModule):
         img_transforms = transforms.Compose([transforms.ToTensor(), QuadCrop(), transforms.Resize(img_size), Log10()])
         self.ds = InatDistDataset(str(self.data_dir), transform=img_transforms)
 
-        self.train_ds = None
-        self.val_ds = None
-        self.test_ds = None
-
-    def setup(self, stage: Optional[str] = None) -> None:
         # Calculate absolute number of samples from split percentages.
         abs_split = list(np.floor(np.array(self.split)[:2] * len(self.ds)).astype(np.int32))
         abs_split.append(len(self.ds) - np.sum(abs_split))
 
         self.train_ds, self.val_ds, self.test_ds = random_split(self.ds, abs_split)
+
+    def setup(self, stage: Optional[str] = None) -> None:
+        super().setup()
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         return DataLoader(self.train_ds, batch_size=self.batch_size, num_workers=self.num_workers)
@@ -346,3 +343,37 @@ class InatDistDataModule(pl.LightningDataModule):
 
     def test_dataloader(self) -> TRAIN_DATALOADERS:
         return DataLoader(self.test_ds, batch_size=self.batch_size, num_workers=self.num_workers)
+
+
+class GTiffDataset(Dataset):
+
+    def __init__(self, filename: Union[str | os.PathLike], window_size: int = 128, stride: int = 1):
+        super().__init__()
+        self.filename = filename
+        self.window_size = window_size
+        self.stride = stride
+        # padding = 0
+        self.rds = rio.open(filename)
+        self.n_windows_x = self.rds.width // self.stride - self.window_size // self.stride
+        self.n_windows_y = self.rds.height // self.stride - self.window_size // self.stride
+
+    def get_bounding_box_from_index(self, index):
+        x_min = index % self.n_windows_x
+        y_min = index // self.n_windows_x * self.stride
+        x_max = x_min + self.window_size
+        y_max = y_min + self.window_size
+        return x_min, x_max, y_min, y_max
+
+    def __getitem__(self, index) -> T_co:
+        x_min, x_max, y_min, y_max = self.get_bounding_box_from_index(index)
+        r = self.rds.read(1)[x_min:x_max, y_min:y_max]
+        g = self.rds.read(2)[x_min:x_max, y_min:y_max]
+        b = self.rds.read(3)[x_min:x_max, y_min:y_max]
+        sample = torch.from_numpy(np.stack([r, g, b], axis=0))
+        assert sample.shape[1] == self.window_size, f"Error: image is cut off at x-axis: {sample.shape}"
+        assert sample.shape[2] == self.window_size, f"Error: image is cut off at y-axis: {sample.shape}"
+        return sample
+
+    def __len__(self):
+        return self.n_windows_x * self.n_windows_y
+
