@@ -333,7 +333,7 @@ class InatDistDataModule(pl.LightningDataModule):
         self.train_ds, self.val_ds, self.test_ds = random_split(self.ds, abs_split)
 
     def setup(self, stage: Optional[str] = None) -> None:
-        super().setup()
+        super().setup(stage)
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         return DataLoader(self.train_ds, batch_size=self.batch_size, num_workers=self.num_workers)
