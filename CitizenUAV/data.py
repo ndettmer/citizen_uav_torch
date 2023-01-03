@@ -8,6 +8,7 @@ from torchvision import transforms
 import pandas as pd
 from PIL import Image
 import rasterio as rio
+from tqdm import tqdm
 
 from typing import Optional, Union, Sequence
 import os
@@ -354,26 +355,108 @@ class GTiffDataset(Dataset):
         self.stride = stride
         # padding = 0
         self.rds = rio.open(filename)
-        self.n_windows_x = self.rds.width // self.stride - self.window_size // self.stride
-        self.n_windows_y = self.rds.height // self.stride - self.window_size // self.stride
+        self.n_windows_x = self._get_n_windows_x()
+        self.n_windows_y = self._get_n_windows_y()
 
-    def get_bounding_box_from_index(self, index):
+        self.min_cover_factor = 2/3
+        self.min_cover = self.window_size ** 2 * self.min_cover_factor
+
+        self.bb_path = f"{os.path.splitext(self.filename)[0]}_bbs_{self.window_size}-{self.stride}.npy"
+        if not os.path.exists(self.bb_path):
+            self.bbs = self._preselect_windows()
+        else:
+            self.bbs = np.load(self.bb_path)
+
+    def _get_n_windows_x(self):
+        n = 1
+        x = 0
+        while x + self.window_size < self.rds.width:
+            x += self.stride
+            n += 1
+        return n
+
+    def _get_n_windows_y(self):
+        n = 1
+        y = 0
+        while y + self.window_size < self.rds.height:
+            y += self.stride
+            n += 1
+        return n
+
+    def _get_bounding_box_from_index(self, index):
         x_min = index % self.n_windows_x
         y_min = index // self.n_windows_x * self.stride
         x_max = x_min + self.window_size
         y_max = y_min + self.window_size
         return x_min, x_max, y_min, y_max
 
+    def _preselect_windows(self):
+        bbs = []
+
+        p_bar = tqdm(range(self.raw_len()))
+        p_bar.set_description("Choosing windows to use")
+        mask = self.get_mask_bool()
+
+        for i in p_bar:
+            bb = self._get_bounding_box_from_index(i)
+            x_min, x_max, y_min, y_max = bb
+            if not mask[x_min:x_max, y_min].any():
+                # skip windows with empty first lines
+                continue
+            mask_window = mask[x_min:x_max, y_min:y_max]
+            if np.sum(mask_window) >= self.min_cover:
+                bbs.append(np.array(bb, dtype=np.uint32))
+
+        bbs = np.array(bbs)
+        np.save(self.bb_path, bbs)
+        return bbs
+
+    def load_window_from_bounding_box(self, bb):
+        x_min, x_max, y_min, y_max = bb
+        r = self.get_red()[x_min:x_max, y_min:y_max]
+        g = self.get_green()[x_min:x_max, y_min:y_max]
+        b = self.get_blue[x_min:x_max, y_min:y_max]
+        window = torch.from_numpy(np.stack([r, g, b], axis=0))
+
+        assert window.shape[1] == self.window_size, f"Image is cut off at x-axis: {window.shape}"
+        assert window.shape[2] == self.window_size, f"Image is cut off at y-axis: {window.shape}"
+
+        return window
+
+    def getitem_raw(self, index):
+        bb = self._get_bounding_box_from_index(index)
+        sample = self.load_window_from_bounding_box(bb)
+
+        # TODO: get labels from shape files
+
+        return sample, 0
+
     def __getitem__(self, index) -> T_co:
-        x_min, x_max, y_min, y_max = self.get_bounding_box_from_index(index)
-        r = self.rds.read(1)[x_min:x_max, y_min:y_max]
-        g = self.rds.read(2)[x_min:x_max, y_min:y_max]
-        b = self.rds.read(3)[x_min:x_max, y_min:y_max]
-        sample = torch.from_numpy(np.stack([r, g, b], axis=0))
-        assert sample.shape[1] == self.window_size, f"Error: image is cut off at x-axis: {sample.shape}"
-        assert sample.shape[2] == self.window_size, f"Error: image is cut off at y-axis: {sample.shape}"
-        return sample
+        sample = self.load_window_from_bounding_box(self.bbs[index])
+
+        # TODO: get labels from shape files
+
+        return sample, 0
 
     def __len__(self):
+        return self.bbs.shape[0]
+
+    def raw_len(self):
         return self.n_windows_x * self.n_windows_y
+
+    def get_red(self):
+        return self.rds.read(1)
+
+    def get_green(self):
+        return self.rds.read(2)
+
+    def get_blue(self):
+        return self.rds.read(3)
+
+    def get_mask(self):
+        return self.rds.read(3)
+
+    def get_mask_bool(self):
+        return self.rds.read(3) == 255
+
 
