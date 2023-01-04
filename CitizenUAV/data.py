@@ -8,6 +8,7 @@ from torchvision import transforms
 import pandas as pd
 from PIL import Image
 import rasterio as rio
+from rasterio.windows import Window
 from tqdm import tqdm
 
 from typing import Optional, Union, Sequence
@@ -384,8 +385,8 @@ class GTiffDataset(Dataset):
         return n
 
     def _get_bounding_box_from_index(self, index):
-        x_min = index % self.n_windows_x
-        y_min = index // self.n_windows_x * self.stride
+        x_min = (index % self.n_windows_x) * self.stride
+        y_min = (index // self.n_windows_x) * self.stride
         x_max = x_min + self.window_size
         y_max = y_min + self.window_size
         return x_min, x_max, y_min, y_max
@@ -404,35 +405,34 @@ class GTiffDataset(Dataset):
                 # skip windows with empty first lines
                 continue
             mask_window = mask[x_min:x_max, y_min:y_max]
-            if np.sum(mask_window) >= self.min_cover:
+            cover = np.sum(mask_window)
+            if cover >= self.min_cover:
                 bbs.append(np.array(bb, dtype=np.uint32))
 
         bbs = np.array(bbs)
         np.save(self.bb_path, bbs)
         return bbs
 
-    def load_window_from_bounding_box(self, bb):
+    def get_bb_data(self, bb: Union[tuple | np.ndarray]) -> torch.Tensor:
+        """
+        Get RGB data in the given bounding box
+        :param bb: bounding box (x_min, x_max, y_min, y_max)
+        :return: Tensor containing the data
+        """
         x_min, x_max, y_min, y_max = bb
-        r = self.get_red()[x_min:x_max, y_min:y_max]
-        g = self.get_green()[x_min:x_max, y_min:y_max]
-        b = self.get_blue[x_min:x_max, y_min:y_max]
-        window = torch.from_numpy(np.stack([r, g, b], axis=0))
-
-        assert window.shape[1] == self.window_size, f"Image is cut off at x-axis: {window.shape}"
-        assert window.shape[2] == self.window_size, f"Image is cut off at y-axis: {window.shape}"
-
-        return window
+        window = Window.from_slices((x_min, x_max), (y_min, y_max))
+        return torch.from_numpy(self.rds.read((1, 2, 3), window=window))
 
     def getitem_raw(self, index):
         bb = self._get_bounding_box_from_index(index)
-        sample = self.load_window_from_bounding_box(bb)
+        sample = self.get_bb_data(bb)
 
         # TODO: get labels from shape files
 
         return sample, 0
 
     def __getitem__(self, index) -> T_co:
-        sample = self.load_window_from_bounding_box(self.bbs[index])
+        sample = self.get_bb_data(self.bbs[index])
 
         # TODO: get labels from shape files
 
@@ -457,6 +457,6 @@ class GTiffDataset(Dataset):
         return self.rds.read(3)
 
     def get_mask_bool(self):
-        return self.rds.read(3) == 255
+        return self.rds.read(4) > 0
 
 
