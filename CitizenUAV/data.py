@@ -454,7 +454,7 @@ class GTiffDataset(Dataset):
         return self.rds.read(3)
 
     def get_mask(self):
-        return self.rds.read(3)
+        return self.rds.read(4)
 
     def get_mask_bool(self):
         return self.rds.read(4) > 0
