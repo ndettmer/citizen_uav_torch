@@ -1,3 +1,4 @@
+import numpy as np
 import pytorch_lightning as pl
 from pytorch_lightning.utilities.types import TRAIN_DATALOADERS
 from torch.utils.data import DataLoader, random_split, Subset, Dataset
@@ -8,7 +9,9 @@ from torchvision import transforms
 import pandas as pd
 from PIL import Image
 import rasterio as rio
+import rasterio.mask
 from rasterio.windows import Window
+import fiona
 from tqdm import tqdm
 
 from typing import Optional, Union, Sequence
@@ -348,19 +351,53 @@ class InatDistDataModule(pl.LightningDataModule):
 
 
 class GTiffDataset(Dataset):
+    """
+    Pytorch dataset creating samples form a GeoTiff dataset using a moving window approach
+    """
 
-    def __init__(self, filename: Union[str | os.PathLike], window_size: int = 128, stride: int = 1):
+    # TODO: Distinguish between labeled and non-labeled dataset!
+    # If I want to rely on labels, I need to crop the dataset to the labeled area. Else I can use the whole dataset.
+    # Cropping also makes the memory consumption of the label masks manageable!
+
+    def __init__(self, filename: Union[str | os.PathLike], shape_dir: Union[str | os.PathLike],
+                 window_size: int = 128, stride: int = 1):
+        """
+        :param filename: Path to the GeoTiff file
+        :param window_size: Edge length of the quadratic moving window
+        :param stride: Step size of the moving window (no padding)
+        """
         super().__init__()
         self.filename = filename
         self.window_size = window_size
         self.stride = stride
         # padding = 0
         self.rds = rio.open(filename)
+
+        self.classes = []
+        self.class_shapes = []
+
+        for root, directory, files in os.walk(shape_dir):
+            for file in files:
+                if os.path.splitext(file)[1] == ".shp":
+                    cls = os.path.splitext(file.split("_")[-1])[0]
+                    self.classes.append(cls)
+
+                    shape_path = os.path.join(shape_dir, file)
+                    self.class_shapes.append(shape_path)
+
+        self.classes.append('soil')
+        self.class_to_idx = {cls: idx for idx, cls in enumerate(self.classes)}
+
         self.n_windows_x = self._get_n_windows_x()
         self.n_windows_y = self._get_n_windows_y()
 
+        # Minimum coverage of any data in a window to be considered as a sample
         self.min_cover_factor = 2/3
         self.min_cover = self.window_size ** 2 * self.min_cover_factor
+
+        # Minimum coverage of a class in a window to be considered a sample for that class
+        self.min_cls_cover_factor = .01
+        self.min_cls_cover = self.window_size ** self.min_cls_cover_factor
 
         self.bb_path = f"{os.path.splitext(self.filename)[0]}_bbs_{self.window_size}-{self.stride}.npy"
         if not os.path.exists(self.bb_path):
@@ -368,7 +405,12 @@ class GTiffDataset(Dataset):
         else:
             self.bbs = np.load(self.bb_path)
 
+        self.targets = [None] * len(self.bbs)
+
     def _get_n_windows_x(self):
+        """
+        Simple but a little costly approach for determining the number of windows in the x axis.
+        """
         n = 1
         x = 0
         while x + self.window_size < self.rds.width:
@@ -377,6 +419,9 @@ class GTiffDataset(Dataset):
         return n
 
     def _get_n_windows_y(self):
+        """
+        Simple but a little costly approach for determining the number of windows in the y axis.
+        """
         n = 1
         y = 0
         while y + self.window_size < self.rds.height:
@@ -385,13 +430,21 @@ class GTiffDataset(Dataset):
         return n
 
     def _get_bounding_box_from_index(self, index):
+        """
+        Calculate the bounding box of the window with given index before filtering.
+        :param index: window index
+        """
         x_min = (index % self.n_windows_x) * self.stride
         y_min = (index // self.n_windows_x) * self.stride
         x_max = x_min + self.window_size
         y_max = y_min + self.window_size
         return x_min, x_max, y_min, y_max
 
-    def _preselect_windows(self):
+    def _preselect_windows(self) -> np.ndarray:
+        """
+        Select windows worth showing and store them as a serialized numpy array.
+        :return: Interesting bounding boxes.
+        """
         bbs = []
 
         p_bar = tqdm(range(self.raw_len()))
@@ -424,22 +477,92 @@ class GTiffDataset(Dataset):
         return torch.from_numpy(self.rds.read((1, 2, 3), window=window))
 
     def getitem_raw(self, index):
+        """
+        Get window by non-filtered index.
+        :param index: Index of the window without filtering in self._preselect_windows()
+        """
         bb = self._get_bounding_box_from_index(index)
         sample = self.get_bb_data(bb)
+        target = self.get_bb_label(bb)
 
-        # TODO: get labels from shape files
-
-        return sample, 0
+        return sample, target
 
     def __getitem__(self, index) -> T_co:
-        sample = self.get_bb_data(self.bbs[index])
+        bb = self.bbs[index]
+        sample = self.get_bb_data(bb)
 
-        # TODO: get labels from shape files
+        # Caching of targets
+        if self.targets[index] is not None:
+            target = self.targets[index]
+        else:
+            target = self.get_bb_label(bb)
+            self.targets[index] = target
 
-        return sample, 0
+        return sample, target
 
     def __len__(self):
         return self.bbs.shape[0]
+
+    def get_bb_label(self, bb: Union[tuple, np.ndarray]) -> int:
+        """
+        Determine which of the labels should be assigned to the given bounding box (only one label is possible).
+        :param bb: Bounding box.
+        :return: label
+        """
+        coverages = self.get_all_bb_class_coverages(bb, True)
+
+        if not (coverages >= self.min_cls_cover_factor).any():
+            return self.class_to_idx['soil']
+
+        return int(np.argmax(coverages))
+
+    def load_shapes_for_class(self, cls_idx: int) -> list:
+        """
+        Load the shapes of the given class.
+        :param cls_idx: Class index.
+        :return: Shape representations
+        """
+        shape_path = self.class_shapes[cls_idx]
+
+        with fiona.open(shape_path) as shapefile:
+            shapes = [feature["geometry"] for feature in shapefile]
+
+        # Weirdly sometimes None gets into shapes, which leads to errors in the masking process. Prevent that!
+        shapes = [shape for shape in shapes if shape is not None]
+
+        return shapes
+
+    def get_bb_cls_coverage(self, bb: Union[tuple | np.ndarray], cls_idx: int, share: bool = False) \
+            -> Union[int | float]:
+        """
+        Get the number of pixels in the given bounding box that are covered with the given class.
+        :param bb: Boundig box.
+        :param cls_idx: Class to determine the coverage for.
+        :param share: If true, return percentual coverage.
+        :return: Class coverage in the window.
+        """
+        if cls_idx > len(self.classes) - 2:
+            raise ValueError(f"Species with class index {cls_idx} does not exits. "
+                             f"Please choose from {list(np.array(self.classes)[:-1])}")
+
+        shapes = self.load_shapes_for_class(cls_idx)
+
+        cls_mask, _ = rio.mask.mask(self.rds, shapes, crop=False)
+        cls_mask = cls_mask > 0
+
+        x_min, x_max, y_min, y_max = bb
+        coverage = int(np.sum(cls_mask[x_min:x_max, y_min:y_max]))
+        if share:
+            coverage /= self.window_size ** 2
+        return coverage
+
+    def get_all_bb_class_coverages(self, bb: Union[tuple | np.ndarray], share: bool = False):
+        coverages = []
+        for cls_idx in range(len(self.classes) - 1):
+            coverage = self.get_bb_cls_coverage(bb, cls_idx, share)
+            coverages.append(coverage)
+
+        return np.array(coverages)
 
     def raw_len(self):
         return self.n_windows_x * self.n_windows_y

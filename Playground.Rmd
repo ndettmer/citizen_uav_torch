@@ -437,6 +437,8 @@ mp.cpu_count()
 
 ```{python}
 import rasterio as rio
+import rasterio.mask
+import fiona
 import os
 from PIL import Image
 from matplotlib import pyplot as plt
@@ -453,10 +455,12 @@ from tqdm import tqdm
 ```{python}
 data_dir = '/home/ndettmer/ssd_data/UOS_Data/'
 filename = os.path.join(data_dir, '220518_maize_rgb.tif')
+shape_dir = os.path.join(data_dir, '1805_maize')
+maize_shape_path = os.path.join(shape_dir, '1805_maize_maize.shp')
 ```
 
 ```{python}
-gt_ds = GTiffDataset(filename, stride=10)
+gt_ds = GTiffDataset(filename, shape_dir, stride=10)
 ```
 
 ```{python}
@@ -484,6 +488,55 @@ for i in c:
     box = patches.Rectangle((y_min, x_min), 128, 128, linewidth=1, edgecolor='r', facecolor='none')
     ax.add_patch(box)
 plt.show()
+```
+
+```{python}
+with fiona.open(maize_shape_path) as maize_shapefile:
+    maize_shapes = [feature["geometry"] for feature in maize_shapefile]
+ds = gt_ds.rds
+out_image, out_tansform = rio.mask.mask(ds, maize_shapes, crop=False)
+out_meta = ds.meta
+```
+
+```{python}
+type(maize_shapes)
+```
+
+```{python}
+x_min = 3500
+x_max = x_min + 128
+y_min = 6500
+y_max = y_min + 128
+plt.figure(figsize=(10, 10))
+window = out_image[3][x_min:x_max, y_min:y_max] // 255
+print(np.sum(window) / (128 ** 2))
+#plt.imshow(out_image[3][x_min:x_max, y_min:y_max] // 255, cmap='gray')
+plt.imshow(window, cmap='gray')
+```
+
+```{python}
+mask = out_image > 0
+```
+
+```{python}
+import sys
+sys.getsizeof(mask)
+```
+
+```{python}
+shape_dir = '/home/ndettmer/ssd_data/UOS_Data/1805_maize'
+```
+
+```{python}
+for root, directory, files in os.walk(shape_dir):
+    for file in files:
+        if os.path.splitext(file)[1] == ".shp":
+            print(os.path.splitext(file.split("_")[-1])[0])
+    
+```
+
+```{python}
+maize_shapes
 ```
 
 ```{python}
