@@ -495,7 +495,7 @@ class GTiffDataset(Dataset):
         for i in p_bar:
             bb = self._get_bounding_box_from_index(i)
             x_min, x_max, y_min, y_max = bb
-            if x_max > mask.shape[0] or y_min > mask.shape[1]:
+            if x_max > mask.shape[0] or y_min >= mask.shape[1]:
                 continue
             if not mask[x_min:x_max, y_min].any():
                 # skip windows with empty first lines
