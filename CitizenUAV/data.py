@@ -359,15 +359,18 @@ class GTiffDataset(Dataset):
     # If I want to rely on labels, I need to crop the dataset to the labeled area. Else I can use the whole dataset.
     # Cropping also makes the memory consumption of the label masks manageable!
 
-    def __init__(self, filename: Union[str | os.PathLike], shape_dir: Union[str | os.PathLike],
+    def __init__(self, filename: Union[str | os.PathLike], shape_dir: Optional[Union[str | os.PathLike]] = None,
                  window_size: int = 128, stride: int = 1):
         """
         :param filename: Path to the GeoTiff file
+        :param shape_dir: Path to the directory containing the shape files needed for determining class labels.
+            If None, None will be returned as a target for each sample.
         :param window_size: Edge length of the quadratic moving window
         :param stride: Step size of the moving window (no padding)
         """
         super().__init__()
         self.filename = filename
+        self.shape_dir = shape_dir
         self.window_size = window_size
         self.stride = stride
         # padding = 0
@@ -378,30 +381,34 @@ class GTiffDataset(Dataset):
         self.class_masks = []
         self.class_mask_transforms = []
 
-        for root, directory, files in os.walk(shape_dir):
-            for file in files:
-                if os.path.splitext(file)[1] == ".shp":
-                    cls = os.path.splitext(file.split("_")[-1])[0]
-                    self.classes.append(cls)
+        if self.shape_dir is not None:
+            self.return_targets = True
+            for root, directory, files in os.walk(self.shape_dir):
+                for file in files:
+                    if os.path.splitext(file)[1] == ".shp":
+                        cls = os.path.splitext(file.split("_")[-1])[0]
+                        self.classes.append(cls)
 
-                    # Save cropped masks and transforms instead of paths
-                    # Then the retrieving the class coverage is just a simple lookup without any I/O operation.
-                    # I need to transform between the cropped mask and the full area.
-                    shape_path = os.path.join(shape_dir, file)
-                    with fiona.open(shape_path) as shape_file:
-                        shapes = [feature["geometry"] for feature in shape_file]
+                        # Save cropped masks and transforms instead of paths
+                        # Then the retrieving the class coverage is just a simple lookup without any I/O operation.
+                        # I need to transform between the cropped mask and the full area.
+                        shape_path = os.path.join(self.shape_dir, file)
+                        with fiona.open(shape_path) as shape_file:
+                            shapes = [feature["geometry"] for feature in shape_file]
 
-                    # Weirdly sometimes None gets into shapes, which leads to errors in the masking process.
-                    # Prevent that!
-                    shapes = [shape for shape in shapes if shape is not None]
-                    shape_mask, shape_transform = rio.mask.mask(self.rds, shapes, crop=True)
+                        # Weirdly sometimes None gets into shapes, which leads to errors in the masking process.
+                        # Prevent that!
+                        shapes = [shape for shape in shapes if shape is not None]
+                        shape_mask, shape_transform = rio.mask.mask(self.rds, shapes, crop=True)
 
-                    shape_mask = shape_mask[3] > 0
-                    self.class_masks.append(shape_mask)
-                    self.class_mask_transforms.append(shape_transform)
+                        shape_mask = shape_mask[3] > 0
+                        self.class_masks.append(shape_mask)
+                        self.class_mask_transforms.append(shape_transform)
 
-        self.classes.append('soil')
-        self.class_to_idx = {cls: idx for idx, cls in enumerate(self.classes)}
+            self.classes.append('soil')
+            self.class_to_idx = {cls: idx for idx, cls in enumerate(self.classes)}
+        else:
+            self.return_targets = False
 
         self.n_windows_x = self._get_n_windows_x()
         self.n_windows_y = self._get_n_windows_y()
@@ -410,9 +417,10 @@ class GTiffDataset(Dataset):
         self.min_cover_factor = 2/3
         self.min_cover = self.window_size ** 2 * self.min_cover_factor
 
-        # Minimum coverage of a class in a window to be considered a sample for that class
-        self.min_cls_cover_factor = .01
-        self.min_cls_cover = self.window_size ** self.min_cls_cover_factor
+        if self.return_targets:
+            # Minimum coverage of a class in a window to be considered a sample for that class
+            self.min_cls_cover_factor = .01
+            self.min_cls_cover = self.window_size ** self.min_cls_cover_factor
 
         # only use bounding boxes that contain a minimum amount of data
         self.bb_path = f"{os.path.splitext(self.filename)[0]}_bbs_{self.window_size}-{self.stride}.npy"
@@ -421,16 +429,18 @@ class GTiffDataset(Dataset):
         else:
             self.bbs = np.load(self.bb_path)
 
-        # cache targets
-        self.targets_path = f"{os.path.splitext(self.filename)[0]}_targets_{self.window_size}-{self.stride}.npy"
-        if not os.path.exists(self.targets_path):
-            self.targets = [-1] * len(self.bbs)
-        else:
-            self.targets = np.load(self.targets_path)
+        if self.return_targets:
+            # cache targets
+            self.targets_path = f"{os.path.splitext(self.filename)[0]}_targets_{self.window_size}-{self.stride}.npy"
+            if not os.path.exists(self.targets_path):
+                self.targets = [-1] * len(self.bbs)
+            else:
+                self.targets = np.load(self.targets_path)
 
     def __del__(self):
         self.rds.close()
-        np.save(self.targets_path, self.targets)
+        if self.return_targets:
+            np.save(self.targets_path, self.targets)
 
     def _get_n_windows_x(self):
         """
@@ -516,12 +526,15 @@ class GTiffDataset(Dataset):
         bb = self.bbs[index]
         sample = self.get_bb_data(bb)
 
-        # Caching of targets
-        if self.targets[index] > -1:
-            target = self.targets[index]
+        if self.return_targets:
+            # Caching of targets
+            if self.targets[index] > -1:
+                target = self.targets[index]
+            else:
+                target = self.get_bb_label(bb)
+                self.targets[index] = target
         else:
-            target = self.get_bb_label(bb)
-            self.targets[index] = target
+            target = None
 
         return sample, target
 
