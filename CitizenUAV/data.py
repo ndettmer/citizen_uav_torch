@@ -373,8 +373,10 @@ class GTiffDataset(Dataset):
         # padding = 0
         self.rds = rio.open(filename)
 
+        # load shape masks
         self.classes = []
-        self.class_shapes = []
+        self.class_masks = []
+        self.class_mask_transforms = []
 
         for root, directory, files in os.walk(shape_dir):
             for file in files:
@@ -382,8 +384,21 @@ class GTiffDataset(Dataset):
                     cls = os.path.splitext(file.split("_")[-1])[0]
                     self.classes.append(cls)
 
+                    # Save cropped masks and transforms instead of paths
+                    # Then the retrieving the class coverage is just a simple lookup without any I/O operation.
+                    # I need to transform between the cropped mask and the full area.
                     shape_path = os.path.join(shape_dir, file)
-                    self.class_shapes.append(shape_path)
+                    with fiona.open(shape_path) as shape_file:
+                        shapes = [feature["geometry"] for feature in shape_file]
+
+                    # Weirdly sometimes None gets into shapes, which leads to errors in the masking process.
+                    # Prevent that!
+                    shapes = [shape for shape in shapes if shape is not None]
+                    shape_mask, shape_transform = rio.mask.mask(self.rds, shapes, crop=True)
+
+                    shape_mask = shape_mask[3] > 0
+                    self.class_masks.append(shape_mask)
+                    self.class_mask_transforms.append(shape_transform)
 
         self.classes.append('soil')
         self.class_to_idx = {cls: idx for idx, cls in enumerate(self.classes)}
@@ -399,13 +414,23 @@ class GTiffDataset(Dataset):
         self.min_cls_cover_factor = .01
         self.min_cls_cover = self.window_size ** self.min_cls_cover_factor
 
+        # only use bounding boxes that contain a minimum amount of data
         self.bb_path = f"{os.path.splitext(self.filename)[0]}_bbs_{self.window_size}-{self.stride}.npy"
         if not os.path.exists(self.bb_path):
             self.bbs = self._preselect_windows()
         else:
             self.bbs = np.load(self.bb_path)
 
-        self.targets = [None] * len(self.bbs)
+        # cache targets
+        self.targets_path = f"{os.path.splitext(self.filename)[0]}_targets_{self.window_size}-{self.stride}.npy"
+        if not os.path.exists(self.targets_path):
+            self.targets = [-1] * len(self.bbs)
+        else:
+            self.targets = np.load(self.targets_path)
+
+    def __del__(self):
+        self.rds.close()
+        np.save(self.targets_path, self.targets)
 
     def _get_n_windows_x(self):
         """
@@ -492,7 +517,7 @@ class GTiffDataset(Dataset):
         sample = self.get_bb_data(bb)
 
         # Caching of targets
-        if self.targets[index] is not None:
+        if self.targets[index] > -1:
             target = self.targets[index]
         else:
             target = self.get_bb_label(bb)
@@ -516,41 +541,47 @@ class GTiffDataset(Dataset):
 
         return int(np.argmax(coverages))
 
-    def load_shapes_for_class(self, cls_idx: int) -> list:
-        """
-        Load the shapes of the given class.
-        :param cls_idx: Class index.
-        :return: Shape representations
-        """
-        shape_path = self.class_shapes[cls_idx]
-
-        with fiona.open(shape_path) as shapefile:
-            shapes = [feature["geometry"] for feature in shapefile]
-
-        # Weirdly sometimes None gets into shapes, which leads to errors in the masking process. Prevent that!
-        shapes = [shape for shape in shapes if shape is not None]
-
-        return shapes
-
     def get_bb_cls_coverage(self, bb: Union[tuple | np.ndarray], cls_idx: int, share: bool = False) \
             -> Union[int | float]:
         """
         Get the number of pixels in the given bounding box that are covered with the given class.
         :param bb: Boundig box.
         :param cls_idx: Class to determine the coverage for.
-        :param share: If true, return percentual coverage.
+        :param share: If true, return percentual coverage, absolute coverage otherwise.
         :return: Class coverage in the window.
         """
         if cls_idx > len(self.classes) - 2:
             raise ValueError(f"Species with class index {cls_idx} does not exits. "
                              f"Please choose from {list(np.array(self.classes)[:-1])}")
 
-        shapes = self.load_shapes_for_class(cls_idx)
-
-        cls_mask, _ = rio.mask.mask(self.rds, shapes, crop=False)
-        cls_mask = cls_mask > 0
-
         x_min, x_max, y_min, y_max = bb
+
+        # get mask and transform
+        cls_mask_cropped = self.class_masks[cls_idx]
+        cls_mask_transform = self.class_mask_transforms[cls_idx]
+
+        # map origin of cropped shape mask to geo-referenced system
+        min_point_geo = cls_mask_transform * (0, 0)
+
+        # map geo-referenced origin back to the non-cropped dataset
+        min_point_ds = ~self.rds.transform * min_point_geo
+
+        # Here the axes have to be switched for some reason
+        min_point_ds = tuple(reversed(min_point_ds))
+
+        # initialize class-specific shape mask
+        cls_mask = np.zeros((self.rds.height, self.rds.width), dtype=bool)
+
+        # get cropped cover
+        idxs = np.argwhere(cls_mask_cropped)
+
+        # map to non-cropped system
+        idxs = (idxs + min_point_ds).astype(int)
+
+        # apply cover
+        cls_mask[idxs[:, 0], idxs[:, 1]] = True
+
+        # decide which calculate numeric coverage
         coverage = int(np.sum(cls_mask[x_min:x_max, y_min:y_max]))
         if share:
             coverage /= self.window_size ** 2

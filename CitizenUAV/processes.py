@@ -595,14 +595,14 @@ def create_gim_metadata(data_dir: os.PathLike, classes: list = None, debug: bool
 
 
 def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[str | os.PathLike],
-                    window_size: int = 128, stride: int = 1, gpu: bool = False, batch_size: int = 1):
+                    shape_dir: Union[str | os.PathLike], window_size: int = 128, stride: int = 1, gpu: bool = False, batch_size: int = 1):
     model = InatClassifier.load_from_checkpoint(model_path)
     model.eval()
 
     if gpu:
         model.cuda()
 
-    ds = GTiffDataset(dataset_path, window_size, stride)
+    ds = GTiffDataset(dataset_path, shape_dir, window_size, stride)
 
     label_map = np.full((model.n_classes, ds.rds.width, ds.rds.height), -1, dtype=np.int8)
 

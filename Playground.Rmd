@@ -440,6 +440,7 @@ import rasterio as rio
 import rasterio.mask
 import fiona
 import os
+import sys
 from PIL import Image
 from matplotlib import pyplot as plt
 from matplotlib import patches as patches
@@ -493,13 +494,82 @@ plt.show()
 ```{python}
 with fiona.open(maize_shape_path) as maize_shapefile:
     maize_shapes = [feature["geometry"] for feature in maize_shapefile]
-ds = gt_ds.rds
-out_image, out_tansform = rio.mask.mask(ds, maize_shapes, crop=False)
+ds = rio.open(filename)
+out_image, out_transform = rio.mask.mask(ds, maize_shapes, crop=True)
+ds_transform = ds.transform
 out_meta = ds.meta
+bounds = ds.bounds
 ```
 
 ```{python}
-type(maize_shapes)
+# reference image
+ref_img = ds.read(4) > 0
+ref_mask, _ = rio.mask.mask(ds, maize_shapes, crop=False)
+ref_mask = ref_mask[3] > 0
+ref_img ^= ref_mask
+```
+
+```{python}
+min_p_geo = out_transform * (0, 0)
+max_p_geo = out_transform * (out_image[0].shape[1], out_image[0].shape[0])
+min_p_ds = ~ds_transform * min_p_geo
+max_p_ds = ~ds_transform * max_p_geo
+print(min_p_ds)
+print(max_p_ds)
+
+figure, ax = plt.subplots()
+ax.imshow(ref_img, cmap='gray')
+box = patches.Rectangle((min_p_ds[0], min_p_ds[1]), max_p_ds[0] - min_p_ds[0], max_p_ds[1] - min_p_ds[1], linewidth=1, edgecolor='r', facecolor='none')
+ax.add_patch(box)
+ax.plot([min_p_ds[0], max_p_ds[0]], [min_p_ds[1], max_p_ds[1]], 'X')
+plt.show()
+```
+
+```{python}
+plt.imshow(out_image[3] > 0, cmap='gray')
+```
+
+```{python}
+shape_mask = np.zeros((ds.height, ds.width), dtype=bool)
+idxs = np.argwhere(out_image[3] > 0)
+idxs = (idxs + tuple(reversed(min_p_ds))).astype(int)
+shape_mask[idxs[:, 0], idxs[:, 1]] = True
+
+plt.imshow(shape_mask, cmap='gray')
+```
+
+```{python}
+plt.imshow(ref_mask, cmap='gray')
+```
+
+```{python}
+(ref_mask == shape_mask).all()
+```
+
+```{python}
+ref_img[idxs[0]]
+```
+
+```{python}
+out_image[3].shape
+```
+
+```{python}
+idxs
+```
+
+```{python}
+from datetime import datetime
+mask_cpy1 = shape_mask.copy()
+mask_cpy2 = shape_mask.copy()
+
+start = datetime.now()
+mask_cpy1[idxs] = True
+print(datetime.now() - start)
+
+start = datetime.now()
+mask_cpy2[idxs] += True
+print(datetime.now() - start)
 ```
 
 ```{python}
