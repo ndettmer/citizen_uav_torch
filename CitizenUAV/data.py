@@ -383,6 +383,9 @@ class GTiffDataset(Dataset):
             # get labelled-area
             prefix = os.path.basename(self.shape_dir)
             la_shapes, _ = self.get_shapes_from_file(f"{prefix}_labelled-area.shp", False)
+            # TODO: make more memory-efficient
+            # 1. Either use it only in _preselect_windows and delete it afterwards
+            # 2. or use it in a cropped  way analogly to the class masks
             self.labelled_area = la_shapes
 
             self.return_targets = True
@@ -414,6 +417,7 @@ class GTiffDataset(Dataset):
             self.min_cls_cover_factor = .01
             self.min_cls_cover = self.window_size ** self.min_cls_cover_factor
 
+        # TODO: For training take bounding boxes, that surround single shapes
         # only use bounding boxes that contain a minimum amount of data
         self.bb_path = f"{os.path.splitext(self.filename)[0]}_bbs_{self.window_size}-{self.stride}.npy"
         if not os.path.exists(self.bb_path):
