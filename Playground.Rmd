@@ -5,7 +5,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.14.1
+      jupytext_version: 1.14.4
   kernelspec:
     display_name: Python 3 (ipykernel)
     language: python
@@ -454,7 +454,7 @@ from tqdm import tqdm
 ```
 
 ```{python}
-data_dir = '/home/ndettmer/ssd_data/UOS_Data/'
+data_dir = '/home/ndettmer/data/UOS_Data/'
 filename = os.path.join(data_dir, '220518_maize_rgb.tif')
 shape_dir = os.path.join(data_dir, '1805_maize')
 maize_shape_path = os.path.join(shape_dir, '1805_maize_maize.shp')
@@ -462,6 +462,10 @@ maize_shape_path = os.path.join(shape_dir, '1805_maize_maize.shp')
 
 ```{python}
 gt_ds = GTiffDataset(filename, shape_dir, stride=10)
+```
+
+```{python}
+len(gt_ds)
 ```
 
 ```{python}
@@ -478,8 +482,13 @@ plt.show()
 ```
 
 ```{python}
-img = to_pil_image(torch.from_numpy(gt_ds.rds.read((1, 2, 3))))
-figure, ax = plt.subplots()
+img = gt_ds.rds.read((1, 2, 3))
+gray_img = img.mean(axis=0)
+img[:, (gt_ds.get_mask_bool() & ~gt_ds.labelled_area)] = gray_img[(gt_ds.get_mask_bool() & ~gt_ds.labelled_area)]
+del gray_img
+img = to_pil_image(torch.from_numpy(img))
+
+figure, ax = plt.subplots(figsize=(20,20))
 ax.imshow(img)
 for i in c:
     bb = gt_ds.bbs[i]
@@ -488,7 +497,8 @@ for i in c:
     txt.set_path_effects([PathEffects.withStroke(linewidth=3, foreground='black')])
     box = patches.Rectangle((y_min, x_min), 128, 128, linewidth=1, edgecolor='r', facecolor='none')
     ax.add_patch(box)
-plt.show()
+#plt.show()
+plt.savefig('/home/ndettmer/Pictures/220518_maize_labelled_subset.png')
 ```
 
 ```{python}

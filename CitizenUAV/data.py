@@ -355,10 +355,6 @@ class GTiffDataset(Dataset):
     Pytorch dataset creating samples form a GeoTiff dataset using a moving window approach
     """
 
-    # TODO: Distinguish between labeled and non-labeled dataset!
-    # If I want to rely on labels, I need to crop the dataset to the labeled area. Else I can use the whole dataset.
-    # Cropping also makes the memory consumption of the label masks manageable!
-
     def __init__(self, filename: Union[str | os.PathLike], shape_dir: Optional[Union[str | os.PathLike]] = None,
                  window_size: int = 128, stride: int = 1):
         """
@@ -380,8 +376,15 @@ class GTiffDataset(Dataset):
         self.classes = []
         self.class_masks = []
         self.class_mask_transforms = []
+        self.labelled_area = None
 
         if self.shape_dir is not None:
+
+            # get labelled-area
+            prefix = os.path.basename(self.shape_dir)
+            la_shapes, _ = self.get_shapes_from_file(f"{prefix}_labelled-area.shp", False)
+            self.labelled_area = la_shapes
+
             self.return_targets = True
             for root, directory, files in os.walk(self.shape_dir):
                 for file in files:
@@ -390,18 +393,7 @@ class GTiffDataset(Dataset):
                         self.classes.append(cls)
 
                         # Save cropped masks and transforms instead of paths
-                        # Then the retrieving the class coverage is just a simple lookup without any I/O operation.
-                        # I need to transform between the cropped mask and the full area.
-                        shape_path = os.path.join(self.shape_dir, file)
-                        with fiona.open(shape_path) as shape_file:
-                            shapes = [feature["geometry"] for feature in shape_file]
-
-                        # Weirdly sometimes None gets into shapes, which leads to errors in the masking process.
-                        # Prevent that!
-                        shapes = [shape for shape in shapes if shape is not None]
-                        shape_mask, shape_transform = rio.mask.mask(self.rds, shapes, crop=True)
-
-                        shape_mask = shape_mask[3] > 0
+                        shape_mask, shape_transform = self.get_shapes_from_file(file)
                         self.class_masks.append(shape_mask)
                         self.class_mask_transforms.append(shape_transform)
 
@@ -441,6 +433,21 @@ class GTiffDataset(Dataset):
         self.rds.close()
         if self.return_targets:
             np.save(self.targets_path, self.targets)
+
+    def get_shapes_from_file(self, filename, crop_mask: bool = True):
+        # Then the retrieving the class coverage is just a simple lookup without any I/O operation.
+        # I need to transform between the cropped mask and the full area.
+        shape_path = os.path.join(self.shape_dir, filename)
+        with fiona.open(shape_path) as shape_file:
+            shapes = [feature["geometry"] for feature in shape_file]
+
+        # Weirdly sometimes None gets into shapes, which leads to errors in the masking process.
+        # Prevent that!
+        shapes = [shape for shape in shapes if shape is not None]
+        shape_mask, shape_transform = rio.mask.mask(self.rds, shapes, crop=crop_mask)
+
+        shape_mask = shape_mask[3] > 0
+        return shape_mask, shape_transform
 
     def _get_n_windows_x(self):
         """
@@ -490,7 +497,10 @@ class GTiffDataset(Dataset):
 
         p_bar = tqdm(range(self.raw_len()))
         p_bar.set_description("Choosing windows to use")
-        mask = self.get_mask_bool()
+        if self.labelled_area is not None:
+            mask = self.labelled_area
+        else:
+            mask = self.get_mask_bool()
 
         for i in p_bar:
             bb = self._get_bounding_box_from_index(i)
