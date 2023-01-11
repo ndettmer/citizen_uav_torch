@@ -542,7 +542,7 @@ class GTiffDataset(Dataset):
                 target = self.get_bb_label(bb)
                 self.targets[index] = target
         else:
-            target = None
+            target = 0
 
         return sample, target
 

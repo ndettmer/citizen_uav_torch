@@ -6,6 +6,7 @@ from torchvision.models.detection import fasterrcnn_resnet50_fpn_v2, fasterrcnn_
 from torch import nn
 from torch.nn import functional as F
 from torchmetrics import F1Score, Accuracy
+# precision_recall seems to have been moved or removed in newer torchmetrics versions
 from torchmetrics.functional import precision_recall, confusion_matrix
 import pandas as pd
 from matplotlib import pyplot as plt
@@ -214,3 +215,21 @@ class InatRegressor(pl.LightningModule):
         self.log_dict({"test_loss": loss})
         return loss
 
+
+class RandomClassifier(pl.LightningModule):
+    """
+    Dummy model for testing predictions scripts.
+    """
+
+    @staticmethod
+    def add_model_specific_args(parent_parser):
+        parent_parser.add_argument("--n_classes", type=int, required=True)
+        return parent_parser
+
+    def __init__(self, **kwargs):
+        super().__init__()
+        self.n_classes = kwargs.pop('n_classes')
+
+    def forward(self, x):
+        batch_size = x.shape[0]
+        return torch.rand((batch_size, self.n_classes))

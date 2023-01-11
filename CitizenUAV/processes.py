@@ -4,6 +4,7 @@ from tqdm import tqdm
 from PIL import Image, UnidentifiedImageError
 from io import BytesIO
 from collections import Counter
+from datetime import datetime
 
 from torchvision.datasets import ImageFolder
 from torchvision import transforms
@@ -566,7 +567,6 @@ def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, 
 
 
 def create_gim_metadata(data_dir: os.PathLike, classes: list = None, debug: bool = False):
-
     metadata = pd.DataFrame(columns=["photo_id", "species", "distance", "obs_id", "n_photos", "label", "image_okay"])
     metadata.set_index('photo_id', inplace=True)
 
@@ -595,29 +595,61 @@ def create_gim_metadata(data_dir: os.PathLike, classes: list = None, debug: bool
 
 
 def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[str | os.PathLike],
-                    shape_dir: Union[str | os.PathLike], window_size: int = 128, stride: int = 1, gpu: bool = False, batch_size: int = 1):
+                    result_dir: Optional[Union[str | os.PathLike]] = None,
+                    window_size: int = 128, stride: int = 1, gpu: bool = False, batch_size: int = 1,
+                    debug: bool = False) -> np.ndarray:
+    """
+    Predict pixel-wise classes for a GeoTiff raster dataset with a given trained model using a moving window approach.
+    :param model_path: Path to the model checkpoint.
+    :param dataset_path: Path to the GeoTiff raster dataset.
+    :param result_dir: Storage directory for the prediction results.
+    :param window_size: Size of the moving window.
+    :param stride: Step size of the moving window algorithm.
+    :param gpu: If true, use GPU. Will be ignored, if CUDA is not available.
+    :param batch_size: Batch size for the predictions.
+    :param debug: If true, do some assertions and logging.
+    :return: Resulting label map containing the final predictions.
+    """
+
+    if result_dir is None:
+        result_dir = os.getcwd()
+    dataset_name = os.path.splitext(os.path.basename(dataset_path))[0]
+    result_path = os.path.join(result_dir, "predictions", dataset_name,
+                               f'{datetime.now().strftime("%y-%m-%d_%H-%M")}.npy')
+
+    if not os.path.exists(result_path):
+        os.makedirs(os.path.dirname(result_path), exist_ok=True)
+
+    ds = GTiffDataset(dataset_path, window_size=window_size, stride=stride)
+
     model = InatClassifier.load_from_checkpoint(model_path)
     model.eval()
 
-    if gpu:
+    if gpu and torch.cuda.is_available():
         model.cuda()
 
-    ds = GTiffDataset(dataset_path, shape_dir, window_size, stride)
-
-    label_map = np.full((model.n_classes, ds.rds.width, ds.rds.height), -1, dtype=np.int8)
+    # count the predictions in here in order to take the class with the maximum votes afterwards for each pixel.
+    label_map = np.full((model.n_classes, ds.rds.height, ds.rds.width), 0, dtype=np.uint8)
+    if debug:
+        assert ds.get_mask_bool().shape == label_map.shape[1:]
 
     p_bar = tqdm(range(len(ds) // batch_size))
     p_bar.set_description(f"Predicting classes in raster dataset")
     for batch_no in p_bar:
         batch_bbs = ds.bbs[batch_no * batch_size:(batch_no + 1) * batch_size]
-        batch = torch.stack([ds.load_window_from_bounding_box(bb) for bb in batch_bbs], dim=0)
+        batch = torch.stack([ds.get_bb_data(bb) for bb in batch_bbs], dim=0)
 
-        if gpu:
+        if gpu and torch.cuda.is_available():
             batch.cuda()
 
         with torch.no_grad():
-            preds = model(batch)
+            y_hat = model(batch)
 
-        # TODO
+        preds = torch.argmax(y_hat, dim=1)
+        for pred, bb in zip(preds, batch_bbs):
+            x_min, x_max, y_min, y_max = bb
+            label_map[pred, x_min:x_max, y_min:y_max] += 1
 
-
+    voting_result = np.argmax(label_map, axis=0)
+    np.save(result_path, voting_result)
+    return voting_result
