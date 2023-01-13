@@ -1,3 +1,4 @@
+import affine
 import numpy as np
 import pytorch_lightning as pl
 from pytorch_lightning.utilities.types import TRAIN_DATALOADERS
@@ -416,6 +417,9 @@ class GTiffDataset(Dataset):
             self.min_cls_cover = self.window_size ** self.min_cls_cover_factor
 
         # TODO: For training take bounding boxes, that surround single shapes
+        #   Idea: for each shape take the centroid of that shape
+        #   and move window_size//2 in each direction to create the BB
+
         # only use bounding boxes that contain a minimum amount of data
         self.bb_path = f"{os.path.splitext(self.filename)[0]}_bbs_{self.window_size}-{self.stride}.npy"
         if not os.path.exists(self.bb_path):
@@ -580,7 +584,13 @@ class GTiffDataset(Dataset):
 
         return int(np.argmax(coverages))
 
-    def uncrop_mask(self, mask, transform):
+    def uncrop_mask(self, mask: np.ndarray, transform: affine.Affine) -> np.ndarray:
+        """
+        Transform a mask cropped to the content of that mask back to the large dataset.
+        :param mask: Cropped mask.
+        :param transform: Transform that was put out by rio.mask.mask(ds, shapes, crop=True)
+        :return: The uncropped mask.
+        """
 
         # map origin of cropped shape mask to geo-referenced system
         min_point_geo = transform * (0, 0)
@@ -588,7 +598,7 @@ class GTiffDataset(Dataset):
         # map geo-referenced origin back to the non-cropped dataset
         min_point_ds = ~self.rds.transform * min_point_geo
 
-        # Here the axes have to be switched for some reason
+        # Here the axes have to be swapped for some reason
         min_point_ds = tuple(reversed(min_point_ds))
 
         # initialize uncropped shape mask
