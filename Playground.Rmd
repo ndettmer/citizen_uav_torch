@@ -469,36 +469,40 @@ len(gt_ds)
 ```
 
 ```{python}
-n = 9
-figure, axs = plt.subplots(1, n)
-c = np.random.choice(range(gt_ds.bbs.shape[0]), size=n)
-for j, i in enumerate(c):
-    bb = gt_ds.bbs[i]
-    x_min, x_max, y_min, y_max = bb
-    #print(x_min, x_max, y_min, y_max)
-    img = to_pil_image(gt_ds.get_bb_data(bb))
-    axs[j].imshow(img)
-plt.show()
-```
-
-```{python}
 img = gt_ds.rds.read((1, 2, 3))
 gray_img = img.mean(axis=0)
 img[:, (gt_ds.get_mask_bool() & ~gt_ds.labelled_area)] = gray_img[(gt_ds.get_mask_bool() & ~gt_ds.labelled_area)]
 del gray_img
-img = to_pil_image(torch.from_numpy(img))
+```
 
+```{python}
+n = 25
+side_len = int(np.sqrt(n))
+figure, axs = plt.subplots(side_len, side_len, figsize=(20, 20))
+c = np.random.choice(range(gt_ds.bbs.shape[0]), size=n)
+for i, idx in enumerate(c):
+    bb = gt_ds.bbs[idx]
+    x_min, x_max, y_min, y_max = bb
+    #print(x_min, x_max, y_min, y_max)
+    sample_img = to_pil_image(torch.from_numpy(img[:, x_min:x_max, y_min:y_max]))
+    axs[i % side_len, i // side_len].imshow(sample_img)
+    axs[i % side_len, i // side_len].set_title(f"({x_min}, {y_min}):({x_max}, {y_max})")
+plt.show()
+#plt.savefig(f'/home/ndettmer/Pictures/220518_maize_labelled_subset_samples.png')
+```
+
+```{python}
 figure, ax = plt.subplots(figsize=(20,20))
-ax.imshow(img)
+ax.imshow(to_pil_image(torch.from_numpy(img)))
 for i in c:
     bb = gt_ds.bbs[i]
     x_min, x_max, y_min, y_max = bb
-    txt = ax.text(y_min - 5, x_min - 5, f"{x_min}, {x_max}, {y_min}, {y_max}", color='white')
-    txt.set_path_effects([PathEffects.withStroke(linewidth=3, foreground='black')])
+    txt = ax.text(y_min - 5, x_min - 5, f"({x_min},{y_min}):({x_max},{y_max})", color='white', fontsize='6')
+    txt.set_path_effects([PathEffects.withStroke(linewidth=2, foreground='black')])
     box = patches.Rectangle((y_min, x_min), 128, 128, linewidth=1, edgecolor='r', facecolor='none')
     ax.add_patch(box)
-#plt.show()
-plt.savefig('/home/ndettmer/Pictures/220518_maize_labelled_subset.png')
+plt.show()
+#plt.savefig('/home/ndettmer/Pictures/220518_maize_labelled_subset.png')
 ```
 
 ```{python}
