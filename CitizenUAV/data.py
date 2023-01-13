@@ -382,10 +382,12 @@ class GTiffDataset(Dataset):
 
             # get labelled-area
             prefix = os.path.basename(self.shape_dir)
-            la_shapes, _ = self.get_shapes_from_file(f"{prefix}_labelled-area.shp", False)
+            la_shapes, la_transform = self.get_shapes_from_file(f"{prefix}_labelled-area.shp", False)
             # TODO: make more memory-efficient
             # 1. Either use it only in _preselect_windows and delete it afterwards
             # 2. or use it in a cropped  way analogly to the class masks
+            #self.labelled_area_cropped = la_shapes
+            #self.labelled_area_transform = la_transform
             self.labelled_area = la_shapes
 
             self.return_targets = True
@@ -409,7 +411,7 @@ class GTiffDataset(Dataset):
         self.n_windows_y = self._get_n_windows_y()
 
         # Minimum coverage of any data in a window to be considered as a sample
-        self.min_cover_factor = 2/3
+        self.min_cover_factor = 3/4
         self.min_cover = self.window_size ** 2 * self.min_cover_factor
 
         if self.return_targets:
@@ -576,6 +578,31 @@ class GTiffDataset(Dataset):
 
         return int(np.argmax(coverages))
 
+    def uncrop_mask(self, mask, transform):
+
+        # map origin of cropped shape mask to geo-referenced system
+        min_point_geo = transform * (0, 0)
+
+        # map geo-referenced origin back to the non-cropped dataset
+        min_point_ds = ~self.rds.transform * min_point_geo
+
+        # Here the axes have to be switched for some reason
+        min_point_ds = tuple(reversed(min_point_ds))
+
+        # initialize uncropped shape mask
+        mask_uncropped = np.zeros((self.rds.height, self.rds.width), dtype=bool)
+
+        # get cropped cover
+        idxs = np.argwhere(mask)
+
+        # map to non-cropped system
+        idxs = (idxs + min_point_ds).astype(int)
+
+        # apply cover
+        mask_uncropped[idxs[:, 0], idxs[:, 1]] = True
+
+        return mask_uncropped
+
     def get_bb_cls_coverage(self, bb: Union[tuple | np.ndarray], cls_idx: int, share: bool = False) \
             -> Union[int | float]:
         """
@@ -595,26 +622,7 @@ class GTiffDataset(Dataset):
         cls_mask_cropped = self.class_masks[cls_idx]
         cls_mask_transform = self.class_mask_transforms[cls_idx]
 
-        # map origin of cropped shape mask to geo-referenced system
-        min_point_geo = cls_mask_transform * (0, 0)
-
-        # map geo-referenced origin back to the non-cropped dataset
-        min_point_ds = ~self.rds.transform * min_point_geo
-
-        # Here the axes have to be switched for some reason
-        min_point_ds = tuple(reversed(min_point_ds))
-
-        # initialize class-specific shape mask
-        cls_mask = np.zeros((self.rds.height, self.rds.width), dtype=bool)
-
-        # get cropped cover
-        idxs = np.argwhere(cls_mask_cropped)
-
-        # map to non-cropped system
-        idxs = (idxs + min_point_ds).astype(int)
-
-        # apply cover
-        cls_mask[idxs[:, 0], idxs[:, 1]] = True
+        cls_mask = self.uncrop_mask(cls_mask_cropped, cls_mask_transform)
 
         # decide which calculate numeric coverage
         coverage = int(np.sum(cls_mask[x_min:x_max, y_min:y_max]))
