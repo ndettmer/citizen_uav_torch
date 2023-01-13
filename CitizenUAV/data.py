@@ -376,19 +376,15 @@ class GTiffDataset(Dataset):
         self.classes = []
         self.class_masks = []
         self.class_mask_transforms = []
-        self.labelled_area = None
+        self.labelled_area_cropped = None
 
         if self.shape_dir is not None:
 
             # get labelled-area
             prefix = os.path.basename(self.shape_dir)
-            la_shapes, la_transform = self.get_shapes_from_file(f"{prefix}_labelled-area.shp", False)
-            # TODO: make more memory-efficient
-            # 1. Either use it only in _preselect_windows and delete it afterwards
-            # 2. or use it in a cropped  way analogly to the class masks
-            #self.labelled_area_cropped = la_shapes
-            #self.labelled_area_transform = la_transform
-            self.labelled_area = la_shapes
+            la_shapes, la_transform = self.get_shapes_from_file(f"{prefix}_labelled-area.shp", True)
+            self.labelled_area_cropped = la_shapes
+            self.labelled_area_transform = la_transform
 
             self.return_targets = True
             for root, directory, files in os.walk(self.shape_dir):
@@ -439,6 +435,12 @@ class GTiffDataset(Dataset):
         self.rds.close()
         if self.return_targets:
             np.save(self.targets_path, self.targets)
+
+    def get_labelled_area(self):
+        if self.labelled_area_cropped is None:
+            return None
+        labelled_area = self.uncrop_mask(self.labelled_area_cropped, self.labelled_area_transform)
+        return labelled_area
 
     def get_shapes_from_file(self, filename, crop_mask: bool = True):
         # Then the retrieving the class coverage is just a simple lookup without any I/O operation.
@@ -503,8 +505,8 @@ class GTiffDataset(Dataset):
 
         p_bar = tqdm(range(self.raw_len()))
         p_bar.set_description("Choosing windows to use")
-        if self.labelled_area is not None:
-            mask = self.labelled_area
+        if self.labelled_area_cropped is not None:
+            self.get_labelled_area()
         else:
             mask = self.get_mask_bool()
 

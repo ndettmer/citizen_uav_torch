@@ -458,20 +458,15 @@ data_dir = '/home/ndettmer/ssd_data/UOS_Data/'
 filename = os.path.join(data_dir, '220518_maize_rgb.tif')
 shape_dir = os.path.join(data_dir, '1805_maize')
 maize_shape_path = os.path.join(shape_dir, '1805_maize_maize.shp')
-```
 
-```{python}
-gt_ds = GTiffDataset(filename, shape_dir, stride=10)
-```
-
-```{python}
-len(gt_ds)
+gt_ds = GTiffDataset(filename, shape_dir, stride=32)
 ```
 
 ```{python}
 img = gt_ds.rds.read((1, 2, 3))
 gray_img = img.mean(axis=0)
-img[:, (gt_ds.get_mask_bool() & ~gt_ds.labelled_area)] = gray_img[(gt_ds.get_mask_bool() & ~gt_ds.labelled_area)]
+labelled_area = gt_ds.get_labelled_area()
+img[:, (gt_ds.get_mask_bool() & ~labelled_area)] = gray_img[(gt_ds.get_mask_bool() & ~labelled_area)]
 del gray_img
 ```
 
