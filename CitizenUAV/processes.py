@@ -5,6 +5,7 @@ from PIL import Image, UnidentifiedImageError
 from io import BytesIO
 from collections import Counter
 from datetime import datetime
+import sys
 
 from torchvision.datasets import ImageFolder
 from torchvision import transforms
@@ -102,7 +103,11 @@ def download_data(species: str, output_dir: os.PathLike, max_images: Optional[in
             if not image_exists:
                 fp = photo.open()
                 img = Image.open(BytesIO(fp.data))
-                img.save(img_path, 'png')
+                try:
+                    img.save(img_path, 'png')
+                except KeyboardInterrupt:
+                    img.save(img_path, 'png')
+                    sys.exit()
 
             # create entry in metadata
             row = [species, obs.id, n_photos, np.nan]
@@ -121,8 +126,13 @@ def download_data(species: str, output_dir: os.PathLike, max_images: Optional[in
         if n_changes > 0:
             metadata.species = metadata.species.astype('category')
             metadata.label = metadata.species.cat.codes
-            metadata.to_csv(metadata_path)
-            metadata.to_csv(metadata_backup_path)
+            try:
+                metadata.to_csv(metadata_path)
+                metadata.to_csv(metadata_backup_path)
+            except KeyboardInterrupt:
+                metadata.to_csv(metadata_path)
+                metadata.to_csv(metadata_backup_path)
+                sys.exit()
 
         # stop whole procedure if enough images have been downloaded
         if max_images is not None and len(metadata[metadata.species == species]) >= max_images:
