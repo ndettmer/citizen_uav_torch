@@ -85,22 +85,21 @@ def download_data(species: str, output_dir: os.PathLike, max_images: Optional[in
 
             # check if data already exists
             image_exists = os.path.exists(img_path)
-            image_okay = True
             if image_exists:
                 try:
                     test_img = Image.open(img_path)
                 except (OSError, UnidentifiedImageError):
-                    image_okay = False
+                    image_exists = False
                 finally:
                     del test_img
             metadata_exists = photo.id in metadata.index
 
             # skip photo, if already downloaded and information collected
-            if image_exists and image_okay and metadata_exists:
+            if image_exists and metadata_exists:
                 continue
 
-            if not image_exists or not image_okay:
-                # download image
+            # If image doesn't exist or is broken, download image.
+            if not image_exists:
                 fp = photo.open()
                 img = Image.open(BytesIO(fp.data))
                 img.save(img_path, 'png')
