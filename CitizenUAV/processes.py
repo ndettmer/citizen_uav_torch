@@ -34,6 +34,7 @@ def download_data(species: str, output_dir: os.PathLike, max_images: Optional[in
 
     # load or create metadata DataFrame
     metadata_path = os.path.join(output_dir, 'metadata.csv')
+    metadata_backup_path = os.path.join(output_dir, 'metadata_backup.csv')
     if os.path.exists(metadata_path):
         metadata = pd.read_csv(metadata_path)
         metadata.reset_index(drop=True, inplace=True)
@@ -109,6 +110,7 @@ def download_data(species: str, output_dir: os.PathLike, max_images: Optional[in
             metadata.species = metadata.species.astype('category')
             metadata.label = metadata.species.cat.codes
             metadata.to_csv(metadata_path)
+            metadata.to_csv(metadata_backup_path)
 
         # stop whole procedure if enough images have been downloaded
         if max_images is not None and len(metadata[metadata.species == species]) >= max_images:
