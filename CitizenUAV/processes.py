@@ -83,14 +83,27 @@ def download_data(species: str, output_dir: os.PathLike, max_images: Optional[in
             filename = f'{photo.id}.png'
             img_path = os.path.join(spec_dir, filename)
 
+            # check if data already exists
+            image_exists = os.path.exists(img_path)
+            image_okay = True
+            if image_exists:
+                try:
+                    test_img = Image.open(img_path)
+                except (OSError, UnidentifiedImageError):
+                    image_okay = False
+                finally:
+                    del test_img
+            metadata_exists = photo.id in metadata.index
+
             # skip photo, if already downloaded and information collected
-            if os.path.exists(img_path) and photo.id in metadata.index:
+            if image_exists and image_okay and metadata_exists:
                 continue
 
-            # download image
-            fp = photo.open()
-            img = Image.open(BytesIO(fp.data))
-            img.save(img_path, 'png')
+            if not image_exists or not image_okay:
+                # download image
+                fp = photo.open()
+                img = Image.open(BytesIO(fp.data))
+                img.save(img_path, 'png')
 
             # create entry in metadata
             row = [species, obs.id, n_photos, np.nan]
