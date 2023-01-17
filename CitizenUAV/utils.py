@@ -1,5 +1,8 @@
 import os
-from typing import Tuple
+import sys
+from typing import Tuple, Union, Optional
+from pathlib import Path
+import logging
 
 import pandas as pd
 from torch.utils.data import Dataset, DataLoader
@@ -30,6 +33,45 @@ def read_inat_metadata(data_dir):
     if 'Unnamed: 0' in metadata:
         metadata.drop(columns=['Unnamed: 0'], inplace=True)
     return metadata
+
+
+def read_split_inat_metadata(data_dir: Union[str, Path], species: Optional[list[str]] = None):
+    _, dirs, _ = next(os.walk(data_dir))
+    logging.info("Found the following species:\n" + "\n".join(dirs))
+
+    if species is not None:
+        dirs = [d for d in dirs if d in species]
+
+    dfs = []
+    cols = []
+    for d in dirs:
+        df = read_inat_metadata(os.path.join(data_dir, d))
+        if len(df.columns) > len(cols):
+            cols = df.columns
+        dfs.append(df)
+    for df in dfs:
+        for col in cols:
+            if col not in df.columns:
+                df[col] = pd.Series(dtype=object)
+    combined = pd.concat(dfs)
+    if 'image_okay' in combined.columns:
+        combined.image_okay = combined.image_okay.astype(bool)
+        combined.image_okay.fillna(False)
+    return combined
+
+
+def store_split_inat_metadata(metadata: pd.DataFrame, data_dir: Union[str, Path]):
+    for spec in metadata.species.unique():
+        df = metadata[metadata.species == spec]
+        assert df.index.name == 'photo_id'
+        df.reset_index(inplace=True)
+        try:
+            df.to_csv(os.path.join(data_dir, spec, 'metadata.csv'), index=False)
+            df.to_csv(os.path.join(data_dir, spec, 'metadata_backup.csv'), index=False)
+        except KeyboardInterrupt:
+            df.to_csv(os.path.join(data_dir, spec, 'metadata.csv'), index=False)
+            df.to_csv(os.path.join(data_dir, spec, 'metadata_backup.csv'), index=False)
+            sys.exit()
 
 
 def channel_mean_std(ds: Dataset) -> Tuple[torch.Tensor, torch.Tensor]:

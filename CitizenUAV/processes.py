@@ -27,6 +27,7 @@ def download_data(species: str, output_dir: os.PathLike, max_images: Optional[in
     :param max_year: year of the latest observations to collect
     :return pd.DataFrame: collected metadata
     """
+    # By this label-security is ensured.
     quality = "research"
 
     # create directory
@@ -34,8 +35,8 @@ def download_data(species: str, output_dir: os.PathLike, max_images: Optional[in
         os.makedirs(output_dir)
 
     # load or create metadata DataFrame
-    metadata_path = os.path.join(output_dir, 'metadata.csv')
-    metadata_backup_path = os.path.join(output_dir, 'metadata_backup.csv')
+    metadata_path = os.path.join(output_dir, species, 'metadata.csv')
+    metadata_backup_path = os.path.join(output_dir, species, 'metadata_backup.csv')
     if os.path.exists(metadata_path):
         metadata = pd.read_csv(metadata_path)
         metadata.reset_index(drop=True, inplace=True)
@@ -63,9 +64,9 @@ def download_data(species: str, output_dir: os.PathLike, max_images: Optional[in
         return False
 
     # create species directory if it doesn't exist
-    spec_dir = os.path.join(output_dir, species)
-    if not os.path.isdir(spec_dir):
-        os.makedirs(spec_dir)
+    spec_img_dir = os.path.join(output_dir, species)
+    if not os.path.isdir(spec_img_dir):
+        os.makedirs(spec_img_dir)
 
     images_stored = 0
     # iterate over observations
@@ -82,7 +83,7 @@ def download_data(species: str, output_dir: os.PathLike, max_images: Optional[in
 
             # set file name with photo id
             filename = f'{photo.id}.png'
-            img_path = os.path.join(spec_dir, filename)
+            img_path = os.path.join(spec_img_dir, filename)
 
             # check if data already exists
             image_exists = os.path.exists(img_path)
@@ -141,13 +142,16 @@ def download_data(species: str, output_dir: os.PathLike, max_images: Optional[in
     return metadata
 
 
-def extend_metadata(data_dir, consider_augmented=False):
-    csv_path = os.path.join(data_dir, 'metadata.csv')
+def extend_metadata(data_dir, species, consider_augmented=False):
+    csv_path = os.path.join(data_dir, species, 'metadata.csv')
+    spec_data_dir = os.path.join(data_dir, species)
     ds = ImageFolder(data_dir, transform=transforms.ToTensor())
-    metadata = pd.read_csv(csv_path)
-    metadata.set_index('photo_id', inplace=True)
+    metadata = read_inat_metadata(spec_data_dir)
 
     idx = range(len(ds))
+    # filter for species
+    idx = [i for i in idx if ds.classes[ds.targets[i]] == species]
+
     if not consider_augmented:
         # skip augmented images
         idx = [i for i in idx if "augmented" not in os.path.basename(ds.samples[i][0])]
@@ -163,7 +167,9 @@ def extend_metadata(data_dir, consider_augmented=False):
     broken = pd.Series(index=metadata.index, dtype=bool)
     broken[:] = False
 
-    for i in tqdm(idx):
+    pbar = tqdm(idx)
+    pbar.set_description(f"Extending metadata for species {species} in {data_dir}")
+    for i in pbar:
         path, _ = ds.samples[i]
         pid = get_pid_from_path(path)
 
@@ -202,6 +208,14 @@ def extend_metadata(data_dir, consider_augmented=False):
     metadata.to_csv(csv_path)
 
     return metadata
+
+
+def extend_split_metadata(data_dir: Union[str, Path], consider_augmented: bool = False):
+    _, subdirs, _ = next(os.walk(data_dir))
+    dfs = []
+    for species in subdirs:
+        dfs.append(extend_metadata(data_dir, species, consider_augmented))
+    return pd.concat(dfs)
 
 
 def extend_dist_metadata(data_dir, consider_augmented=False):
@@ -356,7 +370,7 @@ def offline_augmentation_regression_data(data_dir: os.PathLike, target_n, debug:
     return True
 
 
-def offline_augmentation_classification_data(data_dir: os.PathLike, target_n, subdirs: list[str] = None,
+def offline_augmentation_classification_data(data_dir: Union[str, Path], target_n, subdirs: list[str] = None,
                                              min_distance: float = None, debug: bool = False):
     """
     Perform offline augmentation on species-labelled image dataset.
@@ -375,7 +389,7 @@ def offline_augmentation_classification_data(data_dir: os.PathLike, target_n, su
     if subdirs:
         idx = [i for i in idx if ds.classes[ds.targets[i]] in subdirs]
 
-    metadata = read_inat_metadata(data_dir)
+    metadata = read_split_inat_metadata(data_dir)
     if min_distance:
         # load metadata file and filter samples by distance
         min_dist_pids = metadata[metadata.distance >= min_distance].index
@@ -437,15 +451,36 @@ def offline_augmentation_classification_data(data_dir: os.PathLike, target_n, su
             filepath = f"{filepath}_augmented_{n_copies}.png"
 
             if not debug:
+                # store updated metadata
                 row = metadata.loc[get_pid_from_path(orig_filepath)].copy()
                 metadata.loc[get_pid_from_path(filepath)] = row
-                metadata.to_csv(os.path.join(data_dir, 'metadata.csv'))
+                store_split_inat_metadata(metadata, data_dir)
 
-            # save new image
-            if not debug:
+                # save new image
                 augmented.save(filepath, 'png')
 
     return True
+
+
+def remove_augmented_classification_images(data_dir: Union[str, Path], subdirs: Optional[list[str]] = None):
+    metadata = read_split_inat_metadata(data_dir, subdirs)
+    ds = ImageFolder(data_dir)
+    idx = range(len(ds))
+    if subdirs is not None:
+        idx = [i for i in idx if ds.classes[ds.targets[i]] in subdirs]
+
+    pids = []
+    pbar = tqdm(idx)
+    pbar.set_description("Removing augmented images")
+    for i in pbar:
+        path, _ = ds.samples[i]
+        if "augmented" in os.path.basename(path):
+            pids.append(get_pid_from_path(path))
+            if os.path.exists(path):
+                os.remove(path)
+
+    metadata.drop(index=pids, inplace=True)
+    store_split_inat_metadata(metadata, data_dir)
 
 
 def check_image_files(data_dir):
@@ -454,7 +489,7 @@ def check_image_files(data_dir):
     :param data_dir: Directory of the image data set
     """
     csv_path = os.path.join(data_dir, "metadata.csv")
-    metadata = read_inat_metadata(data_dir)
+    metadata = read_split_inat_metadata(data_dir)
     ds = ImageFolder(data_dir, transform=transforms.ToTensor())
 
     image_okay = pd.Series(index=metadata.index, dtype=bool)
@@ -473,10 +508,10 @@ def check_image_files(data_dir):
             image_okay[pid] = False
 
     metadata['image_okay'] = image_okay
-    metadata.to_csv(csv_path)
+    store_split_inat_metadata(metadata, data_dir)
 
 
-def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, species: list[str] = None,
+def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, species: Optional[list[str]] = None,
                       batch_size: int = 1, gpu: bool = True, overwrite: bool = False,
                       debug: bool = False) -> pd.DataFrame:
     """
@@ -505,14 +540,12 @@ def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, 
     if species:
         idx = [i for i in idx if ds.classes[ds.targets[i]] in species]
 
-    metadata = pd.read_csv(csv_path)
-    metadata.photo_id = metadata.photo_id.astype(str)
-    metadata.set_index('photo_id', inplace=True)
+    metadata = read_split_inat_metadata(data_dir, species)
 
     if 'image_okay' not in metadata.columns:
         del metadata
         check_image_files(data_dir)
-        metadata = read_inat_metadata(data_dir)
+        metadata = read_split_inat_metadata(data_dir, species)
 
     if not overwrite:
         # only consider samples that don't have a distance assigned yet
@@ -582,11 +615,11 @@ def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, 
         if not batch_no % 5:
             metadata['distance'] = distances
             if not debug:
-                metadata.to_csv(csv_path)
+                store_split_inat_metadata(metadata, data_dir)
 
     metadata['distance'] = distances
     if not debug:
-        metadata.to_csv(csv_path)
+        store_split_inat_metadata(metadata, data_dir)
     return metadata
 
 

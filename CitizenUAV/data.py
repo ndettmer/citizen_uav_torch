@@ -16,12 +16,13 @@ import fiona
 from tqdm import tqdm
 
 from typing import Optional, Union, Sequence
+from pathlib import Path
 import os
 from collections import Counter
 import logging
 
 from CitizenUAV.transforms import *
-from CitizenUAV.utils import get_pid_from_path, read_inat_metadata, channel_mean_std
+from CitizenUAV.utils import get_pid_from_path, read_split_inat_metadata, channel_mean_std
 
 
 def validate_split(split: tuple) -> bool:
@@ -35,7 +36,7 @@ def validate_split(split: tuple) -> bool:
     return True
 
 
-def validate_data_dir(data_dir: os.PathLike) -> bool:
+def validate_data_dir(data_dir: Union[str, Path]) -> bool:
     """
     Validate the data directory.
     :param data_dir: Data directory path.
@@ -43,9 +44,17 @@ def validate_data_dir(data_dir: os.PathLike) -> bool:
     """
     if not os.path.isdir(data_dir):
         raise ValueError(f"data_dir={data_dir}: No such directory found.")
-    if not os.path.exists(os.path.join(data_dir, "metadata.csv")) and not os.path.exists(
-            os.path.join(data_dir, "distances.csv")):
-        raise ValueError(f"No metadata.csv or distances.csv file found in {data_dir}")
+
+    # Check if distance dataset
+    if not os.path.exists(os.path.join(data_dir, "distances.csv")):
+
+        # Has to be classification dataset
+        # Check for metadata
+        _, subdirs, _ = next(os.walk(data_dir))
+        for d in subdirs:
+            if not os.path.exists(os.path.join(data_dir, d, "metadata.csv")):
+                raise ValueError(f"No metadata.csv or distances.csv file found in {data_dir}")
+
     return True
 
 
@@ -69,7 +78,7 @@ class InatDataModule(pl.LightningDataModule):
         return parent_parser
 
     # 10% test, split rest into 80% train and 20% val by default
-    def __init__(self, data_dir: os.PathLike, species: Optional[Union[list | str]] = None, batch_size: int = 4,
+    def __init__(self, data_dir: Union[str, Path], species: Optional[Union[list | str]] = None, batch_size: int = 4,
                  split: tuple = (.72, .18, .1), img_size: int = 128, min_distance: float = None, balance: bool = False,
                  sample_per_class: int = -1, normalize: bool = False, **kwargs):
         """
@@ -96,8 +105,8 @@ class InatDataModule(pl.LightningDataModule):
         validate_data_dir(data_dir)
         self.data_dir = data_dir
 
-        # TODO: fix dtype warning
-        self.metadata = read_inat_metadata(self.data_dir)
+        self.metadata = read_split_inat_metadata(self.data_dir, species)
+        self.metadata.drop(columns=['label'], inplace=True)
         self.batch_size = batch_size
         self.normalize = normalize
 
@@ -133,22 +142,6 @@ class InatDataModule(pl.LightningDataModule):
         abs_split.append(len(self.ds) - np.sum(abs_split))
 
         self.train_ds, self.val_ds, self.test_ds = random_split(self.ds, abs_split)
-
-    def read_metadata(self, species: Optional[list] = None) -> pd.DataFrame:
-        """
-        Read the metadata DataFrame.
-        :param species: Species to filter for.
-        :return: The metadata DataFrame.
-        """
-        metadata = pd.read_csv(os.path.join(self.data_dir, "metadata.csv"))
-        metadata.reset_index(inplace=True)
-        metadata.drop(columns='index', inplace=True)
-        metadata.species = metadata.species.astype('category')
-
-        if len(species):
-            metadata = metadata[metadata.species.isin(species)]
-
-        return metadata
 
     def _filter_broken_images(self):
         if 'image_okay' not in self.metadata and 'broken' not in self.metadata:
