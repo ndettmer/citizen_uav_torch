@@ -22,11 +22,13 @@ class InatClassifier(pl.LightningModule):
         parser.add_argument("--backbone_model", type=str, default='resnet18')
         parser.add_argument("--lr", type=float, required=False, default=.0001)
         parser.add_argument("--weight_decay", type=float, required=False, default=.001)
+        parser.add_argument("--log_train_preds", type=bool, required=False, default=False)
         return parent_parser
 
-    def __init__(self, n_classes, backbone_model, lr, weight_decay, **kwargs):
+    def __init__(self, n_classes, backbone_model, lr, weight_decay, log_train_preds, **kwargs):
         super().__init__()
         self.save_hyperparameters()
+        self.log_train_preds = log_train_preds
 
         # backbone
         # default is weights=None
@@ -74,7 +76,7 @@ class InatClassifier(pl.LightningModule):
         loss = self.loss_function(y_hat, y)
         self.log_dict({"train_cce": loss})
 
-        return {'train_preds': preds, 'train_targets': y,  'loss': loss}
+        return {'train_preds': preds, 'train_targets': y,  'loss': loss, 'train_y_hat': y_hat}
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
@@ -97,17 +99,22 @@ class InatClassifier(pl.LightningModule):
         return {'test_preds': preds, 'test_targets': y,  'loss': loss}
 
     def training_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
+        y_hat = torch.concat([o['train_y_hat'] for o in outputs])
         preds = torch.concat([o['train_preds'] for o in outputs])
         targets = torch.concat([o['train_targets'] for o in outputs])
         train_f1 = self.f1(preds, targets)
         train_prec, train_rec = precision_recall(preds, targets, num_classes=self.n_classes)
         train_acc = self.acc(preds, targets)
-        self.log_dict({
+        log_content = {
             'train_f1': train_f1,
             'train_prec': train_prec,
             'train_rec': train_rec,
             'train_acc': train_acc
-        })
+        }
+        if self.log_train_preds:
+            log_content['train_y_hat'] = y_hat
+            log_content['train_targets'] = targets
+        self.log_dict(log_content)
 
     def validation_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
         preds = torch.concat([o['val_preds'] for o in outputs])
