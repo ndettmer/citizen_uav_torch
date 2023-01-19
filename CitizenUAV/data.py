@@ -106,7 +106,8 @@ class InatDataModule(pl.LightningDataModule):
         self.data_dir = data_dir
 
         self.metadata = read_split_inat_metadata(self.data_dir, species)
-        self.metadata.drop(columns=['label'], inplace=True)
+        if 'label' in self.metadata.columns:
+            self.metadata.drop(columns=['label'], inplace=True)
         self.batch_size = batch_size
         self.normalize = normalize
 
