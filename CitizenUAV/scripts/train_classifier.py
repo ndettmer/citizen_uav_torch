@@ -1,4 +1,6 @@
 from argparse import ArgumentParser
+from plyer import notification
+
 from CitizenUAV.models import InatClassifier
 from CitizenUAV.data import *
 from CitizenUAV.processes import *
@@ -56,3 +58,8 @@ if __name__ == "__main__":
     trainer.fit(model, dm)
 
     trainer.test(ckpt_path='best', dataloaders=dm.test_dataloader())
+
+    notification.notify(
+        title="Classifier Training",
+        message="Training done."
+    )

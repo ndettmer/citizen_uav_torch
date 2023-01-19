@@ -142,15 +142,11 @@ def download_data(species: str, output_dir: os.PathLike, max_images: Optional[in
     return metadata
 
 
-def extend_metadata(data_dir, species, consider_augmented=False):
-    csv_path = os.path.join(data_dir, species, 'metadata.csv')
-    spec_data_dir = os.path.join(data_dir, species)
+def extend_metadata(data_dir, consider_augmented=False):
     ds = ImageFolder(data_dir, transform=transforms.ToTensor())
-    metadata = read_inat_metadata(spec_data_dir)
+    metadata = read_split_inat_metadata(data_dir)
 
     idx = range(len(ds))
-    # filter for species
-    idx = [i for i in idx if ds.classes[ds.targets[i]] == species]
 
     if not consider_augmented:
         # skip augmented images
@@ -168,7 +164,7 @@ def extend_metadata(data_dir, species, consider_augmented=False):
     broken[:] = False
 
     pbar = tqdm(idx)
-    pbar.set_description(f"Extending metadata for species {species} in {data_dir}")
+    pbar.set_description(f"Extending metadata in {data_dir}")
     for i in pbar:
         path, _ = ds.samples[i]
         pid = get_pid_from_path(path)
@@ -205,17 +201,9 @@ def extend_metadata(data_dir, species, consider_augmented=False):
     metadata['saturation'] = saturations
     metadata['broken'] = broken
 
-    metadata.to_csv(csv_path)
+    store_split_inat_metadata(metadata, data_dir)
 
     return metadata
-
-
-def extend_split_metadata(data_dir: Union[str, Path], consider_augmented: bool = False):
-    _, subdirs, _ = next(os.walk(data_dir))
-    dfs = []
-    for species in subdirs:
-        dfs.append(extend_metadata(data_dir, species, consider_augmented))
-    return pd.concat(dfs)
 
 
 def extend_dist_metadata(data_dir, consider_augmented=False):
@@ -488,7 +476,6 @@ def check_image_files(data_dir):
     Check image files in directory for being loadable.
     :param data_dir: Directory of the image data set
     """
-    csv_path = os.path.join(data_dir, "metadata.csv")
     metadata = read_split_inat_metadata(data_dir)
     ds = ImageFolder(data_dir, transform=transforms.ToTensor())
 
@@ -499,7 +486,7 @@ def check_image_files(data_dir):
     for i in p_bar:
         path, _ = ds.samples[i]
         filename = os.path.splitext(os.path.basename(path))[0]
-        pid = int(filename)
+        pid = filename
 
         try:
             img, t = ds[i]
@@ -530,7 +517,6 @@ def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, 
     :return pd.DataFrame: Updated metadata containing distance predictions in column "distance"
     """
 
-    csv_path = os.path.join(data_dir, "metadata.csv")
     ds = ImageFolder(data_dir, transform=transforms.Compose([
         transforms.ToTensor(), QuadCrop(), transforms.Resize(img_size), Log10()
     ]))
@@ -609,7 +595,7 @@ def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, 
 
         # write to series
         for pid, dist in zip(pids, raw_distances):
-            distances[pid] = dist
+            distances.loc[pid] = dist
 
         # make intermediate saves
         if not batch_no % 5:

@@ -1,4 +1,6 @@
 from argparse import ArgumentParser
+from plyer import notification
+
 from CitizenUAV.processes import extend_metadata
 
 
@@ -10,3 +12,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     dict_args = vars(args)
     extend_metadata(**dict_args)
+    notification.notify(
+        title="Extend metadata",
+        message="Done extending metadata."
+    )

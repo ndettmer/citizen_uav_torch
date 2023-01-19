@@ -149,6 +149,8 @@ class InatDataModule(pl.LightningDataModule):
         if 'image_okay' in self.metadata:
             okay_pids = self.metadata[self.metadata.image_okay].index
             self.idx = [i for i in self.idx if get_pid_from_path(self.ds.samples[i][0]) in okay_pids]
+            # prioritize image_okay column
+            return
         if 'broken' in self.metadata:
             okay_pids = self.metadata[~self.metadata.broken].index
             self.idx = [i for i in self.idx if get_pid_from_path(self.ds.samples[i][0]) in okay_pids]
@@ -173,6 +175,8 @@ class InatDataModule(pl.LightningDataModule):
 
     def _balance_dataset(self):
         """Select an equal number of samples per class."""
+        assert isinstance(self.ds, ImageFolder)
+
         # check if balanced and determine minimum number of samples per class
         n_samples = self.get_target_distribution()
         min_n = min(n_samples.values())
@@ -210,11 +214,14 @@ class InatDataModule(pl.LightningDataModule):
         old_targets = np.array(self.ds.targets)
         new_targets = old_targets[idx]
         new_samples = [self.ds.samples[i] for i in idx]
+
         new_ds = Subset(self.ds, idx)
         new_ds.targets = new_targets
         new_ds.samples = new_samples
         new_ds.classes = self.ds.classes
+
         self.ds = new_ds
+        self.idx = range(len(self.ds))
 
     def _add_normalize(self):
 

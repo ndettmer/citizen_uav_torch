@@ -32,27 +32,42 @@ def read_inat_metadata(data_dir):
     metadata = metadata[~metadata.index.duplicated(keep='first')]
     if 'Unnamed: 0' in metadata:
         metadata.drop(columns=['Unnamed: 0'], inplace=True)
+    if 'distance' in metadata.columns:
+        metadata.distance = metadata.distance.astype(float)
+    if 'broken' in metadata.columns:
+        metadata.broken = metadata.broken.astype(bool)
+    if 'path' in metadata.columns:
+        metadata.path = metadata.path.astype(str)
     return metadata
 
 
 def read_split_inat_metadata(data_dir: Union[str, Path], species: Optional[list[str]] = None):
     _, dirs, _ = next(os.walk(data_dir))
+    if not len(dirs):
+        raise FileNotFoundError(f"No metadata.csv or other subdirectories found in {data_dir}.")
     logging.info("Found the following species:\n" + "\n".join(dirs))
 
-    if species is not None:
+    if species is not None and species:
         dirs = [d for d in dirs if d in species]
 
     dfs = []
     cols = []
     for d in dirs:
-        df = read_inat_metadata(os.path.join(data_dir, d))
-        if len(df.columns) > len(cols):
-            cols = df.columns
+        subdir = os.path.join(data_dir, d)
+        if not os.path.exists(os.path.join(subdir, 'metadata.csv')):
+            df = read_split_inat_metadata(subdir)
+            df.species = d
+        else:
+            df = read_inat_metadata(subdir)
+            if len(df.columns) > len(cols):
+                cols = df.columns
         dfs.append(df)
+
     for df in dfs:
         for col in cols:
             if col not in df.columns:
                 df[col] = pd.Series(dtype=object)
+
     combined = pd.concat(dfs)
     if 'image_okay' in combined.columns:
         combined.image_okay = combined.image_okay.astype(bool)
