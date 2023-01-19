@@ -358,7 +358,8 @@ class GTiffDataset(Dataset):
     """
 
     def __init__(self, filename: Union[str | os.PathLike], shape_dir: Optional[Union[str | os.PathLike]] = None,
-                 window_size: int = 128, stride: int = 1):
+                 window_size: int = 128, stride: int = 1, normalize: bool = False, means: Optional[tuple] = None,
+                 stds: Optional[tuple] = None):
         """
         :param filename: Path to the GeoTiff file
         :param shape_dir: Path to the directory containing the shape files needed for determining class labels.
@@ -371,8 +372,20 @@ class GTiffDataset(Dataset):
         self.shape_dir = shape_dir
         self.window_size = window_size
         self.stride = stride
+        self.normalize = normalize
         # padding = 0
         self.rds = rio.open(filename)
+
+        if self.normalize:
+            if means is not None:
+                norm_means = np.array(means)
+            else:
+                norm_means = [self.get_red().mean(), self.get_green().mean(), self.get_blue().mean()]
+            if stds is not None:
+                norm_stds = np.array(stds)
+            else:
+                norm_stds = [self.get_red().std(), self.get_green().std(), self.get_blue().std()]
+            self.norm = transforms.Normalize(norm_means, norm_stds)
 
         # load shape masks
         self.classes = []
@@ -409,7 +422,7 @@ class GTiffDataset(Dataset):
         self.n_windows_y = self._get_n_windows_y()
 
         # Minimum coverage of any data in a window to be considered as a sample
-        self.min_cover_factor = 3/4
+        self.min_cover_factor = 3 / 4
         self.min_cover = self.window_size ** 2 * self.min_cover_factor
 
         if self.return_targets:
@@ -540,7 +553,10 @@ class GTiffDataset(Dataset):
         """
         x_min, x_max, y_min, y_max = bb
         window = Window.from_slices((x_min, x_max), (y_min, y_max))
-        return torch.from_numpy(self.rds.read((1, 2, 3), window=window))
+        tensor = torch.from_numpy(self.rds.read((1, 2, 3), window=window))
+        if self.normalize:
+            tensor = self.norm(tensor)
+        return tensor
 
     def getitem_raw(self, index):
         """
@@ -668,5 +684,3 @@ class GTiffDataset(Dataset):
 
     def get_mask_bool(self):
         return self.rds.read(4) > 0
-
-

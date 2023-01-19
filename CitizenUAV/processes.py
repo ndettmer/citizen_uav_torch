@@ -640,7 +640,7 @@ def create_gim_metadata(data_dir: os.PathLike, classes: list = None, debug: bool
 def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[str | os.PathLike],
                     result_dir: Optional[Union[str | os.PathLike]] = None,
                     window_size: int = 128, stride: int = 1, gpu: bool = False, batch_size: int = 1,
-                    debug: bool = False) -> np.ndarray:
+                    normalize: bool = False, debug: bool = False) -> np.ndarray:
     """
     Predict pixel-wise classes for a GeoTiff raster dataset with a given trained model using a moving window approach.
     :param model_path: Path to the model checkpoint.
@@ -650,6 +650,7 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
     :param stride: Step size of the moving window algorithm.
     :param gpu: If true, use GPU. Will be ignored, if CUDA is not available.
     :param batch_size: Batch size for the predictions.
+    :param normalize: Normalize dataset.
     :param debug: If true, do some assertions and logging.
     :return: Resulting label map containing the final predictions.
     """
@@ -663,7 +664,7 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
     if not os.path.exists(result_path):
         os.makedirs(os.path.dirname(result_path), exist_ok=True)
 
-    ds = GTiffDataset(dataset_path, window_size=window_size, stride=stride)
+    ds = GTiffDataset(dataset_path, window_size=window_size, stride=stride, normalize=normalize)
 
     model = InatClassifier.load_from_checkpoint(model_path)
     model.eval()
@@ -680,10 +681,10 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
     p_bar.set_description(f"Predicting classes in raster dataset")
     for batch_no in p_bar:
         batch_bbs = ds.bbs[batch_no * batch_size:(batch_no + 1) * batch_size]
-        batch = torch.stack([ds.get_bb_data(bb) for bb in batch_bbs], dim=0)
+        batch = torch.stack([ds.get_bb_data(bb) for bb in batch_bbs], dim=0).float()
 
         if gpu and torch.cuda.is_available():
-            batch.cuda()
+            batch = batch.cuda()
 
         with torch.no_grad():
             y_hat = model(batch)
