@@ -1,5 +1,6 @@
 from typing import Optional, Union
 import pyinaturalist as pin
+import yaml
 from tqdm import tqdm
 from PIL import Image, UnidentifiedImageError
 from io import BytesIO
@@ -640,7 +641,8 @@ def create_gim_metadata(data_dir: os.PathLike, classes: list = None, debug: bool
 def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[str | os.PathLike],
                     result_dir: Optional[Union[str | os.PathLike]] = None,
                     window_size: int = 128, stride: int = 1, gpu: bool = False, batch_size: int = 1,
-                    normalize: bool = False, means: Optional[tuple] = None, stds: Optional[tuple] = None, debug: bool = False) -> np.ndarray:
+                    normalize: bool = False, means: Optional[tuple] = None, stds: Optional[tuple] = None,
+                    probabilities: bool = False, debug: bool = False) -> np.ndarray:
     """
     Predict pixel-wise classes for a GeoTiff raster dataset with a given trained model using a moving window approach.
     :param model_path: Path to the model checkpoint.
@@ -654,6 +656,7 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
     :param debug: If true, do some assertions and logging.
     :param means: Normalization channel means. Note that they should be scaled to [0,255]!
     :param stds: Normalization channel stds. Note that they should be scaled to [0,255]!
+    :param probabilities: Add confidences and not 1-hot predictions.
     :return: Resulting label map containing the final predictions.
     """
 
@@ -661,7 +664,8 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
         result_dir = os.getcwd()
     dataset_name = os.path.splitext(os.path.basename(dataset_path))[0]
     result_path = os.path.join(result_dir, "predictions", dataset_name,
-                               f'{datetime.now().strftime("%y-%m-%d_%H-%M")}.npy')
+                               f'{datetime.now().strftime("%y-%m-%d_%H-%M")}_{"probability_map" if probabilities else "label_map"}.npy')
+    result_yml_path = result_path.replace(".npy", ".yml")
 
     if not os.path.exists(result_path):
         os.makedirs(os.path.dirname(result_path), exist_ok=True)
@@ -675,7 +679,9 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
         model.cuda()
 
     # count the predictions in here in order to take the class with the maximum votes afterwards for each pixel.
-    label_map = np.full((model.n_classes, ds.rds.height, ds.rds.width), 0, dtype=np.uint8)
+    label_map = np.full((model.n_classes, ds.rds.height, ds.rds.width), 0,
+                        dtype=(np.float16 if probabilities else np.uint8))
+    box_preds = []
     if debug:
         assert ds.get_mask_bool().shape == label_map.shape[1:]
 
@@ -692,9 +698,25 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
             y_hat = model(batch)
 
         preds = torch.argmax(y_hat, dim=1)
-        for pred, bb in zip(preds, batch_bbs):
+        for pred, probs, bb in zip(preds, y_hat, batch_bbs):
             x_min, x_max, y_min, y_max = bb
-            label_map[pred, x_min:x_max, y_min:y_max] += 1
+            box_preds.append({
+                'bounding_box': (x_min, x_max, y_min, y_max),
+                'prediction': pred
+            })
+            if probabilities:
+                # add class probabilities
+                label_map[:, x_min:x_max, y_min:y_max] += probs.cpu().numpy().reshape(model.n_classes, 1, 1)
+            else:
+                # add one-hot predictions
+                label_map[pred, x_min:x_max, y_min:y_max] += 1
+
+    with open(result_yml_path, 'w') as box_preds_yml:
+        yaml.dump(box_preds, box_preds_yml)
+
+    if probabilities:
+        np.save(result_path, label_map)
+        return label_map
 
     voting_result = np.argmax(label_map, axis=0)
     np.save(result_path, voting_result)
