@@ -372,7 +372,7 @@ class GTiffDataset(Dataset):
         self.shape_dir = shape_dir
         self.window_size = window_size
         self.stride = stride
-        self.normalize = normalize
+        self.normalize = normalize or (means is not None and stds is not None)
         # padding = 0
         self.rds = rio.open(filename)
 

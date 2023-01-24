@@ -640,7 +640,7 @@ def create_gim_metadata(data_dir: os.PathLike, classes: list = None, debug: bool
 def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[str | os.PathLike],
                     result_dir: Optional[Union[str | os.PathLike]] = None,
                     window_size: int = 128, stride: int = 1, gpu: bool = False, batch_size: int = 1,
-                    normalize: bool = False, debug: bool = False) -> np.ndarray:
+                    normalize: bool = False, means: Optional[tuple] = None, stds: Optional[tuple] = None, debug: bool = False) -> np.ndarray:
     """
     Predict pixel-wise classes for a GeoTiff raster dataset with a given trained model using a moving window approach.
     :param model_path: Path to the model checkpoint.
@@ -652,6 +652,8 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
     :param batch_size: Batch size for the predictions.
     :param normalize: Normalize dataset.
     :param debug: If true, do some assertions and logging.
+    :param means: Normalization channel means. Note that they should be scaled to [0,255]!
+    :param stds: Normalization channel stds. Note that they should be scaled to [0,255]!
     :return: Resulting label map containing the final predictions.
     """
 
@@ -664,7 +666,7 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
     if not os.path.exists(result_path):
         os.makedirs(os.path.dirname(result_path), exist_ok=True)
 
-    ds = GTiffDataset(dataset_path, window_size=window_size, stride=stride, normalize=normalize)
+    ds = GTiffDataset(dataset_path, window_size=window_size, stride=stride, normalize=normalize, means=means, stds=stds)
 
     model = InatClassifier.load_from_checkpoint(model_path)
     model.eval()
