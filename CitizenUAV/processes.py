@@ -681,7 +681,7 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
     p_bar.set_description(f"Predicting classes in raster dataset")
     for batch_no in p_bar:
         batch_bbs = ds.bbs[batch_no * batch_size:(batch_no + 1) * batch_size]
-        batch = torch.stack([ds.get_bb_data(bb) for bb in batch_bbs], dim=0).float()
+        batch = torch.stack([ds.get_bb_data(bb) for bb in batch_bbs], dim=0)
 
         if gpu and torch.cuda.is_available():
             batch = batch.cuda()

@@ -553,7 +553,7 @@ class GTiffDataset(Dataset):
         """
         x_min, x_max, y_min, y_max = bb
         window = Window.from_slices((x_min, x_max), (y_min, y_max))
-        tensor = torch.from_numpy(self.rds.read((1, 2, 3), window=window))
+        tensor = torch.from_numpy(self.rds.read((1, 2, 3), window=window)).float()
         if self.normalize:
             tensor = self.norm(tensor)
         return tensor
