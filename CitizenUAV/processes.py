@@ -665,7 +665,7 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
     dataset_name = os.path.splitext(os.path.basename(dataset_path))[0]
     result_path = os.path.join(result_dir, "predictions", dataset_name,
                                f'{datetime.now().strftime("%y-%m-%d_%H-%M")}_{"probability_map" if probabilities else "label_map"}.npy')
-    result_yml_path = result_path.replace(".npy", ".yml")
+    result_box_path = result_path.replace(".npy", ".txt")
 
     if not os.path.exists(result_path):
         os.makedirs(os.path.dirname(result_path), exist_ok=True)
@@ -700,19 +700,23 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
         preds = torch.argmax(y_hat, dim=1)
         for pred, probs, bb in zip(preds, y_hat, batch_bbs):
             x_min, x_max, y_min, y_max = bb
-            box_preds.append({
-                'bounding_box': (x_min, x_max, y_min, y_max),
-                'prediction': pred
-            })
+            box_preds.append(str(BoxPred(
+                x_min, x_max, y_min, y_max,
+                int(pred.cpu().numpy()),
+                dataset_path,
+                model_path
+            )))
             if probabilities:
                 # add class probabilities
                 label_map[:, x_min:x_max, y_min:y_max] += probs.cpu().numpy().reshape(model.n_classes, 1, 1)
             else:
                 # add one-hot predictions
                 label_map[pred, x_min:x_max, y_min:y_max] += 1
+        break
 
-    with open(result_yml_path, 'w') as box_preds_yml:
-        yaml.dump(box_preds, box_preds_yml)
+    with open(result_box_path, 'w') as filehandle:
+        for box_pred in box_preds:
+            filehandle.write(f'{box_pred}\n')
 
     if probabilities:
         np.save(result_path, label_map)

@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import os
 import sys
 from typing import Tuple, Union, Optional
@@ -134,3 +135,14 @@ def gram_matrix(feature_maps: torch.Tensor) -> torch.Tensor:
     # we 'normalize' the values of the gram matrix
     # by dividing by the number of element in each feature maps.
     return G.div(batch_size * n_filters * width * height)
+
+
+@dataclass
+class BoxPred:
+    x_min: int
+    x_max: int
+    y_min: int
+    y_max: int
+    prediction: int
+    ds_path: str
+    model_path: str

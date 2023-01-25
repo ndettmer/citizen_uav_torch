@@ -380,11 +380,19 @@ class GTiffDataset(Dataset):
             if means is not None:
                 norm_means = np.array(means)
             else:
-                norm_means = [self.get_red().mean(), self.get_green().mean(), self.get_blue().mean()]
+                norm_means = np.array([
+                    self.get_red().mean(),
+                    self.get_green().mean(),
+                    self.get_blue().mean()
+                ])
             if stds is not None:
                 norm_stds = np.array(stds)
             else:
-                norm_stds = [self.get_red().std(), self.get_green().std(), self.get_blue().std()]
+                norm_stds = np.array([
+                    self.get_red().std(),
+                    self.get_green().std(),
+                    self.get_blue().std()
+                ])
             self.norm = transforms.Normalize(norm_means, norm_stds)
 
         # load shape masks
@@ -404,6 +412,9 @@ class GTiffDataset(Dataset):
             self.return_targets = True
             for root, directory, files in os.walk(self.shape_dir):
                 for file in files:
+                    if 'labelled-area' in file:
+                        # skip mask for labelled area
+                        continue
                     if os.path.splitext(file)[1] == ".shp":
                         cls = os.path.splitext(file.split("_")[-1])[0]
                         self.classes.append(cls)
@@ -524,7 +535,7 @@ class GTiffDataset(Dataset):
         p_bar = tqdm(range(self.raw_len()))
         p_bar.set_description("Choosing windows to use")
         if self.labelled_area_cropped is not None:
-            self.get_labelled_area()
+            mask = self.get_labelled_area()
         else:
             mask = self.get_mask_bool()
 
@@ -545,16 +556,19 @@ class GTiffDataset(Dataset):
         np.save(self.bb_path, bbs)
         return bbs
 
-    def get_bb_data(self, bb: Union[tuple | np.ndarray]) -> torch.Tensor:
+    def get_bb_data(self, bb: Union[tuple | np.ndarray], normalize: Optional[bool] = None) -> torch.Tensor:
         """
         Get RGB data in the given bounding box
         :param bb: bounding box (x_min, x_max, y_min, y_max)
         :return: Tensor containing the data
         """
+        if normalize is None:
+            normalize = self.normalize
+
         x_min, x_max, y_min, y_max = bb
         window = Window.from_slices((x_min, x_max), (y_min, y_max))
-        tensor = torch.from_numpy(self.rds.read((1, 2, 3), window=window)).float()
-        if self.normalize:
+        tensor = torch.from_numpy(self.rds.read((1, 2, 3), window=window)).float() / 255.
+        if normalize:
             tensor = self.norm(tensor)
         return tensor
 
@@ -572,6 +586,22 @@ class GTiffDataset(Dataset):
     def __getitem__(self, index) -> T_co:
         bb = self.bbs[index]
         sample = self.get_bb_data(bb)
+
+        if self.return_targets:
+            # Caching of targets
+            if self.targets[index] > -1:
+                target = self.targets[index]
+            else:
+                target = self.get_bb_label(bb)
+                self.targets[index] = target
+        else:
+            target = 0
+
+        return sample, target
+
+    def get_non_normalized_item(self, index):
+        bb = self.bbs[index]
+        sample = self.get_bb_data(bb, False)
 
         if self.return_targets:
             # Caching of targets
@@ -632,6 +662,16 @@ class GTiffDataset(Dataset):
 
         return mask_uncropped
 
+    def get_cls_mask_in_bb(self, bb: Union[tuple | np.ndarray], cls_idx: int):
+        x_min, x_max, y_min, y_max = bb
+
+        # get mask and transform
+        cls_mask_cropped = self.class_masks[cls_idx]
+        cls_mask_transform = self.class_mask_transforms[cls_idx]
+
+        cls_mask = self.uncrop_mask(cls_mask_cropped, cls_mask_transform)
+        return cls_mask[x_min:x_max, y_min:y_max]
+
     def get_bb_cls_coverage(self, bb: Union[tuple | np.ndarray], cls_idx: int, share: bool = False) \
             -> Union[int | float]:
         """
@@ -645,22 +685,16 @@ class GTiffDataset(Dataset):
             raise ValueError(f"Species with class index {cls_idx} does not exits. "
                              f"Please choose from {list(np.array(self.classes)[:-1])}")
 
-        x_min, x_max, y_min, y_max = bb
-
-        # get mask and transform
-        cls_mask_cropped = self.class_masks[cls_idx]
-        cls_mask_transform = self.class_mask_transforms[cls_idx]
-
-        cls_mask = self.uncrop_mask(cls_mask_cropped, cls_mask_transform)
-
-        # decide which calculate numeric coverage
-        coverage = int(np.sum(cls_mask[x_min:x_max, y_min:y_max]))
+        # calculate numeric coverage
+        coverage = int(np.sum(self.get_cls_mask_in_bb(bb, cls_idx)))
         if share:
             coverage /= self.window_size ** 2
         return coverage
 
     def get_all_bb_class_coverages(self, bb: Union[tuple | np.ndarray], share: bool = False):
         coverages = []
+        # soil is always the last class
+        # here it is excluded
         for cls_idx in range(len(self.classes) - 1):
             coverage = self.get_bb_cls_coverage(bb, cls_idx, share)
             coverages.append(coverage)
@@ -671,13 +705,13 @@ class GTiffDataset(Dataset):
         return self.n_windows_x * self.n_windows_y
 
     def get_red(self):
-        return self.rds.read(1)
+        return self.rds.read(1) / 255.
 
     def get_green(self):
-        return self.rds.read(2)
+        return self.rds.read(2) / 255.
 
     def get_blue(self):
-        return self.rds.read(3)
+        return self.rds.read(3) / 255.
 
     def get_mask(self):
         return self.rds.read(4)
