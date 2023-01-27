@@ -399,21 +399,21 @@ class GTiffDataset(Dataset):
         self.classes = []
         self.class_masks = []
         self.class_mask_transforms = []
-        self.labelled_area_cropped = None
+        self.labeled_area_cropped = None
 
         if self.shape_dir is not None:
 
-            # get labelled-area
+            # get labeled-area
             prefix = os.path.basename(self.shape_dir)
-            la_shapes, la_transform = self.get_shapes_from_file(f"{prefix}_labelled-area.shp", True)
-            self.labelled_area_cropped = la_shapes
-            self.labelled_area_transform = la_transform
+            la_shapes, la_transform = self.get_shapes_from_file(f"{prefix}_labeled-area.shp", True)
+            self.labeled_area_cropped = la_shapes
+            self.labeled_area_transform = la_transform
 
             self.return_targets = True
             for root, directory, files in os.walk(self.shape_dir):
                 for file in files:
-                    if 'labelled-area' in file:
-                        # skip mask for labelled area
+                    if 'labeled-area' in file:
+                        # skip mask for labeled area
                         continue
                     if os.path.splitext(file)[1] == ".shp":
                         cls = os.path.splitext(file.split("_")[-1])[0]
@@ -445,8 +445,10 @@ class GTiffDataset(Dataset):
         #   Idea: for each shape take the centroid of that shape
         #   and move window_size//2 in each direction to create the BB
 
+        cache_filename = f"{os.path.splitext(self.filename)[0]}-{self.window_size}-{self.stride}{'-labeled' if self.shape_dir else ''}"
+
         # only use bounding boxes that contain a minimum amount of data
-        self.bb_path = f"{os.path.splitext(self.filename)[0]}_bbs_{self.window_size}-{self.stride}.npy"
+        self.bb_path = f"{cache_filename}_bbs.npy"
         if not os.path.exists(self.bb_path):
             self.bbs = self._preselect_windows()
         else:
@@ -454,7 +456,7 @@ class GTiffDataset(Dataset):
 
         if self.return_targets:
             # cache targets
-            self.targets_path = f"{os.path.splitext(self.filename)[0]}_targets_{self.window_size}-{self.stride}.npy"
+            self.targets_path = f"{cache_filename}_targets.npy"
             if not os.path.exists(self.targets_path):
                 self.targets = [-1] * len(self.bbs)
             else:
@@ -465,11 +467,11 @@ class GTiffDataset(Dataset):
         if self.return_targets:
             np.save(self.targets_path, self.targets)
 
-    def get_labelled_area(self):
-        if self.labelled_area_cropped is None:
+    def get_labeled_area(self):
+        if self.labeled_area_cropped is None:
             return None
-        labelled_area = self.uncrop_mask(self.labelled_area_cropped, self.labelled_area_transform)
-        return labelled_area
+        labeled_area = self.uncrop_mask(self.labeled_area_cropped, self.labeled_area_transform)
+        return labeled_area
 
     def get_shapes_from_file(self, filename, crop_mask: bool = True):
         # Then the retrieving the class coverage is just a simple lookup without any I/O operation.
@@ -492,12 +494,13 @@ class GTiffDataset(Dataset):
         """
         n = 1
         x = 0
-        while x + self.window_size < self.rds.width:
+        while x + self.window_size < self.rds.height:
             x += self.stride
             n += 1
-        if x > self.rds.width:
+        if x > self.rds.height:
             # We reached beyond the boundary
             n -= 1
+
         return n
 
     def _get_n_windows_y(self):
@@ -506,12 +509,13 @@ class GTiffDataset(Dataset):
         """
         n = 1
         y = 0
-        while y + self.window_size < self.rds.height:
+        while y + self.window_size < self.rds.width:
             y += self.stride
             n += 1
-        if y > self.rds.height:
+        if y > self.rds.width:
             # We reached beyond the boundary
             n -= 1
+
         return n
 
     def _get_bounding_box_from_index(self, index):
@@ -534,19 +538,23 @@ class GTiffDataset(Dataset):
 
         p_bar = tqdm(range(self.raw_len()))
         p_bar.set_description("Choosing windows to use")
-        if self.labelled_area_cropped is not None:
-            mask = self.get_labelled_area()
+        if self.labeled_area_cropped is not None:
+            mask = self.get_labeled_area()
         else:
             mask = self.get_mask_bool()
 
         for i in p_bar:
             bb = self._get_bounding_box_from_index(i)
             x_min, x_max, y_min, y_max = bb
-            if x_max > mask.shape[0] or y_min >= mask.shape[1]:
+            if x_max >= mask.shape[0] or y_max >= mask.shape[1]:
+                continue
+
+            # skip windows with empty first lines
+            if not mask[x_min, y_min:y_max].any():
                 continue
             if not mask[x_min:x_max, y_min].any():
-                # skip windows with empty first lines
                 continue
+
             mask_window = mask[x_min:x_max, y_min:y_max]
             cover = np.sum(mask_window)
             if cover >= self.min_cover:

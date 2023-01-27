@@ -276,7 +276,7 @@ def extend_dist_metadata(data_dir, consider_augmented=False):
 
 def offline_augmentation_regression_data(data_dir: os.PathLike, target_n, debug: bool = False):
     """
-    Perform offline augmentation on distance-labelled image dataset.
+    Perform offline augmentation on distance-labeled image dataset.
     :param data_dir: The directory where the data lies. (There has to be a single subdirectory containing the data.
         E.g.: data_dir = '/some/path/', so the images should be in '/some/path/subdir/img.png' That is because
         torchvision.datasets.ImageFolder is used for dataset management.)
@@ -362,7 +362,7 @@ def offline_augmentation_regression_data(data_dir: os.PathLike, target_n, debug:
 def offline_augmentation_classification_data(data_dir: Union[str, Path], target_n, subdirs: list[str] = None,
                                              min_distance: float = None, debug: bool = False):
     """
-    Perform offline augmentation on species-labelled image dataset.
+    Perform offline augmentation on species-labeled image dataset.
     :param data_dir: The directory where the data lies.
     :param target_n: Target number of samples per class.
     :param subdirs: Sub-directories to consider (handled as targets in the ImageFolder class).
