@@ -712,7 +712,6 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
             else:
                 # add one-hot predictions
                 label_map[pred, x_min:x_max, y_min:y_max] += 1
-        break
 
     with open(result_box_path, 'w') as filehandle:
         for box_pred in box_preds:
