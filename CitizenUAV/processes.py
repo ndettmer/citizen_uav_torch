@@ -642,7 +642,7 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
                     result_dir: Optional[Union[str | os.PathLike]] = None,
                     window_size: int = 128, stride: int = 1, gpu: bool = False, batch_size: int = 1,
                     normalize: bool = False, means: Optional[tuple] = None, stds: Optional[tuple] = None,
-                    probabilities: bool = False, debug: bool = False) -> np.ndarray:
+                    probabilities: bool = False, center_only: bool = False, debug: bool = False) -> np.ndarray:
     """
     Predict pixel-wise classes for a GeoTiff raster dataset with a given trained model using a moving window approach.
     :param model_path: Path to the model checkpoint.
@@ -657,6 +657,7 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
     :param means: Normalization channel means. Note that they should be scaled to [0,255]!
     :param stds: Normalization channel stds. Note that they should be scaled to [0,255]!
     :param probabilities: Add confidences and not 1-hot predictions.
+    :param center_only: Apply the prediction only to the center pixel of the bounding box
     :return: Resulting label map containing the final predictions.
     """
 
@@ -706,12 +707,21 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
                 dataset_path,
                 model_path
             )))
-            if probabilities:
-                # add class probabilities
-                label_map[:, x_min:x_max, y_min:y_max] += probs.cpu().numpy().reshape(model.n_classes, 1, 1)
+            if center_only:
+                x_c, y_c = get_center_of_bb(bb)
+                if probabilities:
+                    # add class probability
+                    label_map[:, x_c, y_c] = probs.cpu().numpy()
+                else:
+                    # add one-hot prediction
+                    label_map[pred, x_c, y_c] += 1
             else:
-                # add one-hot predictions
-                label_map[pred, x_min:x_max, y_min:y_max] += 1
+                if probabilities:
+                    # add class probabilities
+                    label_map[:, x_min:x_max, y_min:y_max] += probs.cpu().numpy().reshape(model.n_classes, 1, 1)
+                else:
+                    # add one-hot predictions
+                    label_map[pred, x_min:x_max, y_min:y_max] += 1
 
     with open(result_box_path, 'w') as filehandle:
         for box_pred in box_preds:

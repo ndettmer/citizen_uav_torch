@@ -146,6 +146,18 @@ def write_params(dest_dir: Union[str, Path], params: dict, func_name: Optional[s
         return yaml.dump(params, outfile)
 
 
+def get_center_of_bb(bb):
+    x_min, x_max, y_min, y_max = bb
+
+    x_off = x_max - x_min
+    x_c = x_max - x_off // 2
+
+    y_off = y_max - y_min
+    y_c = y_max - y_off // 2
+
+    return x_c, y_c
+
+
 @dataclass
 class BoxPred:
     x_min: int
