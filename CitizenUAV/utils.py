@@ -146,7 +146,7 @@ def write_params(dest_dir: Union[str, Path], params: dict, func_name: Optional[s
         return yaml.dump(params, outfile)
 
 
-def get_center_of_bb(bb):
+def get_center_of_bb(bb: tuple[int, int, int, int]) -> tuple[int, int]:
     x_min, x_max, y_min, y_max = bb
 
     x_off = x_max - x_min
@@ -156,6 +156,21 @@ def get_center_of_bb(bb):
     y_c = y_max - y_off // 2
 
     return x_c, y_c
+
+
+def get_area_around_center(x_c: int, y_c: int, size: int) -> tuple[int, int, int, int]:
+    if size < 2:
+        return x_c, x_c + 1, y_c, y_c + 1
+
+    min_side = size // 2
+    max_side = size - min_side
+
+    x_max = x_c + max_side
+    x_min = x_c - min_side
+    y_max = y_c + max_side
+    y_min = y_c - min_side
+
+    return x_min, x_max, y_min, y_max
 
 
 @dataclass
