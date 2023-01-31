@@ -1,4 +1,5 @@
 from CitizenUAV.processes import predict_geotiff
+from CitizenUAV.utils import write_params
 
 from argparse import ArgumentParser
 import os
@@ -22,6 +23,7 @@ if __name__ == "__main__":
     parser.add_argument("--debug", type=bool, required=False, default=False)
     args = parser.parse_args()
     dict_args = vars(args)
+    write_params(args.result_dir, dict_args, "predict_geotiff")
     predict_geotiff(**dict_args)
 
     notification.notify(

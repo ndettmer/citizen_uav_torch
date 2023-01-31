@@ -4,6 +4,7 @@ from plyer import notification
 from CitizenUAV.models import InatClassifier
 from CitizenUAV.data import *
 from CitizenUAV.processes import *
+from CitizenUAV.utils import write_params
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import EarlyStopping
@@ -21,6 +22,7 @@ if __name__ == "__main__":
     parser = Trainer.add_argparse_args(parser)
 
     args = parser.parse_args()
+    write_params(args.log_dir, vars(args), 'train_classifier')
 
     species = args.species
     data_dir = args.data_dir

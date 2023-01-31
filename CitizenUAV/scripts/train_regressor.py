@@ -1,14 +1,13 @@
 from argparse import ArgumentParser
-
-import torch.cuda
-
-from CitizenUAV.data import InatDistDataModule
-from CitizenUAV.models import InatRegressor
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.callbacks import EarlyStopping
 from pytorch_lightning.loggers import TensorBoardLogger
 import os
 import numpy as np
+
+from CitizenUAV.data import InatDistDataModule
+from CitizenUAV.models import InatRegressor
+from CitizenUAV.utils import write_params
 
 if __name__ == "__main__":
     parser = ArgumentParser()
@@ -22,6 +21,7 @@ if __name__ == "__main__":
     parser = Trainer.add_argparse_args(parser)
 
     args = parser.parse_args()
+    write_params(args.log_dir, vars(args), 'train_regressor')
 
     data_dir = args.data_dir
     log_dir = args.log_dir

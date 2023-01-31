@@ -1,9 +1,11 @@
 from dataclasses import dataclass
 import os
 import sys
+from datetime import datetime
 from typing import Tuple, Union, Optional
 from pathlib import Path
 import logging
+import yaml
 
 import pandas as pd
 from torch.utils.data import Dataset, DataLoader
@@ -135,6 +137,13 @@ def gram_matrix(feature_maps: torch.Tensor) -> torch.Tensor:
     # we 'normalize' the values of the gram matrix
     # by dividing by the number of element in each feature maps.
     return G.div(batch_size * n_filters * width * height)
+
+
+def write_params(dest_dir: Union[str, Path], params: dict, func_name: Optional[str] = None):
+    filename = os.path.join(dest_dir,
+                            f'{datetime.now().strftime("%y-%m-%d_%H-%M")}{("_" + func_name + "_") if func_name is not None else ""}_parameters.yml')
+    with open(filename, 'w') as outfile:
+        return yaml.dump(params, outfile)
 
 
 @dataclass
