@@ -160,6 +160,9 @@ def get_center_of_bb(bb):
 
 @dataclass
 class BoxPred:
+    """
+    Box prediction in a raster dataset.
+    """
     x_min: int
     x_max: int
     y_min: int
