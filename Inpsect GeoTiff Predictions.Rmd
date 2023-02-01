@@ -1,0 +1,412 @@
+---
+jupyter:
+  jupytext:
+    text_representation:
+      extension: .Rmd
+      format_name: rmarkdown
+      format_version: '1.2'
+      jupytext_version: 1.14.1
+  kernelspec:
+    display_name: Python 3 (ipykernel)
+    language: python
+    name: python3
+---
+
+```{python}
+import rasterio as rio
+from rasterio.features import shapes
+from CitizenUAV.data import GTiffDataset, InatDataModule
+from CitizenUAV.models import InatClassifier
+import numpy as np
+import fiona
+import os
+import yaml
+from matplotlib import pyplot as plt
+import random
+from torchvision.transforms.functional import to_pil_image
+import torch
+from collections import Counter
+from tqdm import tqdm
+```
+
+## Maize Ternary
+
+```{python}
+train_data_dir = '/home/ndettmer/ssd_data/inat_subsets/maize_ternary'
+model_path = '/home/ndettmer/experiments/ma/classification/maize_ternary/lightning_logs/version_0/checkpoints/epoch=49-step=43200.ckpt'
+test_data_dir = '/home/ndettmer/ssd_data/UOS_Data'
+
+
+model = InatClassifier.load_from_checkpoint(model_path)
+model.eval()
+
+train_classes = InatDataModule(train_data_dir).ds.classes
+soil_label = train_classes.index('soil')
+
+sample_size = 25
+side_len = int(np.sqrt(sample_size))
+```
+
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true tags=[] -->
+### 18.05.22
+<!-- #endregion -->
+
+```{python}
+may_pred_dir = '/home/ndettmer/experiments/ma/classification/maize_ternary/predictions/220518_maize_rgb/'
+may_target_dir = os.path.join(test_data_dir, '1805_maize')
+may_ds = GTiffDataset(os.path.join(test_data_dir, '220518_maize_rgb.tif'), shape_dir=may_target_dir, stride=4, normalize=True)
+```
+
+```{python}
+for i in tqdm(range(len(may_ds))):
+    img, t = may_ds[i]
+
+n_samples = dict(Counter(may_ds.targets))
+n_samples = {may_ds.classes[k]: v for k, v in n_samples.items()}
+n_samples
+```
+
+```{python}
+# get samples for each class out of the raster dataset
+
+rnd_idx = list(range(len(may_ds)))
+random.shuffle(rnd_idx)
+i = 0
+
+soil_samples = []
+maize_samples = []
+weed_samples = []
+while len(soil_samples) < sample_size or len(weed_samples) < sample_size or len(maize_samples) < sample_size:
+    img, t = may_ds[rnd_idx[i]]
+    
+    if t == may_ds.class_to_idx['soil'] and len(soil_samples) < sample_size:
+        soil_samples.append(rnd_idx[i])
+    
+    if t == may_ds.class_to_idx['weeds'] and len(weed_samples) < sample_size:
+        weed_samples.append(rnd_idx[i])
+
+    if t == may_ds.class_to_idx['maize'] and len(maize_samples) < sample_size:
+        maize_samples.append(rnd_idx[i])
+    
+    i += 1
+```
+
+```{python}
+may_ds.class_to_idx
+```
+
+```{python}
+may_ds.classes
+```
+
+```{python}
+train_classes
+```
+
+```{python}
+# Soil plot
+figure, axs = plt.subplots(side_len, side_len, figsize=(20, 20))
+for i, idx in enumerate(soil_samples):
+    img, t = may_ds[idx]
+    non_norm_img, _ = may_ds.get_non_normalized_item(idx)
+    bb = may_ds.bbs[idx]
+    
+    # color weed
+    weed_cover = may_ds.get_cls_mask_in_bb(bb, may_ds.class_to_idx['weeds'])
+    weed_cover_idx = np.argwhere(weed_cover)
+    non_norm_img[0, weed_cover_idx[:, 0], weed_cover_idx[:, 1]] = 1
+    
+    # color maize
+    maize_cover = may_ds.get_cls_mask_in_bb(bb, may_ds.class_to_idx['maize'])
+    maize_cover_idx = np.argwhere(maize_cover)
+    non_norm_img[1, maize_cover_idx[:, 0], maize_cover_idx[:, 1]] = 1
+    
+    pil_img = to_pil_image(non_norm_img)
+    with torch.no_grad():
+        y_hat = model(img.unsqueeze(0)).squeeze().numpy()
+    pred = np.argmax(y_hat)
+    conf = np.max(y_hat)
+    axs[i % side_len, i // side_len].imshow(pil_img)
+    axs[i % side_len, i // side_len].set_title(f"#{i} T: {may_ds.classes[t]}; Y: {train_classes[pred]}; {np.around(conf, 4)}")
+plt.show()
+```
+
+- In most cases weed is predicted. 
+- It seems like the model predicts weed as soon as some leafs protrude int the window or some small plant is present (no matter if weed or maize). 
+- Maize is never predicted in these specific samples. The prediction of maize is quite rare in total. 
+- The confidences are always quite high, only in one sample below 90%.
+
+```{python}
+# Maize plot
+figure, axs = plt.subplots(side_len, side_len, figsize=(20, 20))
+for i, idx in enumerate(maize_samples):
+    img, t = may_ds[idx]
+    non_norm_img, _ = may_ds.get_non_normalized_item(idx)
+    bb = may_ds.bbs[idx]
+    
+    # color weed
+    weed_cover = may_ds.get_cls_mask_in_bb(bb, may_ds.class_to_idx['weeds'])
+    weed_cover_idx = np.argwhere(weed_cover)
+    non_norm_img[0, weed_cover_idx[:, 0], weed_cover_idx[:, 1]] = 1
+    
+    # color maize
+    maize_cover = may_ds.get_cls_mask_in_bb(bb, may_ds.class_to_idx['maize'])
+    maize_cover_idx = np.argwhere(maize_cover)
+    non_norm_img[1, maize_cover_idx[:, 0], maize_cover_idx[:, 1]] = 1
+    
+    pil_img = to_pil_image(non_norm_img)
+    with torch.no_grad():
+        y_hat = model(img.unsqueeze(0)).squeeze().numpy()
+    pred = np.argmax(y_hat)
+    conf = np.max(y_hat)
+    axs[i % side_len, i // side_len].imshow(pil_img)
+    axs[i % side_len, i // side_len].set_title(f"#{i} T: {may_ds.classes[t]}; Y: {train_classes[pred]}; {np.around(conf, 4)}")
+plt.show()
+```
+
+- Correct prediction quite rare
+- mostly weed again
+- sometimes soil
+- again very high confidences
+- in maize prediction very low confidence (0.5)
+
+```{python}
+# Weeds plot
+figure, axs = plt.subplots(side_len, side_len, figsize=(20, 20))
+for i, idx in enumerate(weed_samples):
+    img, t = may_ds[idx]
+    non_norm_img, _ = may_ds.get_non_normalized_item(idx)
+    bb = may_ds.bbs[idx]
+    
+    # color weed
+    weed_cover = may_ds.get_cls_mask_in_bb(bb, may_ds.class_to_idx['weeds'])
+    weed_cover_idx = np.argwhere(weed_cover)
+    non_norm_img[0, weed_cover_idx[:, 0], weed_cover_idx[:, 1]] = 1
+    
+    # color maize
+    maize_cover = may_ds.get_cls_mask_in_bb(bb, may_ds.class_to_idx['maize'])
+    maize_cover_idx = np.argwhere(maize_cover)
+    non_norm_img[1, maize_cover_idx[:, 0], maize_cover_idx[:, 1]] = 1
+    
+    pil_img = to_pil_image(non_norm_img)
+    with torch.no_grad():
+        y_hat = model(img.unsqueeze(0)).squeeze().numpy()
+    pred = np.argmax(y_hat)
+    conf = np.max(y_hat)
+    axs[i % side_len, i // side_len].imshow(pil_img)
+    axs[i % side_len, i // side_len].set_title(f"#{i} T: {may_ds.classes[t]}; Y: {train_classes[pred]}; {np.around(conf, 4)}")
+plt.show()
+```
+
+- still some errors
+- one maize prediciton with very high confidence, can't really see why
+- some soil predictions in samples with very sparse coverage
+
+```{python}
+may_predfile = os.path.join(may_pred_dir, '23-01-31_12-04_probability_map.npy')
+may_prob_mask = np.load(may_predfile)
+may_prob_mask /= may_prob_mask.max()
+```
+
+```{python}
+print(train_classes[0])
+plt.imshow(may_prob_mask[0])
+```
+
+- Soil prediction density in north east is slightly higher. Plant density is higher in the south, so that's correct.
+- weed clusters produce dark spots in this map which is also correct
+- the planting rows are visible
+
+```{python}
+print(train_classes[1])
+plt.imshow(may_prob_mask[1])
+```
+
+- again heavy preference towards weed predictions
+- higher density in the south
+- plant rows visible, especially in the north
+
+```{python}
+print(train_classes[2])
+plt.imshow(may_prob_mask[2])
+```
+
+- very sparse maize predictions
+- plant rows kind of visible
+- dark spots around weed clusters
+
+```{python}
+# split pred_mask into boolean masks
+may_pred_mask = np.argmax(may_prob_mask, axis=0)
+may_pred_mask.shape
+```
+
+```{python}
+bool_pred_masks = {}
+data_mask = may_ds.rds.read(4) > 0
+for label in np.unique(may_pred_mask):
+#    if label != soil_label:
+#        bool_pred_masks[classes[label]] = (pred_mask == label)
+    bool_pred_masks[train_classes[label]] = (may_pred_mask == label) & data_mask
+del may_pred_mask
+#classes.remove('soil')
+```
+
+```{python}
+plt.imshow(bool_pred_masks['zea mays'])
+```
+
+```{python}
+plt.imshow(bool_pred_masks['weed'])
+```
+
+```{python}
+plt.imshow(bool_pred_masks['soil'])
+```
+
+```{python}
+# TODO: create confusion matrix for labelled area
+```
+
+### 13.06.22
+
+```{python}
+june_ds = GTiffDataset(os.path.join(test_data_dir, '220613_maize_rgb_clipped.tif'), stride=4, normalize=True)
+
+june_pred_dir = '/home/ndettmer/experiments/ma/classification/maize_ternary/predictions/220613_maize_rgb/'
+```
+
+```{python}
+figure, axs = plt.subplots(side_len, side_len, figsize=(20, 20))
+june_ds_samples = np.random.choice(range(len(june_ds)), size=sample_size)
+for i, idx in enumerate(june_ds_samples):
+    img, t = june_ds[idx]
+    non_norm_img, _ = june_ds.get_non_normalized_item(idx)
+    pil_img = to_pil_image(non_norm_img)
+    with torch.no_grad():
+        y_hat = model(img.unsqueeze(0)).squeeze().numpy()
+    pred = np.argmax(y_hat)
+    conf = np.max(y_hat)
+    axs[i % side_len, i // side_len].imshow(pil_img)
+    axs[i % side_len, i // side_len].set_title(f"Y: {train_classes[pred]}; {conf}")
+plt.show()
+```
+
+- again heavy preference of weed predictions
+- no maize detected at all, even when only maize is present
+
+```{python}
+june_predfile = os.path.join(june_pred_dir, '23-01-31_14-24_probability_map.npy')
+prob_mask = np.load(june_predfile)
+prob_mask /= prob_mask.max()
+```
+
+```{python}
+print(train_classes[0])
+plt.imshow(prob_mask[0])
+```
+
+- way less soil predictions
+
+```{python}
+print(train_classes[1])
+plt.imshow(prob_mask[1])
+```
+
+- almost always weed 
+
+```{python}
+print(train_classes[2])
+plt.imshow(prob_mask[2])
+```
+
+- very few maize predictions
+
+```{python}
+# Finding maize predictions
+# get samples for each class out of the raster dataset
+
+rnd_idx = list(range(len(june_ds)))
+random.shuffle(rnd_idx)
+i = 0
+pred_sample_size = 9
+
+maize_predicted_samples = []
+maize_confs = []
+maize_predicted_idx = []
+while len(maize_predicted_samples) < pred_sample_size:
+    img, t = june_ds[rnd_idx[i]]
+    
+    non_norm_img, _ = june_ds.get_non_normalized_item(idx)
+    pil_img = to_pil_image(non_norm_img)
+    with torch.no_grad():
+        y_hat = model(img.unsqueeze(0)).squeeze().numpy()
+    pred = np.argmax(y_hat)
+    conf = np.max(y_hat)
+
+    if train_classes[pred] == 'zea mays':
+        maize_predicted_samples.append(pil_img)
+        maize_confs.append(conf)
+        maize_predicted_idx.append(rnd_idx[i])
+    
+    i += 1
+```
+
+```{python}
+maize_pred_side_len = np.sqrt(pred_sample_size)
+figure, axs = plt.subplots(maize_pred_side_len, maize_pred_side_len, figsize=(20, 20))
+for i, pil_img in enumerate(maize_predicted_samples):
+    conf = maize_confs[i]
+    idx = maize_predicted_idx[i]
+    
+    axs[i % maize_pred_side_len, i // maize_pred_side_len].imshow(pil_img)
+    axs[i % maize_pred_side_len, i // maize_pred_side_len].set_title(f"#{idx}: {np.around(conf, 4)}")
+plt.show()
+```
+
+<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
+## Playing around with prediction maps
+<!-- #endregion -->
+
+```{python}
+plt.imshow(bool_pred_masks['soil'])
+```
+
+```{python}
+plt.imshow(bool_pred_masks['weed'])
+```
+
+```{python}
+plt.imshow(bool_pred_masks['zea mays'])
+```
+
+```{python}
+prob_maps = np.load('/home/ndettmer/experiments/ma/classification/maize_ternary/predictions/220518_maize_rgb/23-01-24_15-58_probability_map')
+```
+
+```{python}
+# WARNING: Execute with caution, can lead to memory overflow!
+
+driver = 'ESRI Shapefile'
+vector_file = '/home/ndettmer/experiments/ma/classification/maize_ternary/predictions/220518_maize_rgb/23-01-24_10-19.shp'
+for label, species in enumerate(classes):
+    gen = ({'properties': {'raster_val': v, 'species': species}, 'geometry': s} for i, (s, v) in enumerate(shapes(ds.rds.read(1), mask=bool_pred_masks[species], transform=ds.rds.transform)))
+    with fiona.open(vector_file, 'w', driver=driver, crs=str(ds.rds.crs), schema={'properties': [('raster_val', 'int')], 'geometry': 'Polygon'}) as dst:
+        dst.writerecords(gen)
+    del gen
+```
+
+```{python}
+# extremely slow! maybe use another file format!
+
+with open('/home/ndettmer/experiments/ma/classification/maize_ternary/predictions/220518_maize_rgb/23-01-24_17-03_probability_map.yml', 'r') as infile:
+    loaded = yaml.safe_load(infile)
+```
+
+```{python}
+loaded
+```
+
+```{python}
+
+```
