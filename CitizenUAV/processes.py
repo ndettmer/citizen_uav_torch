@@ -1,6 +1,6 @@
 from typing import Optional, Union
 import pyinaturalist as pin
-import yaml
+import json
 from tqdm import tqdm
 from PIL import Image, UnidentifiedImageError
 from io import BytesIO
@@ -737,3 +737,106 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
     np.save(result_path, voting_result)
     return voting_result
 
+
+def pixel_conf_mat(dataset_path: Union[str, Path], shape_dir: Union[str, Path], train_data_dir: Union[str, Path],
+                   pred_file: Union[str, Path], class_map: str):
+    # Load information about training data
+    train_ds = ImageFolder(train_data_dir)
+    inat_classes = train_ds.classes
+    inat_class_to_idx = train_ds.class_to_idx
+    del train_ds
+
+    # load evaluation dataset
+    window_size = 128
+    ds = GTiffDataset(dataset_path, shape_dir=shape_dir, window_size=window_size, stride=window_size)
+
+    # map labels between datasets
+    rst_classes_to_inat_classes = json.loads(class_map)
+    rst_cls_idx_to_inat_cls_idx = {}
+    for rst_cls in ds.classes:
+        rst_cls_idx = ds.class_to_idx[rst_cls]
+        inat_cls = rst_classes_to_inat_classes[rst_cls]
+        inat_cls_idx = inat_class_to_idx[inat_cls]
+        rst_cls_idx_to_inat_cls_idx[rst_cls_idx] = inat_cls_idx
+    inat_cls_idx_to_rst_cls_idx = {v: k for k, v in rst_cls_idx_to_inat_cls_idx.items()}
+
+    # load predictions and confidences
+    prob_map = np.load(pred_file)
+    pred_map = np.argmax(prob_map, axis=0)
+    del prob_map
+
+    # create target map with inat targets
+    target_map = np.full((len(inat_classes), ds.rds.height, ds.rds.width), 0, dtype=bool)
+
+    not_soil_classes = set(inat_classes) ^ {'soil'}
+    for inat_class in not_soil_classes:
+        # get inat class index
+        inat_cls_idx = inat_class_to_idx[inat_class]
+        # get corresponding raster class index
+        rst_cls_idx = inat_cls_idx_to_rst_cls_idx[inat_cls_idx]
+
+        # get class target coverage from raster dataset
+        cls_mask = ds.get_cls_mask(rst_cls_idx)
+        cover_idx = np.argwhere(cls_mask)
+
+        # map coverage to target map with inat class indices
+        target_map[inat_cls_idx, cover_idx[:, 0], cover_idx[:, 1]] = True
+
+        # treat soil separately by just filling the empty space with the soil label
+        target_map[inat_class_to_idx['soil']] = target_map[inat_class_to_idx['soil']] & ~target_map[inat_cls_idx]
+
+    # condense map to 1 layer with class indices
+    target_map = np.argmax(target_map, axis=0)
+
+    # get pixel positions of labeled area
+    labeled_idx = np.argwhere(ds.get_labeled_area())
+
+    # get target list and prediction list out of the labeled area
+    targets = target_map[labeled_idx[:, 0], labeled_idx[:, 1]]
+    preds = pred_map[labeled_idx[:, 0], labeled_idx[:, 1]]
+
+    # balance classes by targets
+    label_dist = dict(Counter(targets))
+    label_dist = {inat_classes[k]: v for k, v in label_dist.items()}
+    n = min(label_dist.values())
+
+    # cut over-represented classes
+    cls_labeled_idx = [np.argwhere(targets == inat_class_to_idx[inat_class])[:n] for inat_class in inat_classes]
+
+    # combine the indices again
+    eval_idx = np.concatenate(cls_labeled_idx, axis=0)
+
+    # select samples from targets and predictions
+    targets = targets[eval_idx]
+    preds = preds[eval_idx]
+
+    target_dist = dict(Counter(targets.reshape(-1)))
+    target_dist = {inat_classes[k]: v for k, v in target_dist.items()}
+    logging.info(f"Target class distribution: {target_dist}")
+
+    pred_dist = dict(Counter(preds.reshape(-1)))
+    pred_dist = {inat_classes[k]: v for k, v in pred_dist.items()}
+    logging.info(f"Prediction class distribution: {pred_dist}")
+
+    # convert to tensors
+    targets = torch.IntTensor(targets)
+    preds = torch.IntTensor(preds)
+
+    # Calculate F1
+    f1 = F1Score(num_classes=3)
+    f1_score = float(f1(torch.IntTensor(preds), torch.IntTensor(targets)))
+
+    # create confusion matrix
+    cm = confusion_matrix(preds, targets, num_classes=3)
+    df_cm = pd.DataFrame(cm.numpy(), index=range(3), columns=range(3))
+
+    prediction_name = os.path.basename(pred_file)
+    result_filename = f"{prediction_name}_pixel-confmat.png"
+
+    # save figure
+    plt.figure()
+    sns.heatmap(df_cm, annot=True, cmap='Spectral', fmt='g').get_figure()
+    plt.title(f"F1Score: {f1_score}")
+    plt.savefig(os.path.join(os.path.dirname(pred_file), result_filename))
+
+    return df_cm
