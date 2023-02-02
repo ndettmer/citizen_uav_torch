@@ -17,7 +17,8 @@ from CitizenUAV.models import InatClassifier
 from CitizenUAV.data import GTiffDataset, InatDataModule
 import numpy as np
 import os
-from torchmetrics.functional import confusion_matrix
+from torchmetrics.functional import confusion_matrix, precision_recall
+from torchmetrics import Accuracy, F1Score
 import torch
 from tqdm import tqdm
 from torch.utils.data import DataLoader
@@ -31,7 +32,7 @@ import seaborn as sns
 data_dir = '/home/ndettmer/ssd_data/UOS_Data/'
 dataset_path = os.path.join(data_dir, '220518_maize_rgb.tif')
 shape_dir = os.path.join(data_dir, '1805_maize')
-ds = GTiffDataset(dataset_path, shape_dir=shape_dir, stride=32, normalize=True)
+ds = GTiffDataset(dataset_path, shape_dir=shape_dir, stride=4, normalize=True)
 model_path = '/home/ndettmer/experiments/ma/classification/maize_ternary/lightning_logs/version_0/checkpoints/epoch=49-step=43200.ckpt'
 model = InatClassifier.load_from_checkpoint(model_path)
 _ = model.eval()
@@ -65,16 +66,17 @@ for gt_cls in ds.classes:
 inat_cls_idx_to_gt_cls_idx = {v: k for k, v in gt_cls_idx_to_inat_cls_idx.items()}
 ```
 
-<!-- #region tags=[] -->
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true -->
 ## By Window
 <!-- #endregion -->
 
 ```{python}
-dl = DataLoader(ds, batch_size=8, num_workers=os.cpu_count())
+# determine class distribution
+dl = DataLoader(ds, batch_size=128, num_workers=os.cpu_count())
 
 batch_targets = []
 for batch in tqdm(iter(dl)):
-    img, t = batch
+    _, t = batch
     batch_targets.append(t)
 
 batch_targets = torch.concat(batch_targets, dim=0)
@@ -84,12 +86,12 @@ n_samples
 ```
 
 ```{python}
+# TODO fit for large sample sizes
 sample_size = min(n_samples.values()) * 3
 samples_per_class = sample_size // 3
 sample_idx = np.random.choice(range(len(ds)), size=len(ds))
 
 targets = []
-preds = []
 imgs = []
 
 sample_counter = {c: 0 for c in ds.classes}
@@ -135,7 +137,7 @@ cls_dist
 
 ```{python}
 inat_targets = torch.IntTensor(inat_targets)
-preds = preds.int()
+preds = preds.cpu().int()
 ```
 
 ```{python}
@@ -144,29 +146,28 @@ df_cm = pd.DataFrame(cm.numpy(), index=range(3), columns=range(3))
 plt.figure()
 sns.heatmap(df_cm, annot=True, cmap='Spectral', fmt='g').get_figure()
 plt.title(str(dict(enumerate(inat_classes))))
-plt.savefig('/home/ndettmer/experiments/ma/classification/maize_ternary/lightning_logs/version_0/220518_maize_rgb_confmat.png')
+plt.savefig('/home/ndettmer/experiments/ma/classification/maize_ternary/lightning_logs/version_0/220518_maize_rgb_window_confmat.png')
 ```
 
 ```{python}
-from torchmetrics.functional import precision_recall
-precision, recall = precision_recall(torch.IntTensor(preds), torch.IntTensor(targets), num_classes=3)
+precision, recall = precision_recall(preds, torch.IntTensor(inat_targets), num_classes=3)
 print(f"Precision: {precision}")
 print(f"Recall: {recall}")
 ```
 
 ```{python}
-from torchmetrics import F1Score
 f1 = F1Score(num_classes=3)
-float(f1(torch.IntTensor(preds), torch.IntTensor(targets)))
+float(f1(torch.IntTensor(preds), torch.IntTensor(inat_targets)))
 ```
 
 ```{python}
-from torchmetrics import Accuracy
 acc = Accuracy(num_classes=3)
-float(acc(torch.IntTensor(preds), torch.IntTensor(targets)))
+float(acc(torch.IntTensor(preds), torch.IntTensor(inat_targets)))
 ```
 
+<!-- #region tags=[] -->
 ## By Pixel
+<!-- #endregion -->
 
 ```{python}
 pred_dir = '/home/ndettmer/experiments/ma/classification/maize_ternary/predictions/220518_maize_rgb'
@@ -235,6 +236,18 @@ preds = preds[eval_idx]
 ```
 
 ```{python}
+target_dist = dict(Counter(targets.reshape(-1)))
+target_dist = {inat_classes[k]: v for k, v in target_dist.items()}
+target_dist
+```
+
+```{python}
+pred_dist = dict(Counter(preds.reshape(-1)))
+pred_dist = {inat_classes[k]: v for k, v in pred_dist.items()}
+pred_dist
+```
+
+```{python}
 # convert to tensors
 targets = torch.IntTensor(targets)
 preds = torch.IntTensor(preds)
@@ -251,5 +264,17 @@ plt.savefig('/home/ndettmer/experiments/ma/classification/maize_ternary/lightnin
 ```
 
 ```{python}
+precision, recall = precision_recall(torch.IntTensor(preds), torch.IntTensor(targets), num_classes=3)
+print(f"Precision: {precision}")
+print(f"Recall: {recall}")
+```
 
+```{python}
+f1 = F1Score(num_classes=3)
+float(f1(torch.IntTensor(preds), torch.IntTensor(targets)))
+```
+
+```{python}
+acc = Accuracy(num_classes=3)
+float(acc(torch.IntTensor(preds), torch.IntTensor(targets)))
 ```
