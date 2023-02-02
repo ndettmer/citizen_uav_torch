@@ -5,7 +5,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.14.1
+      jupytext_version: 1.14.4
   kernelspec:
     display_name: Python 3 (ipykernel)
     language: python
@@ -264,10 +264,6 @@ plt.imshow(bool_pred_masks['weed'])
 plt.imshow(bool_pred_masks['soil'])
 ```
 
-```{python}
-# TODO: create confusion matrix for labelled area
-```
-
 ### 13.06.22
 
 ```{python}
@@ -323,88 +319,40 @@ plt.imshow(prob_mask[2])
 - very few maize predictions
 
 ```{python}
-# Finding maize predictions
-# get samples for each class out of the raster dataset
+from CitizenUAV.utils import BoxPred
 
-rnd_idx = list(range(len(june_ds)))
-random.shuffle(rnd_idx)
-i = 0
 pred_sample_size = 9
-
-maize_predicted_samples = []
-maize_confs = []
-maize_predicted_idx = []
-while len(maize_predicted_samples) < pred_sample_size:
-    img, t = june_ds[rnd_idx[i]]
-    
-    non_norm_img, _ = june_ds.get_non_normalized_item(idx)
-    pil_img = to_pil_image(non_norm_img)
-    with torch.no_grad():
-        y_hat = model(img.unsqueeze(0)).squeeze().numpy()
-    pred = np.argmax(y_hat)
-    conf = np.max(y_hat)
-
-    if train_classes[pred] == 'zea mays':
-        maize_predicted_samples.append(pil_img)
-        maize_confs.append(conf)
-        maize_predicted_idx.append(rnd_idx[i])
-    
-    i += 1
+maize_preds = []
+with open(os.path.join(june_pred_dir, '23-01-31_14-24_probability_map.txt'), 'r') as boxpred_file:
+    lines = boxpred_file.readlines()
+    rnd_idx = np.random.choice(range(len(lines)), size=len(lines))
+    i = 0
+    while len(maize_preds) < pred_sample_size:
+        idx = rnd_idx[i]
+        line = lines[idx]
+        box_pred = eval(line)
+        if train_classes[box_pred.prediction] == 'zea mays':
+            maize_preds.append(box_pred)
+        i += 1
+    del lines
+maize_preds
 ```
 
 ```{python}
-maize_pred_side_len = np.sqrt(pred_sample_size)
+maize_pred_side_len = int(np.sqrt(pred_sample_size))
 figure, axs = plt.subplots(maize_pred_side_len, maize_pred_side_len, figsize=(20, 20))
-for i, pil_img in enumerate(maize_predicted_samples):
-    conf = maize_confs[i]
-    idx = maize_predicted_idx[i]
+for i, box_pred in enumerate(maize_preds):
+    
+    #conf = maize_confs[i]
+    #idx = maize_predicted_idx[i]
+    bb = (box_pred.x_min, box_pred.x_max, box_pred.y_min, box_pred.y_max)
+    img = june_ds.get_bb_data(bb, normalize=False)
+    pil_img = to_pil_image(img)
     
     axs[i % maize_pred_side_len, i // maize_pred_side_len].imshow(pil_img)
-    axs[i % maize_pred_side_len, i // maize_pred_side_len].set_title(f"#{idx}: {np.around(conf, 4)}")
+    axs[i % maize_pred_side_len, i // maize_pred_side_len].set_title(f"{bb}")
+    #axs[i % maize_pred_side_len, i // maize_pred_side_len].set_title(f"#{idx}: {np.around(conf, 4)}")
 plt.show()
-```
-
-<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
-## Playing around with prediction maps
-<!-- #endregion -->
-
-```{python}
-plt.imshow(bool_pred_masks['soil'])
-```
-
-```{python}
-plt.imshow(bool_pred_masks['weed'])
-```
-
-```{python}
-plt.imshow(bool_pred_masks['zea mays'])
-```
-
-```{python}
-prob_maps = np.load('/home/ndettmer/experiments/ma/classification/maize_ternary/predictions/220518_maize_rgb/23-01-24_15-58_probability_map')
-```
-
-```{python}
-# WARNING: Execute with caution, can lead to memory overflow!
-
-driver = 'ESRI Shapefile'
-vector_file = '/home/ndettmer/experiments/ma/classification/maize_ternary/predictions/220518_maize_rgb/23-01-24_10-19.shp'
-for label, species in enumerate(classes):
-    gen = ({'properties': {'raster_val': v, 'species': species}, 'geometry': s} for i, (s, v) in enumerate(shapes(ds.rds.read(1), mask=bool_pred_masks[species], transform=ds.rds.transform)))
-    with fiona.open(vector_file, 'w', driver=driver, crs=str(ds.rds.crs), schema={'properties': [('raster_val', 'int')], 'geometry': 'Polygon'}) as dst:
-        dst.writerecords(gen)
-    del gen
-```
-
-```{python}
-# extremely slow! maybe use another file format!
-
-with open('/home/ndettmer/experiments/ma/classification/maize_ternary/predictions/220518_maize_rgb/23-01-24_17-03_probability_map.yml', 'r') as infile:
-    loaded = yaml.safe_load(infile)
-```
-
-```{python}
-loaded
 ```
 
 ```{python}

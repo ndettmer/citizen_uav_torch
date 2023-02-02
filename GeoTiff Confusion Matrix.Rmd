@@ -28,11 +28,12 @@ import seaborn as sns
 ```
 
 ```{python}
-data_dir = '/home/ndettmer/data/UOS_Data/'
+data_dir = '/home/ndettmer/ssd_data/UOS_Data/'
 dataset_path = os.path.join(data_dir, '220518_maize_rgb.tif')
 shape_dir = os.path.join(data_dir, '1805_maize')
 ds = GTiffDataset(dataset_path, shape_dir=shape_dir, stride=32, normalize=True)
-model = InatClassifier.load_from_checkpoint('/home/ndettmer/experiments/ma/classification/maize_ternary/lightning_logs/version_0/checkpoints/epoch=49-step=43200.ckpt')
+model_path = '/home/ndettmer/experiments/ma/classification/maize_ternary/lightning_logs/version_0/checkpoints/epoch=49-step=43200.ckpt'
+model = InatClassifier.load_from_checkpoint(model_path)
 _ = model.eval()
 if torch.cuda.is_available():
     model.cuda()
@@ -43,11 +44,8 @@ ds.classes
 ```
 
 ```{python}
-# TODO: verify or replace
-inat_classes = ['soil', 'weed', 'zea mays']
-inat_class_to_index = {c: i for i, c in enumerate(inat_classes)}
-
-inat_class_to_index
+inat_classes = InatDataModule('/home/ndettmer/ssd_data/inat_subsets/maize_ternary').ds.classes
+inat_class_to_idx = {c: i for i, c in enumerate(inat_classes)}
 
 gt_classes_to_inat_classes = {
     'soil': 'soil',
@@ -61,9 +59,15 @@ gt_cls_idx_to_inat_cls_idx = {}
 for gt_cls in ds.classes:
     gt_cls_idx = ds.class_to_idx[gt_cls]
     inat_cls = gt_classes_to_inat_classes[gt_cls]
-    inat_cls_idx = inat_class_to_index[inat_cls]
+    inat_cls_idx = inat_class_to_idx[inat_cls]
     gt_cls_idx_to_inat_cls_idx[gt_cls_idx] = inat_cls_idx
+
+inat_cls_idx_to_gt_cls_idx = {v: k for k, v in gt_cls_idx_to_inat_cls_idx.items()}
 ```
+
+<!-- #region tags=[] -->
+## By Window
+<!-- #endregion -->
 
 ```{python}
 dl = DataLoader(ds, batch_size=8, num_workers=os.cpu_count())
@@ -160,6 +164,90 @@ float(f1(torch.IntTensor(preds), torch.IntTensor(targets)))
 from torchmetrics import Accuracy
 acc = Accuracy(num_classes=3)
 float(acc(torch.IntTensor(preds), torch.IntTensor(targets)))
+```
+
+## By Pixel
+
+```{python}
+pred_dir = '/home/ndettmer/experiments/ma/classification/maize_ternary/predictions/220518_maize_rgb'
+pred_file = os.path.join(pred_dir, '23-01-31_12-04_probability_map.npy')
+```
+
+```{python}
+# load predictions and confidences
+prob_map = np.load(pred_file)
+pred_map = np.argmax(prob_map, axis=0)
+conf_map = np.max(prob_map, axis=0)
+del prob_map
+```
+
+```{python}
+# get pixel positions of labeled area
+labeled_idx = np.argwhere(ds.get_labeled_area())
+```
+
+```{python}
+# create target map with inat targets 
+target_map = np.full((model.n_classes, ds.rds.height, ds.rds.width), 0, dtype=bool)
+for inat_class in set(inat_classes) ^ {'soil'}:
+    # get inat class index
+    inat_cls_idx = inat_class_to_idx[inat_class]
+    # get corresponding raster class index
+    gt_cls_idx = inat_cls_idx_to_gt_cls_idx[inat_cls_idx]
+    
+    # get class target coverage from raster dataset
+    cls_mask = ds.get_cls_mask(gt_cls_idx)
+    cover_idx = np.argwhere(cls_mask)
+    
+    # map coverage to target map with inat class indices
+    target_map[inat_cls_idx, cover_idx[:, 0], cover_idx[:, 1]] = True
+
+# treat soil separately by just filling the empty space with the soil label
+target_map[inat_class_to_idx['soil']] = ~ (target_map[inat_class_to_idx['weed']] | target_map[inat_class_to_idx['zea mays']])
+
+# condence map to 1 layer with class indices
+target_map = np.argmax(target_map, axis=0)
+```
+
+```{python}
+# get target list and prediciton list out of the labeled area
+targets = target_map[labeled_idx[:, 0], labeled_idx[:, 1]]
+preds = pred_map[labeled_idx[:, 0], labeled_idx[:, 1]]
+```
+
+```{python}
+# balance classes by targets
+label_dist = dict(Counter(targets))
+label_dist = {inat_classes[k]: v for k, v in label_dist.items()}
+n = min(label_dist.values())
+
+# cut over-represented classes 
+soil_labeled_idx = np.argwhere(targets == inat_class_to_idx['soil'])[:n]
+weed_labeled_idx = np.argwhere(targets == inat_class_to_idx['weed'])[:n]
+maize_labeled_idx = np.argwhere(targets == inat_class_to_idx['zea mays'])[:n]
+
+# combine the indices again
+eval_idx = np.concatenate([soil_labeled_idx, weed_labeled_idx, maize_labeled_idx], axis=0)
+
+# select samples from targets and predictions
+targets = targets[eval_idx]
+preds = preds[eval_idx]
+```
+
+```{python}
+# convert to tensors
+targets = torch.IntTensor(targets)
+preds = torch.IntTensor(preds)
+```
+
+```{python}
+# create confusion matrix
+cm = confusion_matrix(preds, targets, num_classes=3)
+df_cm = pd.DataFrame(cm.numpy(), index=range(3), columns=range(3))
+plt.figure()
+sns.heatmap(df_cm, annot=True, cmap='Spectral', fmt='g').get_figure()
+plt.title(str(dict(enumerate(inat_classes))))
+plt.savefig('/home/ndettmer/experiments/ma/classification/maize_ternary/lightning_logs/version_0/220518_maize_rgb_pixel_confmat.png')
 ```
 
 ```{python}

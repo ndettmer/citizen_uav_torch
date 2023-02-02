@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 import os
 import sys
 from datetime import datetime
@@ -6,6 +6,8 @@ from typing import Tuple, Union, Optional
 from pathlib import Path
 import logging
 import yaml
+import numpy as np
+from abc import ABC
 
 import pandas as pd
 from torch.utils.data import Dataset, DataLoader
@@ -173,8 +175,44 @@ def get_area_around_center(x_c: int, y_c: int, size: int) -> tuple[int, int, int
     return x_min, x_max, y_min, y_max
 
 
+class CUAVDataClass(ABC):
+
+    def dict(self):
+        return asdict(self)
+
+    def series(self):
+        return pd.Series(self.dict())
+
+    @classmethod
+    def from_dict(cls, data):
+        return cls(**data)
+
+    @classmethod
+    def from_series(cls, series: pd.Series):
+        return cls.from_dict(dict(series))
+
+    @classmethod
+    def from_df(cls, df: pd.DataFrame):
+        preds = []
+        for idx, row in df.iterrows():
+            preds.append(cls.from_series(row))
+        return preds
+
+
 @dataclass
-class BoxPred:
+class PixPred(CUAVDataClass):
+    x: int
+    y: int
+    prediction: int
+    ds_path: str
+    model_path: str
+    target: Optional[int] = np.nan
+    prediction_text: Optional[str] = None
+    confidence: Optional[float] = np.nan
+
+
+@dataclass
+class BoxPred(CUAVDataClass):
     """
     Box prediction in a raster dataset.
     """
@@ -185,3 +223,13 @@ class BoxPred:
     prediction: int
     ds_path: str
     model_path: str
+    target: Optional[int] = np.nan
+    prediction_text: Optional[str] = None
+    confidence: Optional[float] = np.nan
+
+
+def pred_df(preds: Union[list[BoxPred], list[PixPred]]):
+    df = pd.DataFrame(columns=list(preds[0].dict().keys()))
+    for pred in preds:
+        df.loc[len(df)] = pred.series()
+    return df

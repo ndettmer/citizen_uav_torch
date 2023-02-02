@@ -568,6 +568,7 @@ class GTiffDataset(Dataset):
         """
         Get RGB data in the given bounding box
         :param bb: bounding box (x_min, x_max, y_min, y_max)
+        :param normalize: Normalize the sample
         :return: Tensor containing the data
         """
         if normalize is None:
@@ -639,6 +640,18 @@ class GTiffDataset(Dataset):
 
         return int(np.argmax(coverages))
 
+    def get_pix_label(self, x: int, y: int) -> int:
+        """
+        Get label in non-geo-referenced position (x, y).
+        :param x:
+        :param y:
+        :return: Label in position (x, y).
+        """
+        for cls_idx in range(len(self.classes) - 1):
+            if self.get_cls_mask_in_bb((x, x+1, y, y+1), cls_idx).all():
+                return cls_idx
+        return self.class_to_idx['soil']
+
     def uncrop_mask(self, mask: np.ndarray, transform: affine.Affine) -> np.ndarray:
         """
         Transform a mask cropped to the content of that mask back to the large dataset.
@@ -670,14 +683,24 @@ class GTiffDataset(Dataset):
 
         return mask_uncropped
 
-    def get_cls_mask_in_bb(self, bb: Union[tuple | np.ndarray], cls_idx: int):
-        x_min, x_max, y_min, y_max = bb
-
+    def get_cls_mask(self, cls_idx: int) -> np.ndarray:
+        """
+        Get uncropped class mask for given class.
+        :param cls_idx: Index of wanted class.
+        :return: boolean mask of class coverage.
+        """
         # get mask and transform
         cls_mask_cropped = self.class_masks[cls_idx]
         cls_mask_transform = self.class_mask_transforms[cls_idx]
 
         cls_mask = self.uncrop_mask(cls_mask_cropped, cls_mask_transform)
+        return cls_mask
+
+    def get_cls_mask_in_bb(self, bb: Union[tuple | np.ndarray], cls_idx: int) -> np.ndarray:
+        x_min, x_max, y_min, y_max = bb
+
+        cls_mask = self.get_cls_mask(cls_idx)
+
         return cls_mask[x_min:x_max, y_min:y_max]
 
     def get_bb_cls_coverage(self, bb: Union[tuple | np.ndarray], cls_idx: int, share: bool = False) \

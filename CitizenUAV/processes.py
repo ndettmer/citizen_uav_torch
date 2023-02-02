@@ -666,7 +666,7 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
     dataset_name = os.path.splitext(os.path.basename(dataset_path))[0]
     result_path = os.path.join(result_dir, "predictions", dataset_name,
                                f'{datetime.now().strftime("%y-%m-%d_%H-%M")}_{"probability_map" if probabilities else "label_map"}.npy')
-    result_box_path = result_path.replace(".npy", ".txt")
+    result_box_path = result_path.replace(".npy", ".csv")
 
     if not os.path.exists(result_path):
         os.makedirs(os.path.dirname(result_path), exist_ok=True)
@@ -701,12 +701,14 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
         preds = torch.argmax(y_hat, dim=1)
         for pred, probs, bb in zip(preds, y_hat, batch_bbs):
             x_min, x_max, y_min, y_max = bb
-            box_preds.append(str(BoxPred(
+            conf = float(torch.max(probs).cpu().numpy())
+            box_preds.append(BoxPred(
                 x_min, x_max, y_min, y_max,
                 int(pred.cpu().numpy()),
-                dataset_path,
-                model_path
-            )))
+                ds_path=dataset_path,
+                model_path=model_path,
+                confidence=conf
+            ))
 
             if pred_size is not None:
                 # Calculate prediction bounding box
@@ -724,9 +726,8 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
                 # add one-hot prediction
                 label_map[pred, pred_x_min:pred_x_max, pred_y_min:pred_y_max] += 1
 
-    with open(result_box_path, 'w') as filehandle:
-        for box_pred in box_preds:
-            filehandle.write(f'{box_pred}\n')
+    p_df = pred_df(box_preds)
+    p_df.to_csv(result_box_path, index=False)
 
     if probabilities:
         np.save(result_path, label_map)
@@ -735,3 +736,4 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
     voting_result = np.argmax(label_map, axis=0)
     np.save(result_path, voting_result)
     return voting_result
+
