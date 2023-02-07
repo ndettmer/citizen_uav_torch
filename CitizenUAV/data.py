@@ -1,5 +1,7 @@
+from abc import ABC
+from dataclasses import asdict, dataclass
+
 import affine
-import numpy as np
 import pytorch_lightning as pl
 from pytorch_lightning.utilities.types import TRAIN_DATALOADERS
 from torch.utils.data import DataLoader, random_split, Subset, Dataset
@@ -22,7 +24,8 @@ from collections import Counter
 import logging
 
 from CitizenUAV.transforms import *
-from CitizenUAV.utils import get_pid_from_path, read_split_inat_metadata, channel_mean_std
+from CitizenUAV.io_utils import get_pid_from_path, read_split_inat_metadata
+from CitizenUAV.math_utils import channel_mean_std
 
 
 def validate_split(split: tuple) -> bool:
@@ -749,3 +752,56 @@ class GTiffDataset(Dataset):
 
     def get_mask_bool(self):
         return self.rds.read(4) > 0
+
+
+class CUAVDataClass(ABC):
+
+    def dict(self):
+        return asdict(self)
+
+    def series(self):
+        return pd.Series(self.dict())
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(**data)
+
+    @classmethod
+    def from_series(cls, series: pd.Series):
+        return cls.from_dict(dict(series))
+
+    @classmethod
+    def from_df(cls, df: pd.DataFrame):
+        preds = []
+        for idx, row in df.iterrows():
+            preds.append(cls.from_series(row))
+        return preds
+
+
+@dataclass
+class PixPred(CUAVDataClass):
+    x: int
+    y: int
+    prediction: int
+    ds_path: str
+    model_path: str
+    target: Optional[int] = np.nan
+    prediction_text: Optional[str] = None
+    confidence: Optional[float] = np.nan
+
+
+@dataclass
+class BoxPred(CUAVDataClass):
+    """
+    Box prediction in a raster dataset.
+    """
+    x_min: int
+    x_max: int
+    y_min: int
+    y_max: int
+    prediction: int
+    ds_path: str
+    model_path: str
+    target: Optional[int] = np.nan
+    prediction_text: Optional[str] = None
+    confidence: Optional[float] = np.nan

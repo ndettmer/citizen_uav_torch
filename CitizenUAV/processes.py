@@ -11,10 +11,11 @@ import sys
 from torchvision.datasets import ImageFolder
 from torchvision import transforms
 
+from CitizenUAV.math_utils import get_area_around_center, get_center_of_bb
 from CitizenUAV.models import *
 from CitizenUAV.transforms import *
 from CitizenUAV.data import *
-from CitizenUAV.utils import *
+from CitizenUAV.io_utils import *
 
 
 def download_data(species: str, output_dir: os.PathLike, max_images: Optional[int] = None,

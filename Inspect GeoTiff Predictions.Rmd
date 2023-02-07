@@ -319,7 +319,7 @@ plt.imshow(prob_mask[2])
 - very few maize predictions
 
 ```{python}
-from CitizenUAV.utils import BoxPred
+from CitizenUAV.data import BoxPred
 
 pred_sample_size = 9
 maize_preds = []

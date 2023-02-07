@@ -13,7 +13,7 @@ jupyter:
 ---
 
 ```{python}
-from CitizenUAV.utils import gram_matrix, channel_mean_std
+from CitizenUAV.math_utils import gram_matrix, channel_mean_std
 from CitizenUAV.losses import *
 from CitizenUAV.data import InatDataModule
 from CitizenUAV.models import InatClassifier

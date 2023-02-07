@@ -22,6 +22,7 @@ from torchmetrics import Accuracy, F1Score
 import torch
 from tqdm import tqdm
 from torch.utils.data import DataLoader
+from torchvision.datasets import ImageFolder
 from collections import Counter
 from matplotlib import pyplot as plt
 import pandas as pd
@@ -29,7 +30,7 @@ import seaborn as sns
 ```
 
 ```{python}
-data_dir = '/home/ndettmer/ssd_data/UOS_Data/'
+data_dir = '/home/ndettmer/data/UOS_Data/'
 dataset_path = os.path.join(data_dir, '220518_maize_rgb.tif')
 shape_dir = os.path.join(data_dir, '1805_maize')
 ds = GTiffDataset(dataset_path, shape_dir=shape_dir, stride=4, normalize=True)
@@ -45,7 +46,7 @@ ds.classes
 ```
 
 ```{python}
-inat_classes = InatDataModule('/home/ndettmer/ssd_data/inat_subsets/maize_ternary').ds.classes
+inat_classes = ImageFolder('/home/ndettmer/data/inat_subsets/maize_ternary').classes
 inat_class_to_idx = {c: i for i, c in enumerate(inat_classes)}
 
 gt_classes_to_inat_classes = {
@@ -66,7 +67,23 @@ for gt_cls in ds.classes:
 inat_cls_idx_to_gt_cls_idx = {v: k for k, v in gt_cls_idx_to_inat_cls_idx.items()}
 ```
 
-<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true -->
+```{python}
+inat_classes
+```
+
+```{python}
+ds.rds.height, ds.rds.width
+```
+
+```{python}
+rnd_probs = np.random.rand(3, ds.rds.height, ds.rds.width)
+```
+
+```{python}
+np.save('/home/ndettmer/experiments/ma/classification/maize_ternary/predictions/220518_maize_rgb/23-02-02_15-24_probability_map.npy', rnd_probs)
+```
+
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
 ## By Window
 <!-- #endregion -->
 
@@ -257,7 +274,9 @@ preds = torch.IntTensor(preds)
 # create confusion matrix
 cm = confusion_matrix(preds, targets, num_classes=3)
 df_cm = pd.DataFrame(cm.numpy(), index=range(3), columns=range(3))
-plt.figure()
+plt.figure()# convert to tensors
+targets = torch.IntTensor(targets)
+preds = torch.IntTensor(preds)
 sns.heatmap(df_cm, annot=True, cmap='Spectral', fmt='g').get_figure()
 plt.title(str(dict(enumerate(inat_classes))))
 plt.savefig('/home/ndettmer/experiments/ma/classification/maize_ternary/lightning_logs/version_0/220518_maize_rgb_pixel_confmat.png')
