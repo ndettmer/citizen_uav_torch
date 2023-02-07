@@ -1,7 +1,7 @@
 from torch import nn
 from torch.nn import functional as F
 
-from CitizenUAV.io_utils import gram_matrix
+from CitizenUAV.math_utils import gram_matrix
 
 
 class StyleLoss(nn.Module):
