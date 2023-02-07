@@ -1,19 +1,13 @@
-from typing import Optional, Union
 import pyinaturalist as pin
 import json
-from tqdm import tqdm
-from PIL import Image, UnidentifiedImageError
+from PIL import UnidentifiedImageError
 from io import BytesIO
-from collections import Counter
-from datetime import datetime
-import sys
 
-from torchvision.datasets import ImageFolder
-from torchvision import transforms
+from torch import optim
 
+from CitizenUAV.losses import ContentLoss, StyleLoss
 from CitizenUAV.math_utils import get_area_around_center, get_center_of_bb
 from CitizenUAV.models import *
-from CitizenUAV.transforms import *
 from CitizenUAV.data import *
 from CitizenUAV.io_utils import *
 
@@ -842,3 +836,62 @@ def pixel_conf_mat(dataset_path: Union[str, Path], shape_dir: Union[str, Path], 
     plt.savefig(os.path.join(os.path.dirname(pred_file), result_filename))
 
     return df_cm
+
+
+def optimize_image(x: torch.Tensor, cnn_slice: nn.Module, target_image: torch.Tensor, loss_class: str,
+                   num_steps: int = 300, cuda: Optional[bool] = None):
+
+    x = x.unsqueeze(0)
+    target = cnn_slice(target_image.unsqueeze(0)).detach()
+
+    if cuda is None:
+        cuda = torch.cuda.is_available()
+
+    if cuda:
+        cnn_slice.double().cuda()
+        x = x.double().cuda()
+        target = target.double().cuda()
+
+    loss_module = eval(loss_class)(target)
+    cnn_slice.add_module(loss_class, loss_module)
+
+    x.requires_grad_(True)
+    cnn_slice.requires_grad_(True)
+
+    # WARNING: Doesn't work with GPU apparently: https://pytorch.org/docs/stable/generated/torch.optim.LBFGS.html
+    # Maybe there's a bug with a certain backend: https://discuss.pytorch.org/t/l-bfgs-optimizer-doesnt-work-properly-on-cuda/136785
+    optimizer = optim.LBFGS([x])
+
+    pbar = tqdm(range(num_steps))
+    pbar.set_description(f"Optimizing input image")
+    for _ in pbar:
+
+        def closure():
+            with torch.no_grad():
+                x.clamp_(0, 1)
+
+            optimizer.zero_grad()
+            cnn_slice(x)
+            loss = loss_module.loss
+            loss.backward()
+
+            return loss_module.loss
+
+        optimizer.step(closure)
+
+    with torch.no_grad():
+        x.clamp_(0, 1)
+
+    cnn_slice.float().cpu()
+    x = x.detach().float().cpu()
+    target = target.detach().float().cpu()
+
+    return x
+
+
+def approximate_content(x, cnn_slice, content_img, num_steps=300, cuda=None):
+    return optimize_image(x, cnn_slice, content_img, 'ContentLoss', num_steps, cuda)
+
+
+def approximate_style(x, cnn_slice, content_img, num_steps=300, cuda=None):
+    return optimize_image(x, cnn_slice, content_img, 'StyleLoss', num_steps, cuda)

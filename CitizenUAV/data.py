@@ -3,6 +3,7 @@ from dataclasses import asdict, dataclass
 
 import affine
 import pytorch_lightning as pl
+import yaml
 from pytorch_lightning.utilities.types import TRAIN_DATALOADERS
 from torch.utils.data import DataLoader, random_split, Subset, Dataset
 from torch.utils.data.dataset import T_co
@@ -227,6 +228,28 @@ class InatDataModule(pl.LightningDataModule):
         self.ds = new_ds
         self.idx = range(len(self.ds))
 
+    def get_channel_mean_std(self):
+        filename = os.path.join(self.data_dir, 'mean_std.yml')
+        if os.path.exists(filename):
+            with open(filename, 'r') as file:
+                data = yaml.safe_load(file)
+            means = torch.FloatTensor(data['means'])
+            stds = torch.FloatTensor(data['stds'])
+        else:
+            means, stds = channel_mean_std(self.ds)
+            data = {
+                'means': means.numpy().tolist(),
+                'stds': stds.numpy().tolist()
+            }
+            with open(filename, 'w') as file:
+                yaml.dump(data, file)
+
+        return means, stds
+
+    def get_normalize_module(self):
+        means, stds = self.get_channel_mean_std()
+        return transforms.Normalize(means, stds)
+
     def _add_normalize(self):
 
         if isinstance(self.ds, Subset):
@@ -237,8 +260,7 @@ class InatDataModule(pl.LightningDataModule):
             raise TypeError(f"The dataset has the wrong type: {type(self.ds)}")
 
         if not normalize_exists:
-            means, stds = channel_mean_std(self.ds)
-            norm = transforms.Normalize(means, stds)
+            norm = self.get_normalize_module()
             if isinstance(self.ds, Subset):
                 self.ds.dataset.transform.transforms.append(norm)
             else:
