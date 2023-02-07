@@ -708,7 +708,7 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
                 ds_path=dataset_path,
                 model_path=model_path,
                 confidence=conf
-            ))
+            ).dict())
 
             if pred_size is not None:
                 # Calculate prediction bounding box
@@ -726,7 +726,8 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
                 # add one-hot prediction
                 label_map[pred, pred_x_min:pred_x_max, pred_y_min:pred_y_max] += 1
 
-    p_df = pred_df(box_preds)
+    p_df = pd.DataFrame(data=box_preds)
+    del box_preds
     p_df.to_csv(result_box_path, index=False)
 
     if probabilities:

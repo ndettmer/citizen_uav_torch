@@ -226,10 +226,3 @@ class BoxPred(CUAVDataClass):
     target: Optional[int] = np.nan
     prediction_text: Optional[str] = None
     confidence: Optional[float] = np.nan
-
-
-def pred_df(preds: Union[list[BoxPred], list[PixPred]]):
-    df = pd.DataFrame(columns=list(preds[0].dict().keys()))
-    for pred in preds:
-        df.loc[len(df)] = pred.series()
-    return df
