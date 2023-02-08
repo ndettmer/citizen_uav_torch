@@ -890,12 +890,12 @@ def optimize_image(cnn_slice: nn.Module, target_image: torch.Tensor, loss_class:
     x.requires_grad_(True)
     cnn_slice.requires_grad_(True)
 
-    # Creat optimizer
+    # Create optimizer
     optimizer = optim.LBFGS([x])
 
     # Optimization loop
     pbar = tqdm(range(num_steps))
-    pbar.set_description(f"Optimizing input image")
+    pbar.set_description(f"Optimizing white noise image")
     for _ in pbar:
 
         def closure():
@@ -934,7 +934,7 @@ def approximate_content(cnn_slice, content_img, num_steps=300, cuda=None):
     return optimize_image(cnn_slice, content_img, 'ContentLoss', num_steps, cuda)
 
 
-def approximate_style(x, cnn_slice, style_img, num_steps=300, cuda=None):
+def approximate_style(cnn_slice, style_img, num_steps=300, cuda=None):
     """
     Approximate style representation of a given input image based on the Neural Style Transfer paper by Gatys et al.
     :param cnn_slice: The CNN slice of which the last layer's activation shall be maximized.
