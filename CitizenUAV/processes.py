@@ -633,6 +633,63 @@ def create_gim_metadata(data_dir: os.PathLike, classes: list = None, debug: bool
         metadata.to_csv(os.path.join(data_dir, "metadata.csv"))
 
 
+def predict_inat(model_path: Union[str, Path], data_dir: Union[str, Path], result_dir: Union[str, Path], img_size: int = 128,
+                 min_distance: float = None, gpu: Optional[bool] = None, batch_size: int = 1, normalize: bool = False):
+    dm = InatDataModule(data_dir, img_size=img_size, normalize=normalize, min_distance=min_distance, split=(0, 0, 1),
+                        batch_size=batch_size, return_path=True)
+    dm.setup()
+    model = InatClassifier.load_from_checkpoint(model_path)
+    model.eval()
+
+    if gpu is None:
+        gpu = torch.cuda.is_available()
+
+    if gpu:
+        model.cuda()
+
+    columns = ['pid', 'target', 'target_text', 'prediction', 'prediction_text', 'path']
+    for inat_class in dm.ds.classes:
+        columns.append(f"{inat_class}_prob")
+    pred_df = pd.DataFrame(columns=columns)
+
+    data_iter = iter(dm.test_dataloader())
+    for batch, ts, paths in tqdm(data_iter):
+        if gpu:
+            batch = batch.cuda()
+
+        with torch.no_grad():
+            y_hat = model(batch)
+        preds = torch.argmax(y_hat, dim=1)
+
+        ts = ts.numpy()
+        preds = preds.detach().cpu().numpy()
+        y_hat = np.around(y_hat.detach().cpu().numpy(), 4)
+
+        for path, t, pred, probs in zip(paths, ts, preds, y_hat):
+            row = pd.Series(index=pred_df.columns, dtype=object)
+
+            row['pid'] = get_pid_from_path(path)
+            row['target'] = int(t)
+            row['target_text'] = dm.ds.classes[int(t)]
+            row['prediction'] = int(pred)
+            row['prediction_text'] = dm.ds.classes[int(pred)]
+            row['path'] = path
+
+            for i, prob in enumerate(probs):
+                row[f'{dm.ds.classes[i]}_prob'] = float(prob)
+
+            pred_df.loc[len(pred_df)] = row
+
+    pred_df['model_path'] = model_path
+
+    model_version = os.path.basename(os.path.dirname(os.path.dirname(model_path)))
+    result_dir = os.path.join(result_dir, 'predictions', 'inat', model_version)
+    if not os.path.exists(result_dir):
+        os.makedirs(result_dir)
+    result_filename = f"{datetime.now().strftime('%y-%m-%d_%H-%M')}_predictions.csv"
+    pred_df.to_csv(os.path.join(result_dir, result_filename), index=False)
+
+
 def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[str | os.PathLike],
                     result_dir: Optional[Union[str | os.PathLike]] = None,
                     window_size: int = 128, stride: int = 1, gpu: bool = False, batch_size: int = 1,
@@ -845,7 +902,7 @@ def pixel_conf_mat(dataset_path: Union[str, Path], shape_dir: Union[str, Path], 
     plt.title(f"F1Score: {f1_score}")
     plt.savefig(os.path.join(os.path.dirname(pred_file), result_filename))
 
-    return df_cm, pd.DataFrame({'predictions': preds, 'targets': targets}), f1_score
+    return df_cm, pd.DataFrame({'predictions': preds.numpy().flatten(), 'targets': targets.numpy().flatten()}), f1_score
 
 
 def optimize_image(cnn_slice: nn.Module, target_image: torch.Tensor, loss_class: str,
@@ -870,7 +927,6 @@ def optimize_image(cnn_slice: nn.Module, target_image: torch.Tensor, loss_class:
 
     # prepare x and the target feature map
     x = torch.rand(target_image.shape).unsqueeze(0)
-    target = cnn_slice(target_image.unsqueeze(0)).detach()
 
     # Decide if cuda shall be used
     if cuda is None:
@@ -880,7 +936,9 @@ def optimize_image(cnn_slice: nn.Module, target_image: torch.Tensor, loss_class:
     if cuda:
         cnn_slice.double().cuda()
         x = x.double().cuda()
-        target = target.double().cuda()
+        target_image = target_image.double().cuda()
+
+    target = cnn_slice(target_image.unsqueeze(0)).detach()
 
     # Create loss module and append to CNN slice
     loss_module = eval(loss_class)(target)
@@ -895,8 +953,8 @@ def optimize_image(cnn_slice: nn.Module, target_image: torch.Tensor, loss_class:
 
     # Optimization loop
     pbar = tqdm(range(num_steps))
-    pbar.set_description(f"Optimizing white noise image")
     for _ in pbar:
+        pbar.set_description(f"Loss: {0}")
 
         def closure():
             with torch.no_grad():
@@ -906,6 +964,8 @@ def optimize_image(cnn_slice: nn.Module, target_image: torch.Tensor, loss_class:
             cnn_slice(x)
             loss = loss_module.loss
             loss.backward()
+
+            pbar.set_description(f"Loss: {np.around(loss.detach().cpu().numpy(), 6)}")
 
             return loss_module.loss
 
