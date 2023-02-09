@@ -62,6 +62,20 @@ def validate_data_dir(data_dir: Union[str, Path]) -> bool:
     return True
 
 
+class InatImageFolderWithPath(ImageFolder):
+    def __getitem__(self, item):
+        img, t = super().__getitem__(item)
+        path, _ = self.samples[item]
+        return img, t, path
+
+    def get_item_by_pid(self, pid):
+        for idx, (path, t) in enumerate(self.samples):
+            if get_pid_from_path(path) == pid:
+                return self[idx]
+
+        return None
+
+
 class InatDataModule(pl.LightningDataModule):
     """
     Data module for the inaturalist image dataset based on previously downloaded images.
@@ -84,7 +98,7 @@ class InatDataModule(pl.LightningDataModule):
     # 10% test, split rest into 80% train and 20% val by default
     def __init__(self, data_dir: Union[str, Path], species: Optional[Union[list | str]] = None, batch_size: int = 4,
                  split: tuple = (.72, .18, .1), img_size: int = 128, min_distance: float = None, balance: bool = False,
-                 sample_per_class: int = -1, normalize: bool = False, **kwargs):
+                 sample_per_class: int = -1, normalize: bool = False, return_path: bool = False, **kwargs):
         """
         :param data_dir: Directory where the data lies.
         :param species: Species to consider.
@@ -114,12 +128,16 @@ class InatDataModule(pl.LightningDataModule):
             self.metadata.drop(columns=['label'], inplace=True)
         self.batch_size = batch_size
         self.normalize = normalize
+        self.return_path = return_path
 
         # Compose transformations for the output samples and create the dataset object.
         transforms_list = [transforms.ToTensor(), QuadCrop(), transforms.Resize(img_size)]
 
         img_transform = transforms.Compose(transforms_list)
-        self.ds = ImageFolder(str(self.data_dir), transform=img_transform)
+        if self.return_path:
+            self.ds = InatImageFolderWithPath(str(self.data_dir), transform=img_transform)
+        else:
+            self.ds = ImageFolder(str(self.data_dir), transform=img_transform)
         self.idx = range(len(self.ds))
 
         self.species = species
