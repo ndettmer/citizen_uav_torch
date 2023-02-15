@@ -26,15 +26,19 @@ class InatClassifier(pl.LightningModule):
         parser.add_argument("--backbone_model", type=str, default='resnet18')
         parser.add_argument("--weights", type=str, default=None,
                             help="String key of the weights to be loaded from torchvision.")
+        parser.add_argument("--checkpoint_path", type=str, default=None,
+                            help="Path to a pre-trained backbone model checkpoint.")
+        parser.add_argument("--hub_link", type=str, default=None,
+                            help="Relative path to torch hub weights.")
         parser.add_argument("--lr", type=float, required=False, default=.0001)
         parser.add_argument("--weight_decay", type=float, required=False, default=.001)
         parser.add_argument("--log_train_preds", type=bool, required=False, default=False)
         return parent_parser
 
     def __init__(self, n_classes, backbone_model, lr, weight_decay, log_train_preds, weights: Optional[str] = None,
-                 checkpoint_path: Optional[Union[str, Path]] = None, **kwargs):
+                 checkpoint_path: Optional[Union[str, Path]] = None, hub_link: Optional[str] = None, **kwargs):
 
-        if weights is not None and checkpoint_path is not None:
+        if sum([weights is not None, checkpoint_path is not None, hub_link is not None]) > 1:
             raise ValueError(f"Only one argument of weights and weight_path can be given.")
 
         super().__init__()
@@ -44,6 +48,8 @@ class InatClassifier(pl.LightningModule):
         # backbone
         if checkpoint_path is not None:
             backbone = eval(backbone_model).load_from_checkpoint(checkpoint_path)
+        elif hub_link is not None:
+            backbone = torch.hub.load(hub_link, backbone_model, pretrained=True)
         else:
             # default is weights=None
             backbone = eval(backbone_model)(weights=weights)
