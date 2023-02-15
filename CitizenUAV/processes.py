@@ -1,5 +1,7 @@
 import pyinaturalist as pin
 import json
+
+import torch.cuda
 from PIL import UnidentifiedImageError
 from io import BytesIO
 
@@ -633,7 +635,8 @@ def create_gim_metadata(data_dir: os.PathLike, classes: list = None, debug: bool
         metadata.to_csv(os.path.join(data_dir, "metadata.csv"))
 
 
-def predict_inat(model_path: Union[str, Path], data_dir: Union[str, Path], result_dir: Union[str, Path], img_size: int = 128,
+def predict_inat(model_path: Union[str, Path], data_dir: Union[str, Path], result_dir: Union[str, Path],
+                 img_size: int = 128,
                  min_distance: float = None, gpu: Optional[bool] = None, batch_size: int = 1, normalize: bool = False):
     dm = InatDataModule(data_dir, img_size=img_size, normalize=normalize, min_distance=min_distance, split=(0, 0, 1),
                         batch_size=batch_size, return_path=True)
@@ -905,8 +908,8 @@ def pixel_conf_mat(dataset_path: Union[str, Path], shape_dir: Union[str, Path], 
     return df_cm, pd.DataFrame({'predictions': preds.numpy().flatten(), 'targets': targets.numpy().flatten()}), f1_score
 
 
-def optimize_image(cnn_slice: nn.Module, target_image: torch.Tensor, loss_class: str,
-                   num_steps: int = 300, cuda: Optional[bool] = None) -> torch.Tensor:
+def optimize_image_resnet(cnn: InatClassifier, stages: list[int], norm_module: nn.Module, target_image: torch.Tensor,
+                          loss_class: str, num_steps: int = 300, cuda: Optional[bool] = None):
     """
     Create an image that approximates the activation in the last layer of a given CNN model slice that is created by
     feeding a given target image to that model in terms of either the content loss or the style loss from the Neural
@@ -917,57 +920,78 @@ def optimize_image(cnn_slice: nn.Module, target_image: torch.Tensor, loss_class:
         Further information:
             - https://pytorch.org/docs/stable/generated/torch.optim.LBFGS.html
             - https://discuss.pytorch.org/t/l-bfgs-optimizer-doesnt-work-properly-on-cuda/136785
-    :param cnn_slice: The CNN slice of which the last layer's activation shall be maximized.
+    :param cnn: The CNN ResNet CNN to be investigated.
+    :param stages: The stages of the ResNet whose activation shall serve as target.
+    :param norm_module: The parameterized normalization module.
     :param target_image: The image of which the activation shall be recreated by the image to be optimized.
     :param loss_class: Either 'ContentLoss' or 'StyleLoss'.
     :param num_steps: Number of steps taken for the optimization.
     :param cuda: Use cuda or not, default is the output of `torch.cuda.is_available()`.
     :return: The optimized image.
     """
-
     # prepare x and the target feature map
     x = torch.rand(target_image.shape).unsqueeze(0)
 
-    # Decide if cuda shall be used
+    # build model slice
+    model = nn.Sequential()
+    model.add_module('norm', norm_module)
+    losses = []
+    targets = []
+    for stage_no, stage in enumerate(cnn.feature_extractor.children()):
+
+        model.add_module(str(stage_no), stage)
+        if isinstance(stage, nn.Sequential) and stage_no in stages:
+            target = model(target_image.unsqueeze(0)).detach()
+            targets.append(target)
+            loss_module = eval(loss_class)(target)
+            model.add_module(f"{loss_class.lower()}_{len(losses)}", loss_module)
+            losses.append(loss_module)
+
+            if stage_no == stages[-1]:
+                break
+
+    # now we trim off the layers after the last content and style losses
+    # In my case this seems not to be necessary, but let's keep it for safety.
+    for i in range(len(model) - 1, -1, -1):
+        if isinstance(model[i], ContentLoss) or isinstance(model[i], StyleLoss):
+            break
+
+    model = model[:(i + 1)]
+    del i
+
     if cuda is None:
         cuda = torch.cuda.is_available()
 
-    # Put data and model to GPU
     if cuda:
-        cnn_slice.double().cuda()
+        model.double().cuda()
         x = x.double().cuda()
-        target_image = target_image.double().cuda()
-
-    target = cnn_slice(target_image.unsqueeze(0)).detach()
-
-    # Create loss module and append to CNN slice
-    loss_module = eval(loss_class)(target)
-    cnn_slice.add_module(loss_class, loss_module)
 
     # Activate gradient tracking for x and CNN slice
     x.requires_grad_(True)
-    cnn_slice.requires_grad_(True)
+    model.requires_grad_(True)
 
     # Create optimizer
     optimizer = optim.LBFGS([x])
 
     # Optimization loop
     pbar = tqdm(range(num_steps))
+    pbar.set_description(f"Loss: {0}")
     for _ in pbar:
-        pbar.set_description(f"Loss: {0}")
 
         def closure():
             with torch.no_grad():
                 x.clamp_(0, 1)
 
             optimizer.zero_grad()
-            cnn_slice(x)
-            loss = loss_module.loss
+            model(x)
+            loss = 0
+            for l_module in losses:
+                loss += l_module.loss
             loss.backward()
 
             pbar.set_description(f"Loss: {np.around(loss.detach().cpu().numpy(), 6)}")
 
-            return loss_module.loss
+            return sum([lm.loss for lm in losses])
 
         optimizer.step(closure)
 
@@ -975,32 +999,7 @@ def optimize_image(cnn_slice: nn.Module, target_image: torch.Tensor, loss_class:
         x.clamp_(0, 1)
 
     # Move data and model back to CPU
-    cnn_slice.float().cpu()
+    model.float().cpu()
     x = x.detach().float().cpu()
-    target = target.detach().float().cpu()
 
     return x
-
-
-def approximate_content(cnn_slice, content_img, num_steps=300, cuda=None):
-    """
-    Approximate content representation of a given input image based on the Neural Style Transfer paper by Gatys et al.
-    :param cnn_slice: The CNN slice of which the last layer's activation shall be maximized.
-    :param content_img: The image of which the activation shall be recreated by the image to be optimized.
-    :param num_steps: Number of steps taken for the optimization.
-    :param cuda: Use cuda or not, default is the output of `torch.cuda.is_available()`.
-    :return: The optimized image.
-    """
-    return optimize_image(cnn_slice, content_img, 'ContentLoss', num_steps, cuda)
-
-
-def approximate_style(cnn_slice, style_img, num_steps=300, cuda=None):
-    """
-    Approximate style representation of a given input image based on the Neural Style Transfer paper by Gatys et al.
-    :param cnn_slice: The CNN slice of which the last layer's activation shall be maximized.
-    :param style_img: The image of which the activation shall be recreated by the image to be optimized.
-    :param num_steps: Number of steps taken for the optimization.
-    :param cuda: Use cuda or not, default is the output of `torch.cuda.is_available()`.
-    :return: The optimized image.
-    """
-    return optimize_image(cnn_slice, style_img, 'StyleLoss', num_steps, cuda)

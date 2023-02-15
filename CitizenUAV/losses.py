@@ -1,10 +1,20 @@
+from abc import ABC, abstractmethod
+
 from torch import nn
 from torch.nn import functional as F
 
 from CitizenUAV.math_utils import gram_matrix
 
 
-class StyleLoss(nn.Module):
+class TensorBasedLoss(nn.Module, ABC):
+    target = None
+
+    def to(self, device):
+        self.target = self.target.to(device)
+        return super().to(device)
+
+
+class StyleLoss(TensorBasedLoss):
     """
     Source: https://pytorch.org/tutorials/advanced/neural_style_tutorial.html
     """
@@ -20,7 +30,7 @@ class StyleLoss(nn.Module):
         return x
 
 
-class ContentLoss(nn.Module):
+class ContentLoss(TensorBasedLoss):
     """
     Source: https://pytorch.org/tutorials/advanced/neural_style_tutorial.html
     """
