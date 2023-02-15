@@ -152,7 +152,7 @@ class InatDataModule(pl.LightningDataModule):
         if self.min_distance:
             self._filter_distance()
         # Balancing should always be the last step of modifying the selection of samples!
-        if self.balance or self.sample_per_class > 0:
+        if self.balance or (self.sample_per_class is not None and self.sample_per_class > 0):
             self._balance_dataset()
 
         self._replace_ds(self.idx)

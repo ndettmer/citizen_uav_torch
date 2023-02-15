@@ -13,6 +13,9 @@ import pandas as pd
 from matplotlib import pyplot as plt
 import seaborn as sns
 
+from typing import Optional, Union
+from pathlib import Path
+
 
 class InatClassifier(pl.LightningModule):
 
@@ -21,19 +24,29 @@ class InatClassifier(pl.LightningModule):
         parser = parent_parser.add_argument_group("InatClassifier")
         parser.add_argument("--n_classes", type=int)
         parser.add_argument("--backbone_model", type=str, default='resnet18')
+        parser.add_argument("--weights", type=str, default=None,
+                            help="String key of the weights to be loaded from torchvision.")
         parser.add_argument("--lr", type=float, required=False, default=.0001)
         parser.add_argument("--weight_decay", type=float, required=False, default=.001)
         parser.add_argument("--log_train_preds", type=bool, required=False, default=False)
         return parent_parser
 
-    def __init__(self, n_classes, backbone_model, lr, weight_decay, log_train_preds, **kwargs):
+    def __init__(self, n_classes, backbone_model, lr, weight_decay, log_train_preds, weights: Optional[str] = None,
+                 checkpoint_path: Optional[Union[str, Path]] = None, **kwargs):
+
+        if weights is not None and checkpoint_path is not None:
+            raise ValueError(f"Only one argument of weights and weight_path can be given.")
+
         super().__init__()
         self.save_hyperparameters()
         self.log_train_preds = log_train_preds
 
         # backbone
-        # default is weights=None
-        backbone = eval(f"{backbone_model}()")
+        if checkpoint_path is not None:
+            backbone = eval(backbone_model).load_from_checkpoint(checkpoint_path)
+        else:
+            # default is weights=None
+            backbone = eval(backbone_model)(weights=weights)
         n_backbone_features = backbone.fc.in_features
         fe_layers = list(backbone.children())[:-2]
         self.feature_extractor = nn.Sequential(*fe_layers)
@@ -77,7 +90,7 @@ class InatClassifier(pl.LightningModule):
         loss = self.loss_function(y_hat, y)
         self.log_dict({"train_cce": loss})
 
-        return {'train_preds': preds, 'train_targets': y,  'loss': loss, 'train_y_hat': y_hat}
+        return {'train_preds': preds, 'train_targets': y, 'loss': loss, 'train_y_hat': y_hat}
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
@@ -87,7 +100,7 @@ class InatClassifier(pl.LightningModule):
 
         preds = torch.argmax(y_hat, dim=1)
 
-        return {'val_preds': preds, 'val_targets': y,  'loss': loss}
+        return {'val_preds': preds, 'val_targets': y, 'loss': loss}
 
     def test_step(self, batch, batch_idx):
         x, y = batch
@@ -97,7 +110,7 @@ class InatClassifier(pl.LightningModule):
 
         preds = torch.argmax(y_hat, dim=1)
 
-        return {'test_preds': preds, 'test_targets': y,  'loss': loss}
+        return {'test_preds': preds, 'test_targets': y, 'loss': loss}
 
     def training_epoch_end(self, outputs: EPOCH_OUTPUT) -> None:
         y_hat = torch.concat([o['train_y_hat'] for o in outputs])

@@ -95,6 +95,8 @@ def store_split_inat_metadata(metadata: pd.DataFrame, data_dir: Union[str, Path]
 
 
 def write_params(dest_dir: Union[str, Path], params: dict, func_name: Optional[str] = None):
+    if not os.path.exists(dest_dir):
+        os.makedirs(dest_dir)
     filename = os.path.join(dest_dir,
                             f'{datetime.now().strftime("%y-%m-%d_%H-%M")}{("_" + func_name + "_") if func_name is not None else ""}_parameters.yml')
     with open(filename, 'w') as outfile:
