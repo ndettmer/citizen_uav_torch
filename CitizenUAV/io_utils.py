@@ -98,6 +98,6 @@ def write_params(dest_dir: Union[str, Path], params: dict, func_name: Optional[s
     if not os.path.exists(dest_dir):
         os.makedirs(dest_dir)
     filename = os.path.join(dest_dir,
-                            f'{datetime.now().strftime("%y-%m-%d_%H-%M")}{("_" + func_name + "_") if func_name is not None else ""}_parameters.yml')
+                            f'{datetime.now().strftime("%y-%m-%d_%H-%M")}{("_" + func_name) if func_name is not None else ""}_parameters.yml')
     with open(filename, 'w') as outfile:
         return yaml.dump(params, outfile)

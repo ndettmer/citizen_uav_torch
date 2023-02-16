@@ -47,7 +47,7 @@ sample_size = 25
 side_len = int(np.sqrt(sample_size))
 ```
 
-<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true tags=[] -->
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
 ### 18.05.22
 <!-- #endregion -->
 

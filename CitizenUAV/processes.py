@@ -719,8 +719,10 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
     if result_dir is None:
         result_dir = os.getcwd()
     dataset_name = os.path.splitext(os.path.basename(dataset_path))[0]
+    version_name = os.path.basename(os.path.dirname(os.path.dirname(model_path)))
+    ds_name = os.path.splitext(os.path.basename(dataset_path))[0]
     result_path = os.path.join(result_dir, "predictions", dataset_name,
-                               f'{datetime.now().strftime("%y-%m-%d_%H-%M")}_{"probability_map" if probabilities else "label_map"}.npy')
+                               f'{datetime.now().strftime("%y-%m-%d_%H-%M")}_{version_name}_{ds_name}_{"probability_map" if probabilities else "label_map"}.npy')
     result_box_path = result_path.replace(".npy", ".csv")
 
     if not os.path.exists(result_path):
@@ -794,8 +796,14 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
     return voting_result
 
 
-def pixel_conf_mat(dataset_path: Union[str, Path], shape_dir: Union[str, Path], train_data_dir: Union[str, Path],
-                   pred_file: Union[str, Path], class_map: str) -> tuple[pd.DataFrame, pd.DataFrame, float]:
+def pixel_conf_mat(
+        dataset_path: Union[str, Path],
+        shape_dir: Union[str, Path],
+        train_data_dir: Union[str, Path],
+        pred_file: Union[str, Path],
+        class_map: str,
+        result_dir: Optional[Union[str, Path]] = None
+) -> tuple[pd.DataFrame, pd.DataFrame, float]:
     """
     Creating a pixel-wise confusion matrix for a trained model applied to a GeoTiff dataset.
     :param dataset_path: Path to the raster dataset.
@@ -803,6 +811,7 @@ def pixel_conf_mat(dataset_path: Union[str, Path], shape_dir: Union[str, Path], 
     :param train_data_dir: Directory of the training data needed for getting information about the training dataset.
     :param pred_file: Path to the probability map that came out of `predict_geotiff()`.
     :param class_map: JSON formatted mapping from raster classes to training dataset classes.
+    :param result_dir: Directory where to store the confusion matrix as a PNG file.
     :return: The pixel-wise confusion map, a DataFrame containing the pixel-wise predictions and targets, and the
         corresponding F1 score.
     """
@@ -897,13 +906,15 @@ def pixel_conf_mat(dataset_path: Union[str, Path], shape_dir: Union[str, Path], 
     df_cm = pd.DataFrame(cm.numpy(), index=range(3), columns=range(3))
 
     prediction_name = os.path.basename(pred_file)
-    result_filename = f"{prediction_name}_pixel-confmat.png"
+    if result_dir is None:
+        result_dir = os.path.dirname(pred_file)
+    result_filename = f"{os.path.splitext(prediction_name)[0]}_pixel-confmat.png"
 
     # save figure
     plt.figure()
     sns.heatmap(df_cm, annot=True, cmap='Spectral', fmt='g').get_figure()
     plt.title(f"F1Score: {f1_score}")
-    plt.savefig(os.path.join(os.path.dirname(pred_file), result_filename))
+    plt.savefig(os.path.join(result_dir, result_filename))
 
     return df_cm, pd.DataFrame({'predictions': preds.numpy().flatten(), 'targets': targets.numpy().flatten()}), f1_score
 
