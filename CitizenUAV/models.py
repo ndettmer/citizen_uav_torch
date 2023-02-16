@@ -2,8 +2,10 @@ import pytorch_lightning as pl
 import torch.optim
 from pytorch_lightning.utilities.types import EPOCH_OUTPUT
 from torchvision.models import resnet18, resnet50, wide_resnet50_2
-from torchvision.models.detection import fasterrcnn_resnet50_fpn_v2, fasterrcnn_resnet50_fpn
 from resnest.torch import resnest50
+# TODO: Understand how RevCol can be used
+#from RevCol import *
+from MogaNet import *
 from torch import nn
 from torch.nn import functional as F
 from torchmetrics import F1Score, Accuracy
@@ -35,7 +37,7 @@ class InatClassifier(pl.LightningModule):
         parser.add_argument("--log_train_preds", type=bool, required=False, default=False)
         return parent_parser
 
-    def __init__(self, n_classes, backbone_model, lr, weight_decay, log_train_preds, weights: Optional[str] = None,
+    def __init__(self, n_classes, backbone_model, lr, weight_decay, log_train_preds: bool = True, weights: Optional[str] = None,
                  checkpoint_path: Optional[Union[str, Path]] = None, hub_link: Optional[str] = None, **kwargs):
 
         if sum([weights is not None, checkpoint_path is not None, hub_link is not None]) > 1:
@@ -53,7 +55,12 @@ class InatClassifier(pl.LightningModule):
         else:
             # default is weights=None
             backbone = eval(backbone_model)(weights=weights)
-        n_backbone_features = backbone.fc.in_features
+
+        if 'moganet' in backbone_model:
+            n_backbone_features = backbone.head.in_features
+        else:
+            # Default is ResNet architecture
+            n_backbone_features = backbone.fc.in_features
         fe_layers = list(backbone.children())[:-2]
         self.feature_extractor = nn.Sequential(*fe_layers)
 
