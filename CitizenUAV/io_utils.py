@@ -95,6 +95,7 @@ def store_split_inat_metadata(metadata: pd.DataFrame, data_dir: Union[str, Path]
 
 
 def write_params(dest_dir: Union[str, Path], params: dict, func_name: Optional[str] = None):
+    dest_dir = os.path.join(dest_dir, 'run_parameters')
     if not os.path.exists(dest_dir):
         os.makedirs(dest_dir)
     filename = os.path.join(dest_dir,

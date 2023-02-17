@@ -720,9 +720,8 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
         result_dir = os.getcwd()
     dataset_name = os.path.splitext(os.path.basename(dataset_path))[0]
     version_name = os.path.basename(os.path.dirname(os.path.dirname(model_path)))
-    ds_name = os.path.splitext(os.path.basename(dataset_path))[0]
-    result_path = os.path.join(result_dir, "predictions", dataset_name,
-                               f'{datetime.now().strftime("%y-%m-%d_%H-%M")}_{version_name}_{ds_name}_{"probability_map" if probabilities else "label_map"}.npy')
+    result_path = os.path.join(result_dir, "predictions", dataset_name, version_name,
+                               f'{datetime.now().strftime("%y-%m-%d_%H-%M")}_{"probability_map" if probabilities else "label_map"}.npy')
     result_box_path = result_path.replace(".npy", ".csv")
 
     if not os.path.exists(result_path):

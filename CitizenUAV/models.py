@@ -52,9 +52,11 @@ class InatClassifier(pl.LightningModule):
             backbone = eval(backbone_model).load_from_checkpoint(checkpoint_path)
         elif hub_link is not None:
             backbone = torch.hub.load(hub_link, backbone_model, pretrained=True)
+        elif weights is not None:
+            backbone = eval(backbone_model)(weights=weights)
         else:
             # default is weights=None
-            backbone = eval(backbone_model)(weights=weights)
+            backbone = eval(backbone_model)()
 
         if 'moganet' in backbone_model:
             n_backbone_features = backbone.head.in_features
