@@ -497,7 +497,7 @@ def check_image_files(data_dir):
 
 
 def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, species: Optional[list[str]] = None,
-                      batch_size: int = 1, gpu: bool = True, overwrite: bool = False,
+                      batch_size: int = 1, gpu: Optional[bool] = None, overwrite: bool = False,
                       debug: bool = False) -> pd.DataFrame:
     """
     Predicts acquisition distances for an image dataset.
@@ -553,6 +553,9 @@ def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, 
 
     model = InatRegressor.load_from_checkpoint(model_path)
     model.eval()
+
+    if gpu is None:
+        gpu = torch.cuda.is_available()
 
     if gpu:
         model.cuda()

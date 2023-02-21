@@ -85,7 +85,9 @@ def store_split_inat_metadata(metadata: pd.DataFrame, data_dir: Union[str, Path]
         df = metadata[metadata.species == spec]
         assert df.index.name == 'photo_id'
         df.reset_index(inplace=True)
+
         try:
+            # TODO: this expects classes to be set to superclasses weed, soil, etc., not the actual classes poa annua etc. Change that!!!
             df.to_csv(os.path.join(data_dir, spec, 'metadata.csv'), index=False)
             df.to_csv(os.path.join(data_dir, spec, 'metadata_backup.csv'), index=False)
         except KeyboardInterrupt:

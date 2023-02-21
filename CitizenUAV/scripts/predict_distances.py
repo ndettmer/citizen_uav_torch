@@ -11,7 +11,7 @@ if __name__ == "__main__":
     parser.add_argument("--train_max", type=float, required=True)
     parser.add_argument("--species", type=str, nargs='+', required=False)
     parser.add_argument("--batch_size", type=int, required=False, default=1)
-    parser.add_argument("--gpu", type=bool, required=False, default=True)
+    parser.add_argument("--gpu", type=bool, required=False, default=None)
     parser.add_argument("--overwrite", type=bool, required=False, default=False)
     parser.add_argument("--debug", type=bool, required=False, default=False)
 
