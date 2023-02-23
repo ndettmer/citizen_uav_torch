@@ -81,18 +81,39 @@ def read_split_inat_metadata(data_dir: Union[str, Path], species: Optional[list[
 
 
 def store_split_inat_metadata(metadata: pd.DataFrame, data_dir: Union[str, Path]):
+    classnames = next(os.walk(data_dir))
+
     for spec in metadata.species.unique():
         df = metadata[metadata.species == spec]
         assert df.index.name == 'photo_id'
         df.reset_index(inplace=True)
 
+        # determine saving path
+        save_path = os.path.join(data_dir, spec)
+        if not os.path.exists(save_path):
+            path_found = False
+
+            for classname in classnames:
+                if not path_found:
+                    class_dir = os.path.join(data_dir, classname)
+                    subclassnames = next(os.walk(class_dir))[1]
+                    if spec in subclassnames:
+                        save_path = class_dir
+                        break
+                    for subclassname in subclassnames:
+                        subclass_dir = os.path.join(class_dir, subclassname)
+                        subsubclassnames = next(os.walk(subclass_dir))[1]
+                        if spec in subsubclassnames:
+                            save_path = subclass_dir
+                            path_found = True
+                            break
+
         try:
-            # TODO: this expects classes to be set to superclasses weed, soil, etc., not the actual classes poa annua etc. Change that!!!
-            df.to_csv(os.path.join(data_dir, spec, 'metadata.csv'), index=False)
-            df.to_csv(os.path.join(data_dir, spec, 'metadata_backup.csv'), index=False)
+            df.to_csv(os.path.join(save_path, 'metadata.csv'), index=False)
+            df.to_csv(os.path.join(save_path, 'metadata_backup.csv'), index=False)
         except KeyboardInterrupt:
-            df.to_csv(os.path.join(data_dir, spec, 'metadata.csv'), index=False)
-            df.to_csv(os.path.join(data_dir, spec, 'metadata_backup.csv'), index=False)
+            df.to_csv(os.path.join(save_path, 'metadata.csv'), index=False)
+            df.to_csv(os.path.join(save_path, 'metadata_backup.csv'), index=False)
             sys.exit()
 
 
