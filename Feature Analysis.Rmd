@@ -15,7 +15,7 @@ jupyter:
 ```{python}
 from CitizenUAV.models import InatClassifier
 from CitizenUAV.data import InatDataModule
-from CitizenUAV.processes import approximate_content, approximate_style
+from CitizenUAV.processes import optimize_image_resnet
 from torch import nn
 from torchvision.transforms.functional import to_pil_image
 from matplotlib import pyplot as plt
@@ -31,6 +31,7 @@ import os
 ```{python}
 result_dir = '/home/ndettmer/experiments/ma/classification/maize_ternary/predictions/style_transfer/'
 dm = InatDataModule('/home/ndettmer/ssd_data/inat_subsets/maize_ternary', normalize=False, batch_size=1, min_distance=5, return_path=True)
+norm = dm.get_normalize_module()
 model_version = 'version_0'
 cnn = InatClassifier.load_from_checkpoint(f'/home/ndettmer/experiments/ma/classification/maize_ternary/lightning_logs/{model_version}/checkpoints/epoch=49-step=43200.ckpt')
 cnn.eval()
@@ -59,10 +60,6 @@ maize_sample_pid, weed_sample_pid, soil_sample_pid
 ```
 
 ```{python}
-norm = dm.get_normalize_module()
-```
-
-```{python}
 plt.figure(figsize=(15, 15))
 plt.subplot(3, 2, 1)
 plt.imshow(to_pil_image(maize_sample))
@@ -88,22 +85,17 @@ I want to visualize the outputs of Stages 2, 3, 4 and 5.
 - Stage 4: `model.feature_extractor[6]`
 - Stage 5: `model.feature_extractor[7]`
 
-```{python}
-# The normalization step is moved to the model, so that the optimized image will be easier to interpret
-stage_2 = nn.Sequential(norm, *list(cnn.feature_extractor.children())[:5])
-stage_3 = nn.Sequential(norm, *list(cnn.feature_extractor.children())[:6])
-stage_4 = nn.Sequential(norm, *list(cnn.feature_extractor.children())[:7])
-stage_5 = nn.Sequential(norm, *list(cnn.feature_extractor.children())[:8])
-```
-
 <!-- #region jp-MarkdownHeadingCollapsed=true tags=[] -->
 ## Content and Style
 <!-- #endregion -->
 
+Stage 3 Seems to be better for content representation! Better segmentation!
+
+
 ### Maize
 
 ```{python}
-output = approximate_content(stage_3, maize_sample)
+output = optimize_image_resnet(cnn, [4, 5], dm.get_normalize_module(), maize_sample, 'ContentLoss')
 content_repr = to_pil_image(output.squeeze(0))
 
 plt.figure(figsize=(10, 10))
@@ -115,15 +107,7 @@ plt.savefig(f'{result_dir}/{maize_sample_pid}_{model_version}_content_repr.png')
 ```
 
 ```{python}
-output.shape
-```
-
-```{python}
-plt.imshow(to_pil_image(output.squeeze(0).mean(dim=0)))
-```
-
-```{python}
-output = approximate_style(stage_4, maize_sample, num_steps=500)
+output = optimize_image_resnet(cnn, [4, 5, 6, 7], dm.get_normalize_module(), maize_sample, 'StyleLoss', num_steps=500)
 style_repr = to_pil_image(output.squeeze(0))
 plt.figure()
 plt.imshow(style_repr)
@@ -133,7 +117,7 @@ plt.savefig(f'{result_dir}/{maize_sample_pid}_{model_version}_style_repr.png')
 ### Weed
 
 ```{python}
-output = approximate_content(stage_2, weed_sample)
+output = optimize_image_resnet(cnn, [4, 5], dm.get_normalize_module(), weed_sample, 'ContentLoss')
 content_repr = to_pil_image(output.squeeze(0))
 
 plt.figure(figsize=(10, 10))
@@ -145,7 +129,7 @@ plt.savefig(f'{result_dir}/{weed_sample_pid}_{model_version}_content_repr.png')
 ```
 
 ```{python}
-output = approximate_style(stage_4, weed_sample, num_steps=500)
+output = optimize_image_resnet(cnn, [4, 5, 6, 7], dm.get_normalize_module(), weed_sample, 'StyleLoss', num_steps=500)
 style_repr = to_pil_image(output.squeeze(0))
 plt.figure()
 plt.imshow(style_repr)
@@ -155,7 +139,7 @@ plt.savefig(f'{result_dir}/{weed_sample_pid}_{model_version}_style_repr.png')
 ### Soil
 
 ```{python}
-output = approximate_content(stage_2, soil_sample)
+output = optimize_image_resnet(cnn, [4, 5], dm.get_normalize_module(), soil_sample, 'ContentLoss')
 content_repr = to_pil_image(output.squeeze(0))
 
 plt.figure(figsize=(10, 10))
@@ -167,7 +151,7 @@ plt.savefig(f'{result_dir}/{soil_sample_pid}_{model_version}_content_repr.png')
 ```
 
 ```{python}
-output = approximate_style(stage_4, soil_sample, num_steps=500)
+output = optimize_image_resnet(cnn, [4, 5, 6, 7], dm.get_normalize_module(), soil_sample, 'StyleLoss', num_steps=500)
 style_repr = to_pil_image(output.squeeze(0))
 plt.figure()
 plt.imshow(style_repr)

@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+from abc import ABC
 
 from torch import nn
 from torch.nn import functional as F
@@ -12,6 +12,22 @@ class TensorBasedLoss(nn.Module, ABC):
     def to(self, device):
         self.target = self.target.to(device)
         return super().to(device)
+    
+    def cuda(self, device=None):
+        self.target = self.target.cuda()
+        return super().cuda(device)
+
+    def cpu(self):
+        self.target = self.target.cpu()
+        return super().cpu()
+
+    def double(self):
+        self.target = self.target.double()
+        return super().double()
+
+    def float(self):
+        self.target = self.target.float()
+        return super().float()
 
 
 class StyleLoss(TensorBasedLoss):

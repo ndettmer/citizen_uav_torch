@@ -978,6 +978,8 @@ def optimize_image_resnet(cnn: InatClassifier, stages: list[int], norm_module: n
     if cuda:
         model.double().cuda()
         x = x.double().cuda()
+        for loss_module in losses:
+            loss_module.double().cuda()
 
     # Activate gradient tracking for x and CNN slice
     x.requires_grad_(True)
@@ -1014,5 +1016,7 @@ def optimize_image_resnet(cnn: InatClassifier, stages: list[int], norm_module: n
     # Move data and model back to CPU
     model.float().cpu()
     x = x.detach().float().cpu()
+    for loss_module in losses:
+        loss_module.float().cpu()
 
     return x

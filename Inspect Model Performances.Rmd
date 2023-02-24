@@ -139,7 +139,7 @@ for i in range(3):
 plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'png')))
 ```
 
-WTF
+Everything is weed!
 
 ```{python}
 cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
@@ -238,7 +238,7 @@ Slight improvement with ImageNet weights
 version_4
 
 ```{python}
-predfile = os.path.join(pred_dir, '_probability_map.npy')
+predfile = os.path.join(pred_dir, 'version_4/23-02-17_16-55_probability_map.npy')
 prob_mask = np.load(predfile)
 prob_mask /= prob_mask.max()
 ```
@@ -289,7 +289,7 @@ cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class
 
 Plot looks good, but the confusion matrix is total chaos. Apparently even soil can't be detected properly anymore. 
 
-<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
+<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] -->
 ### 13.06.22
 <!-- #endregion -->
 
