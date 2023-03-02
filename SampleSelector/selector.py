@@ -78,12 +78,18 @@ class SelectorWidget(QWidget):
 
     def _get_current_class(self):
         pid = self._get_current_pid()
-        row = self.metadata.loc[pid]
-        return row.species
+        try:
+            row = self.metadata.loc[pid]
+            return row.species
+        except KeyError:
+            return ""
 
     def _create_current_text(self):
         pid = self._get_current_pid()
-        sample = self.metadata.loc[pid]
+        try:
+            sample = self.metadata.loc[pid]
+        except KeyError:
+            sample = pd.Series(index=self.metadata.columns, dtype=object)
         class_text = sample.species
         if sample.hand_picked is True:
             status_text = ", accepted"
@@ -115,13 +121,22 @@ class SelectorWidget(QWidget):
     def go_back(self):
         self._go_steps(-1)
 
-    def accept_image(self):
-        self.metadata.hand_picked.loc[self._get_current_pid()] = True
+    def _pick_image(self, value: bool):
+        pid = self._get_current_pid()
+        try:
+            self.metadata.loc[pid, 'hand_picked'] = value
+        except KeyError:
+            # entry not present in metadata
+            row = pd.Series(index=self.metadata.columns, dtype=object)
+            row.hand_picked = value
+            self.metadata.loc[pid] = row
         self.next_image()
 
+    def accept_image(self):
+        self._pick_image(True)
+
     def decline_image(self):
-        self.metadata.hand_picked.loc[self._get_current_pid()] = False
-        self.next_image()
+        self._pick_image(False)
 
     def start_from_scratch(self):
         self.metadata.hand_picked = None
