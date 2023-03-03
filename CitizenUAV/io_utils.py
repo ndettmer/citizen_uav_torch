@@ -31,7 +31,7 @@ def read_inat_metadata(data_dir):
     :param data_dir: The directory the data and its corresponding metadata lie in.
     :return pd.DataFrame: The metadata DataFrame.
     """
-    metadata = pd.read_csv(os.path.join(data_dir, 'metadata.csv'))
+    metadata = pd.read_csv(os.path.join(data_dir, 'metadata.csv'), low_memory=False)
     metadata.photo_id = metadata.photo_id.astype(str)
     metadata.set_index('photo_id', inplace=True)
     metadata = metadata[~metadata.index.duplicated(keep='first')]
@@ -74,6 +74,10 @@ def read_split_inat_metadata(data_dir: Union[str, Path], species: Optional[list[
                 df[col] = pd.Series(dtype=object)
 
     combined = pd.concat(dfs)
+
+    combined.dropna(subset=['species'], inplace=True)
+    combined.species = combined.species.astype(str)
+
     if 'image_okay' in combined.columns:
         combined.image_okay = combined.image_okay.astype(bool)
         combined.image_okay.fillna(False)

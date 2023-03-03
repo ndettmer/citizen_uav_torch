@@ -1,23 +1,26 @@
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap, QKeySequence, QPalette, QColor
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QPushButton, QWidget, QProgressBar, QLineEdit
-from torchvision.datasets import ImageFolder
 import pandas as pd
+import numpy as np
 from CitizenUAV.io_utils import get_pid_from_path, read_split_inat_metadata, store_split_inat_metadata
+from CitizenUAV.data import InatDataModule
 
-from typing import Union
+from typing import Union, Optional
 from pathlib import Path
 
 
 class SelectorWidget(QWidget):
-    def __init__(self, data_dir: Union[str, Path]):
+    def __init__(self, data_dir: Union[str, Path], species: Optional[Union[list[str], str]] = None):
         super().__init__()
 
         self.data_dir = data_dir
-        self.ds = ImageFolder(data_dir)
-        self.metadata = read_split_inat_metadata(data_dir)
+        self.dm = InatDataModule(data_dir, species, img_size=512)
+        self.ds = self.dm.ds
+        self.metadata = self.dm.metadata
         self.current_index = 0
-        if 'hand_picked' not in self.metadata.columns:
+
+        if 'hand_picked' not in self.dm.metadata.columns:
             self.metadata['hand_picked'] = pd.Series(index=self.metadata.index, dtype=bool)
             self.metadata.hand_picked = None
         else:
@@ -59,6 +62,10 @@ class SelectorWidget(QWidget):
         self.start_from_scratch_button.setPalette(start_from_scratch_palette)
         self.start_from_scratch_button.clicked.connect(self.start_from_scratch)
 
+        self.save_button = QPushButton("Save (Ctrl + S)")
+        self.save_button.setShortcut(QKeySequence(Qt.CTRL | Qt.Key_S))
+        self.save_button.clicked.connect(self.save_action)
+
         self.progress_bar = QProgressBar()
 
         self.layout = QVBoxLayout(self)
@@ -69,6 +76,7 @@ class SelectorWidget(QWidget):
         self.layout.addWidget(self.back_button)
         self.layout.addWidget(self.progress_bar)
         self.layout.addWidget(self.start_from_scratch_button)
+        self.layout.addWidget(self.save_button)
 
         self.show_image()
 
@@ -78,18 +86,12 @@ class SelectorWidget(QWidget):
 
     def _get_current_class(self):
         pid = self._get_current_pid()
-        try:
-            row = self.metadata.loc[pid]
-            return row.species
-        except KeyError:
-            return ""
+        row = self.metadata.loc[pid]
+        return row.species
 
     def _create_current_text(self):
         pid = self._get_current_pid()
-        try:
-            sample = self.metadata.loc[pid]
-        except KeyError:
-            sample = pd.Series(index=self.metadata.columns, dtype=object)
+        sample = self.metadata.loc[pid]
         class_text = sample.species
         if sample.hand_picked is True:
             status_text = ", accepted"
@@ -97,7 +99,12 @@ class SelectorWidget(QWidget):
             status_text = ", declined"
         else:
             status_text = ""
-        return f"{pid}, {class_text}{status_text}"
+
+        text = f"{pid}, {class_text}{status_text}"
+
+        if 'distance' in sample:
+            text = text + f", {np.around(sample.distance, 2)} m"
+        return text
 
     def show_image(self):
         self.progress_bar.setValue(self.current_index / len(self.ds) * 100)
@@ -114,7 +121,7 @@ class SelectorWidget(QWidget):
             self.show_image()
 
     def next_image(self):
-        if not self.current_index % 10:
+        if not self.current_index % 100:
             store_split_inat_metadata(self.metadata, self.data_dir)
         self._go_steps(1)
 
@@ -123,13 +130,7 @@ class SelectorWidget(QWidget):
 
     def _pick_image(self, value: bool):
         pid = self._get_current_pid()
-        try:
-            self.metadata.loc[pid, 'hand_picked'] = value
-        except KeyError:
-            # entry not present in metadata
-            row = pd.Series(index=self.metadata.columns, dtype=object)
-            row.hand_picked = value
-            self.metadata.loc[pid] = row
+        self.metadata.loc[pid, 'hand_picked'] = value
         self.next_image()
 
     def accept_image(self):
@@ -146,3 +147,6 @@ class SelectorWidget(QWidget):
     def __del__(self):
         if hasattr(self, 'data_dir') and hasattr(self, 'metadata'):
             store_split_inat_metadata(self.metadata, self.data_dir)
+
+    def save_action(self):
+        store_split_inat_metadata(self.metadata, self.data_dir)
