@@ -63,7 +63,6 @@ def channel_mean_std(ds: Dataset) -> Tuple[torch.Tensor, torch.Tensor]:
 
     pbar = tqdm(dl)
     pbar.set_description("Calculating means and stds for dataset normalization")
-    # TODO: on my current dataset for the red channel NaN is returned!
     for images, _ in tqdm(dl):
         b, c, h, w = images.shape
         n_batch_pixels = b * h * w

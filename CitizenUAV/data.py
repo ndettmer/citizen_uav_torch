@@ -5,7 +5,7 @@ import affine
 import pytorch_lightning as pl
 import yaml
 from pytorch_lightning.utilities.types import TRAIN_DATALOADERS
-from torch.utils.data import DataLoader, random_split, Subset, Dataset
+from torch.utils.data import DataLoader, random_split, Subset, Dataset, IterableDataset
 from torch.utils.data.dataset import T_co
 from torchvision.datasets import ImageFolder
 from torchvision import transforms
@@ -792,6 +792,84 @@ class GTiffDataset(Dataset):
 
     def get_mask_bool(self):
         return self.rds.read(4) > 0
+
+
+class MixedDataModule(InatDataModule):
+    """
+    This data module is meant for training a classifier on iNaturalist data and validate the model performance on
+    another raster dataset (instance of GTiffDataset).
+    """
+
+    @staticmethod
+    def add_dm_specific_args(parent_parser):
+        parser = super().add_dm_specific_args(parent_parser).add_argument_group("MixedDataModule")
+        parser.add_argument("--val_data_path", type=str, required=True)
+        parser.add_argument("--val_shape_dir", type=str, required=True)
+        parser.add_argument("--stride", type=int, required=False, default=1)
+        return parent_parser
+
+    def __init__(self, data_dir: Union[str, Path], **kwargs):
+
+        self.val_data_path = kwargs.pop('val_data_path')
+        self.val_shape_dir = kwargs.pop('val_shape_dir')
+        self.stride = kwargs.pop('stride', 1)
+        normalize_mixed = kwargs.pop('normalize', False)
+
+        # use iNat data for training only
+        kwargs['split'] = (1., 0., 0.)
+
+        super().__init__(data_dir, **kwargs)
+
+        self.val_ds = GTiffDataset(
+            self.val_data_path,
+            self.val_shape_dir,
+            window_size=kwargs['img_size'],
+            stride=self.stride,
+            normalize=False
+        )
+
+        # normalize over both datasets
+        if normalize_mixed:
+            self._add_normalize()
+
+    def get_channel_mean_std(self):
+        filename = os.path.join(self.data_dir, 'mean_std_mixed.yml')
+        if os.path.exists(filename):
+            with open(filename, 'r') as file:
+                data = yaml.safe_load(file)
+            means = torch.FloatTensor(data['means'])
+            stds = torch.FloatTensor(data['stds'])
+        else:
+            # calculate means and stds over both datasets combined
+            means, stds = channel_mean_std(IterDataset(self.all_samples_gen))
+            data = {
+                'means': means.numpy().tolist(),
+                'stds': stds.numpy().tolist()
+            }
+            with open(filename, 'w') as file:
+                yaml.dump(data, file)
+
+        return means, stds
+
+    def all_samples_gen(self):
+        for i in range(len(self.ds)):
+            yield self.ds[i]
+        for i in range(len(self.val_ds)):
+            yield self.val_ds[i]
+
+
+class IterDataset(IterableDataset):
+    def __getitem__(self, index) -> T_co:
+        """
+        CAUTION: The index will not be respected here!
+        """
+        return next(self.generator)
+
+    def __init__(self, generator):
+        self.generator = generator
+
+    def __iter__(self):
+        return self.generator()
 
 
 class CUAVDataClass(ABC):
