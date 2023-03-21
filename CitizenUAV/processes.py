@@ -732,7 +732,8 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
 
     ds = GTiffDataset(dataset_path, window_size=window_size, stride=stride, normalize=normalize, means=means, stds=stds)
 
-    model = InatClassifier.load_from_checkpoint(model_path)
+    # TODO: make generic
+    model = InatMogaNetClassifier.load_from_checkpoint(model_path)
     model.eval()
 
     if gpu and torch.cuda.is_available():

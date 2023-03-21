@@ -6,6 +6,7 @@ from resnest.torch import resnest50
 # TODO: Understand how RevCol can be used
 #from RevCol import *
 from MogaNet import *
+from MogaNet.moganet import MogaNet
 from torch import nn
 from torch.nn import functional as F
 from torchmetrics import F1Score, Accuracy
@@ -15,88 +16,26 @@ import pandas as pd
 from matplotlib import pyplot as plt
 import seaborn as sns
 
-from typing import Optional, Union
+from typing import Optional, Union, Any
 from pathlib import Path
+from abc import ABC, abstractmethod
 
 
-class InatClassifier(pl.LightningModule):
+class InatClassifier(pl.LightningModule, ABC):
 
     @staticmethod
+    @abstractmethod
     def add_model_specific_args(parent_parser):
-        parser = parent_parser.add_argument_group("InatClassifier")
-        parser.add_argument("--n_classes", type=int)
-        parser.add_argument("--backbone_model", type=str, default='resnet18')
-        parser.add_argument("--weights", type=str, default=None,
-                            help="String key of the weights to be loaded from torchvision.")
-        parser.add_argument("--checkpoint_path", type=str, default=None,
-                            help="Path to a pre-trained backbone model checkpoint.")
-        parser.add_argument("--hub_link", type=str, default=None,
-                            help="Relative path to torch hub weights.")
-        parser.add_argument("--lr", type=float, required=False, default=.0001)
-        parser.add_argument("--weight_decay", type=float, required=False, default=.001)
-        parser.add_argument("--log_train_preds", type=bool, required=False, default=False)
-        return parent_parser
+        pass
 
-    def __init__(self, n_classes, backbone_model, lr, weight_decay, log_train_preds: bool = True, weights: Optional[str] = None,
-                 checkpoint_path: Optional[Union[str, Path]] = None, hub_link: Optional[str] = None, **kwargs):
-
-        if sum([weights is not None, checkpoint_path is not None, hub_link is not None]) > 1:
-            raise ValueError(f"Only one argument of weights and weight_path can be given.")
-
+    def __init__(self, n_classes: int, log_train_preds: bool = False, *args: Any, **kwargs: Any):
         super().__init__()
-        self.save_hyperparameters()
+        self.n_classes = n_classes
         self.log_train_preds = log_train_preds
 
-        # backbone
-        if checkpoint_path is not None:
-            backbone = eval(backbone_model).load_from_checkpoint(checkpoint_path)
-        elif hub_link is not None:
-            backbone = torch.hub.load(hub_link, backbone_model, pretrained=True)
-        elif weights is not None:
-            backbone = eval(backbone_model)(weights=weights)
-        else:
-            # default is weights=None
-            backbone = eval(backbone_model)()
-
-        if 'moganet' in backbone_model:
-            n_backbone_features = backbone.head.in_features
-        else:
-            # Default is ResNet architecture
-            n_backbone_features = backbone.fc.in_features
-        fe_layers = list(backbone.children())[:-2]
-        self.feature_extractor = nn.Sequential(*fe_layers)
-
-        # TODO try out less complex classifier
-        self.classifier = nn.Sequential(
-            nn.Linear(n_backbone_features, 256),
-            nn.ReLU(),
-            nn.Linear(256, 128),
-            nn.ReLU(),
-            nn.Linear(128, n_classes),
-            nn.Softmax(dim=1)
-        )
-
-        self.n_classes = n_classes
-
         self.loss_function = nn.CrossEntropyLoss()
-        self.f1 = F1Score(num_classes=n_classes, average='macro')
-        self.acc = Accuracy(num_classes=n_classes, average='macro')
-
-        self.lr = lr
-        self.weight_decay = weight_decay
-
-    def forward(self, x):
-        # 1. feature extraction
-        features = self.feature_extractor(x)
-        # 2. global max pooling
-        x = F.max_pool2d(features, kernel_size=features.size()[2:]).flatten(1)
-        # 3. classification
-        x = self.classifier(x)
-        return x
-
-    def configure_optimizers(self):
-        # weight decay > 0 is the L2 regularization
-        return torch.optim.RMSprop(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+        self.f1 = F1Score(num_classes=self.n_classes, average='macro')
+        self.acc = Accuracy(num_classes=self.n_classes, average='macro')
 
     def training_step(self, batch, batch_idx):
         x, y = batch
@@ -177,6 +116,121 @@ class InatClassifier(pl.LightningModule):
         fig_ = sns.heatmap(df_cm, annot=True, cmap='Spectral', fmt='g').get_figure()
         plt.close(fig_)
         self.logger.experiment.add_figure("Confusion matrix/Test", fig_, self.current_epoch)
+
+
+class InatSequentialClassifier(InatClassifier):
+
+    @staticmethod
+    def add_model_specific_args(parent_parser):
+        parser = parent_parser.add_argument_group("InatSequentialClassifier")
+        parser.add_argument("--n_classes", type=int)
+        parser.add_argument("--backbone_model", type=str, default='resnet18')
+        parser.add_argument("--weights", type=str, default=None,
+                            help="String key of the weights to be loaded from torchvision.")
+        parser.add_argument("--checkpoint_path", type=str, default=None,
+                            help="Path to a pre-trained backbone model checkpoint.")
+        parser.add_argument("--hub_link", type=str, default=None,
+                            help="Relative path to torch hub weights.")
+        parser.add_argument("--lr", type=float, required=False, default=.0001)
+        parser.add_argument("--weight_decay", type=float, required=False, default=.001)
+        parser.add_argument("--log_train_preds", type=bool, required=False, default=False)
+        return parent_parser
+
+    def __init__(self, n_classes, backbone_model, lr, weight_decay, log_train_preds: bool = True, weights: Optional[str] = None,
+                 checkpoint_path: Optional[Union[str, Path]] = None, hub_link: Optional[str] = None, **kwargs):
+
+        if sum([weights is not None, checkpoint_path is not None, hub_link is not None]) > 1:
+            raise ValueError(f"Only one argument of weights and weight_path can be given.")
+
+        super().__init__(n_classes=n_classes, log_train_preds=log_train_preds)
+        self.save_hyperparameters()
+
+        # backbone
+        if checkpoint_path is not None:
+            backbone = eval(backbone_model).load_from_checkpoint(checkpoint_path)
+        elif hub_link is not None:
+            backbone = torch.hub.load(hub_link, backbone_model, pretrained=True)
+        elif weights is not None:
+            backbone = eval(backbone_model)(weights=weights)
+        else:
+            # default is weights=None
+            backbone = eval(backbone_model)()
+
+        if 'moganet' in backbone_model:
+            n_backbone_features = backbone.head.in_features
+        else:
+            # Default is ResNet architecture
+            n_backbone_features = backbone.fc.in_features
+        fe_layers = list(backbone.children())[:-2]
+        self.feature_extractor = nn.Sequential(*fe_layers)
+
+        # TODO try out less complex classifier
+        self.classifier = nn.Sequential(
+            nn.Linear(n_backbone_features, 256),
+            nn.ReLU(),
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            nn.Linear(128, n_classes),
+            nn.Softmax(dim=1)
+        )
+
+        self.lr = lr
+        self.weight_decay = weight_decay
+
+    def forward(self, x):
+        # 1. feature extraction
+        features = self.feature_extractor(x)
+        # 2. global max pooling
+        x = F.max_pool2d(features, kernel_size=features.size()[2:]).flatten(1)
+        # 3. classification
+        x = self.classifier(x)
+        return x
+
+    def configure_optimizers(self):
+        # weight decay > 0 is the L2 regularization
+        return torch.optim.RMSprop(self.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+
+
+class InatMogaNetClassifier(InatClassifier):
+
+    @staticmethod
+    def add_model_specific_args(parent_parser):
+        parser = parent_parser.add_argument_group("InatMogaNetClassifier")
+        parser.add_argument("--model_size", type=str, required=True, choices=['small', 'tiny', 'base', 'large'])
+
+        # optimizer configuration taken from
+        # https://github.com/Westlake-AI/openmixup/blob/main/configs/classification/imagenet/moganet/moga_small_ema_sz224_8xb128_ep300.py
+        # fit for MogaNet small
+        parser.add_argument("--lr", type=float, default=1e-3, required=False)
+        parser.add_argument("--weight_decay", type=float, default=.05, required=False)
+        parser.add_argument("--admw_eps", type=float, default=1e-8, required=False)
+        parser.add_argument("--admw_beta1", type=float, default=.9, required=False)
+        parser.add_argument("--admw_beta2", type=float, default=.999, required=False)
+
+        return parent_parser
+
+    def __init__(self, n_classes, model_size, lr=1e-3, weight_decay=.05, adamw_eps=1e-8, adamw_beta1=.9,
+                 adamw_beta2=.999, **kwargs):
+        super().__init__(n_classes=n_classes)
+        self.save_hyperparameters()
+        self.moganet = eval(f"moganet_{model_size}")(num_classes=self.n_classes)
+        self.lr = lr
+        self.weight_decay = weight_decay
+        self.adamw_eps = adamw_eps
+        self.adamw_beta1 = adamw_beta1
+        self.adamw_beta2 = adamw_beta2
+
+    def forward(self, x):
+        return self.moganet(x)
+
+    def configure_optimizers(self):
+        return torch.optim.AdamW(
+            params=self.moganet.parameters(),
+            lr=self.lr,
+            weight_decay=self.weight_decay,
+            eps=self.adamw_eps,
+            betas=(self.adamw_beta1, self.adamw_beta2)
+        )
 
 
 class InatRegressor(pl.LightningModule):

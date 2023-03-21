@@ -18,7 +18,7 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=np.random.rand())
 
     parser = InatDataModule.add_dm_specific_args(parser)
-    parser = InatSequentialClassifier.add_model_specific_args(parser)
+    parser = InatMogaNetClassifier.add_model_specific_args(parser)
     parser = Trainer.add_argparse_args(parser)
 
     args = parser.parse_args()
@@ -41,7 +41,7 @@ if __name__ == "__main__":
 
     dict_args = vars(args)
     dm = InatDataModule(**dict_args)
-    model = InatSequentialClassifier(**dict_args)
+    model = InatMogaNetClassifier(**dict_args)
 
     callbacks = []
     if args.patience > 0:
