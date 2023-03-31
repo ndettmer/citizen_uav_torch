@@ -412,9 +412,6 @@ class GTiffDataset(Dataset):
         """
         super().__init__()
         self.filename = filename
-
-        if shape_dir.endswith('/'):
-            shape_dir = shape_dir[:-1]
         self.shape_dir = shape_dir
         self.window_size = window_size
         self.stride = stride
@@ -506,7 +503,7 @@ class GTiffDataset(Dataset):
             if not os.path.exists(self.targets_path):
                 self.targets = [-1] * len(self.bbs)
             else:
-                self.targets = np.load(self.targets_path, allow_pickle=True)
+                self.targets = np.load(self.targets_path)
 
     def __del__(self):
         self.rds.close()
@@ -799,17 +796,13 @@ class GTiffDataset(Dataset):
 
 class MixedDataModule(InatDataModule):
     """
-    TODO:
-    WARNING: THIS DOESN'T WORK AS INTENDED!
-    Dataset class indices don't match and are hard to align to each other!
-
     This data module is meant for training a classifier on iNaturalist data and validate the model performance on
     another raster dataset (instance of GTiffDataset).
     """
 
     @staticmethod
     def add_dm_specific_args(parent_parser):
-        parser = super(MixedDataModule, MixedDataModule).add_dm_specific_args(parent_parser).add_argument_group("MixedDataModule")
+        parser = super().add_dm_specific_args(parent_parser).add_argument_group("MixedDataModule")
         parser.add_argument("--val_data_path", type=str, required=True)
         parser.add_argument("--val_shape_dir", type=str, required=True)
         parser.add_argument("--stride", type=int, required=False, default=1)
@@ -863,25 +856,6 @@ class MixedDataModule(InatDataModule):
             yield self.ds[i]
         for i in range(len(self.val_ds)):
             yield self.val_ds[i]
-
-    def _add_normalize(self):
-
-        if isinstance(self.train_ds, Subset):
-            normalize_exists = hasattr(self.train_ds.dataset, 'transform') and (sum(['Normalize' in str(t) for t in self.train_ds.dataset.transform.transforms]) > 0)
-        elif isinstance(self.ds, ImageFolder):
-            normalize_exists = hasattr(self.train_ds, 'transform') and (sum(['Normalize' in str(t) for t in self.train_ds.transform.transforms]) > 0)
-        else:
-            raise TypeError(f"The dataset has the wrong type: {type(self.train_ds)}")
-
-        if not normalize_exists:
-            norm = self.get_normalize_module()
-            if isinstance(self.train_ds, Subset):
-                self.ds.dataset.transform.transforms.append(norm)
-            else:
-                self.ds.transform.transforms.append(norm)
-
-            self.val_ds.normalize = True
-            self.val_ds.norm = norm
 
 
 class IterDataset(IterableDataset):

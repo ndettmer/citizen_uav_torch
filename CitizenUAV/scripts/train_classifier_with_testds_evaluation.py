@@ -1,10 +1,9 @@
 from argparse import ArgumentParser
 from plyer import notification
-import os
-import numpy as np
 
-from CitizenUAV.models import InatSequentialClassifier
-from CitizenUAV.data import MixedDataModule
+from CitizenUAV.models import InatClassifier
+from CitizenUAV.data import *
+from CitizenUAV.processes import *
 from CitizenUAV.io_utils import write_params
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.loggers import TensorBoardLogger
@@ -18,12 +17,12 @@ if __name__ == "__main__":
     parser.add_argument("--min_delta", type=float, default=0)
     parser.add_argument("--seed", type=int, default=np.random.rand())
 
-    parser = MixedDataModule.add_dm_specific_args(parser)
+    parser = InatDataModule.add_dm_specific_args(parser)
     parser = InatSequentialClassifier.add_model_specific_args(parser)
     parser = Trainer.add_argparse_args(parser)
 
     args = parser.parse_args()
-    write_params(args.log_dir, vars(args), 'train_classifier_with_testds_evaluation')
+    write_params(args.log_dir, vars(args), 'train_classifier')
 
     species = args.species
     data_dir = args.data_dir
@@ -41,7 +40,7 @@ if __name__ == "__main__":
     tb_logger = TensorBoardLogger(save_dir=log_dir)
 
     dict_args = vars(args)
-    dm = MixedDataModule(**dict_args)
+    dm = InatDataModule(**dict_args)
     model = InatSequentialClassifier(**dict_args)
 
     callbacks = []
