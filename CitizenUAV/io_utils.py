@@ -85,7 +85,7 @@ def read_split_inat_metadata(data_dir: Union[str, Path], species: Optional[list[
 
 
 def store_split_inat_metadata(metadata: pd.DataFrame, data_dir: Union[str, Path]):
-    classnames = next(os.walk(data_dir))
+    classnames = next(os.walk(data_dir))[1]
 
     for spec in metadata.species.unique():
         df = metadata[metadata.species == spec]
@@ -99,6 +99,8 @@ def store_split_inat_metadata(metadata: pd.DataFrame, data_dir: Union[str, Path]
 
             for classname in classnames:
                 if not path_found:
+                    if isinstance(classname, list):
+                        print(classnames)
                     class_dir = os.path.join(data_dir, classname)
                     subclassnames = next(os.walk(class_dir))[1]
                     if spec in subclassnames:
