@@ -750,7 +750,7 @@ class GTiffDataset(Dataset):
             -> Union[int | float]:
         """
         Get the number of pixels in the given bounding box that are covered with the given class.
-        :param bb: Boundig box.
+        :param bb: Bounding box.
         :param cls_idx: Class to determine the coverage for.
         :param share: If true, return percentual coverage, absolute coverage otherwise.
         :return: Class coverage in the window.
@@ -794,7 +794,7 @@ class GTiffDataset(Dataset):
         return self.rds.read(4) > 0
 
 
-class MixedDataModule(InatDataModule):
+class MixedDataModule(pl.LightningDataModule):
     """
     This data module is meant for training a classifier on iNaturalist data and validate the model performance on
     another raster dataset (instance of GTiffDataset).
@@ -802,35 +802,30 @@ class MixedDataModule(InatDataModule):
 
     @staticmethod
     def add_dm_specific_args(parent_parser):
-        parser = super().add_dm_specific_args(parent_parser).add_argument_group("MixedDataModule")
-        parser.add_argument("--val_data_path", type=str, required=True)
-        parser.add_argument("--val_shape_dir", type=str, required=True)
-        parser.add_argument("--stride", type=int, required=False, default=1)
+        inat_parser = InatDataModule.add_dm_specific_args(parent_parser)
+        parser = inat_parser.add_argument_group("MixedDataModule")
+        parser.add_argument("--val_data_dir", type=str, required=True)
         return parent_parser
 
     def __init__(self, data_dir: Union[str, Path], **kwargs):
 
-        self.val_data_path = kwargs.pop('val_data_path')
-        self.val_shape_dir = kwargs.pop('val_shape_dir')
-        self.stride = kwargs.pop('stride', 1)
+        self.val_data_dir = kwargs.pop('val_data_dir')
         normalize_mixed = kwargs.pop('normalize', False)
 
         # use iNat data for training only
         kwargs['split'] = (1., 0., 0.)
 
-        super().__init__(data_dir, **kwargs)
+        self.inat_dm = InatDataModule(kwargs)
 
-        self.val_ds = GTiffDataset(
-            self.val_data_path,
-            self.val_shape_dir,
-            window_size=kwargs['img_size'],
-            stride=self.stride,
-            normalize=False
+        self.val_ds = ImageFolder(
+            self.val_data_dir,
+            transform=self.inat_dm.train_ds.dataset.transform
         )
 
         # normalize over both datasets
         if normalize_mixed:
-            self._add_normalize()
+            # TODO
+            pass
 
     def get_channel_mean_std(self):
         filename = os.path.join(self.data_dir, 'mean_std_mixed.yml')
