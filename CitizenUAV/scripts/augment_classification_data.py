@@ -6,7 +6,8 @@ if __name__ == "__main__":
     parser.add_argument("--data_dir", type=str, required=True)
     parser.add_argument("--target_n", type=int, required=True)
     parser.add_argument("--subdirs", type=str, nargs='+', required=False, default=None)
-    parser.add_argument("--min_distance", type=float, required=False, default=0.)
+    parser.add_argument("--no_metadata", type=bool, required=False, default=False)
+    parser.add_argument("--min_distance", type=float, required=False, default=None)
     parser.add_argument("--debug", type=bool, required=False, default=False)
 
     args = parser.parse_args()

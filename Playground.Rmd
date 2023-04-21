@@ -5,7 +5,7 @@ jupyter:
       extension: .Rmd
       format_name: rmarkdown
       format_version: '1.2'
-      jupytext_version: 1.14.1
+      jupytext_version: 1.14.4
   kernelspec:
     display_name: Python 3 (ipykernel)
     language: python
@@ -762,6 +762,86 @@ print(dw.height, ds.height)
 
 ```{python}
 next(ds.block_windows(1))
+```
+
+```{python}
+data = [
+    {
+        'x_min': 1, 
+        'x_max': 2, 
+        'y_min': 1,
+        'y_max': 3, 
+        'prediction': 2, 
+        'ds_path': 'bla', 
+        'model_path': 'blabla', 
+        'target': 1, 
+        'prediction_text': 'test_class', 
+        'confidence': .5
+    }, {
+        'x_min': 5, 
+        'x_max': 6, 
+        'y_min': 4,
+        'y_max': 5, 
+        'prediction': 1, 
+        'ds_path': 'bla', 
+        'model_path': 'blabla', 
+        'target': 1, 
+        'prediction_text': 'test_class', 
+        'confidence': .5
+    },
+]
+
+import pandas as pd
+df = pd.DataFrame(data=data)
+```
+
+```{python}
+df
+```
+
+## Soil Mask
+
+```{python}
+from CitizenUAV.data import GTiffDataset
+ds = GTiffDataset('/home/ndettmer/ssd_data/UOS_Data/220613_maize_rgb_test_area.tif', '/home/ndettmer/ssd_data/UOS_Data/1306_maize', stride=32)
+```
+
+```{python}
+from matplotlib import pyplot as plt
+plt.imshow(ds.soil_mask)
+```
+
+```{python}
+plt.imshow(ds.labeled_area_cropped)
+```
+
+```{python}
+min_point_geo = ds.labeled_area_transform * (0, 0)
+min_point_ds = ~ds.rds.transform * min_point_geo
+min_point_ds = tuple(reversed(min_point_ds))
+
+soil_mask_cropped = ds.soil_mask[int(min_point_ds[0]):int(min_point_ds[0]) + ds.labeled_area_cropped.shape[0], int(min_point_ds[1]):int(min_point_ds[1]) + ds.labeled_area_cropped.shape[1]]
+```
+
+```{python}
+plt.imshow(soil_mask_cropped)
+```
+
+```{python}
+soil_mask_cropped.shape, ds.labeled_area_cropped.shape
+```
+
+```{python}
+min_point_ds
+```
+
+```{python}
+ds.labeled_area_cropped.shape
+```
+
+```{python}
+from copy import deepcopy
+deepcopy(ds.labeled_area_transform)
 ```
 
 ```{python}

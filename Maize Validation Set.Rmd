@@ -30,28 +30,30 @@ may_datapath = os.path.join(data_dir, '220518_maize_rgb_test_area.tif')
 may_shape_dir = os.path.join(data_dir, '1805_maize')
 may_maize_shape_path = os.path.join(may_shape_dir, '1805_maize_maize.shp')
 may_weeds_shape_path = os.path.join(may_shape_dir, '1805_maize_weeds.shp')
-may_out_dir = os.path.join(data_dir, 'maize_ternary_valds_may')
+may_out_dir = os.path.join(data_dir, 'maize_ternary_valds_mixed')
 may_maize_out_dir = os.path.join(may_out_dir, 'maize')
 may_weeds_out_dir = os.path.join(may_out_dir, 'weeds')
 june_datapath = os.path.join(data_dir, '220613_maize_rgb_test_area.tif')
 june_shape_dir = os.path.join(data_dir, '1306_maize')
 june_maize_shape_path = os.path.join(june_shape_dir, '1306_maize_maize.shp')
 june_weeds_shape_path = os.path.join(june_shape_dir, '1306_maize_weeds.shp')
-june_out_dir = os.path.join(data_dir, 'maize_ternary_valds_june')
+june_out_dir = os.path.join(data_dir, 'maize_ternary_valds_mixed')
 june_maize_out_dir = os.path.join(june_out_dir, 'maize')
 june_weeds_out_dir = os.path.join(june_out_dir, 'weeds')
 box_size = 128
 box_half = box_size // 2
 val_size = 400
+np.random.seed(42)
 ```
 
 ```{python}
 mayds = GTiffDataset(may_datapath, may_shape_dir, 128, 32)
-juneds = GTiffDataset(june_datapath, may_shape_dir, 128, 32)
+juneds = GTiffDataset(june_datapath, june_shape_dir, 128, 32)
 ```
 
+<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
 ## May
-
+<!-- #endregion -->
 
 ### Maize
 
@@ -116,8 +118,51 @@ for i in tqdm(may_weeds_val_idx):
     img.save(os.path.join(may_out_dir, 'weeds', filename), "png")
 ```
 
-## June
+### Soil
 
+```{python}
+may_weeds_mask = mayds.get_cls_mask(mayds.class_to_idx['weeds'])
+may_maize_mask = mayds.get_cls_mask(mayds.class_to_idx['maize'])
+may_labeled_area = mayds.uncrop_mask(mayds.labeled_area_cropped, mayds.labeled_area_transform)
+may_soil_mask = may_labeled_area & ~(mayds.get_cls_mask(mayds.class_to_idx['maize']) ^ mayds.get_cls_mask(mayds.class_to_idx['weeds']))
+```
+
+```{python}
+plt.imshow(may_soil_mask)
+```
+
+```{python}
+bb_center_start = 128 // 8
+bb_center_end = 128 - bb_center_start
+bb_center_size = (bb_center_end - bb_center_start) ** 2
+def is_valid_may_soil_sample(bb):
+    x_min, x_max, y_min, y_max = bb
+    bb_soil_mask = may_soil_mask[x_min:x_max, y_min:y_max]
+    bb_center_soil_mask = bb_soil_mask[bb_center_start:bb_center_end, bb_center_start:bb_center_end]
+    if (np.sum(bb_center_soil_mask) / bb_center_size) >= 1.:
+        return True
+    return False
+```
+
+```{python}
+soil_bbs = []
+idx = np.random.choice(range(len(mayds)), size=len(mayds), replace=False)
+for i in tqdm(idx):
+    bb = mayds.bbs[i]
+    if is_valid_may_soil_sample(bb):
+        soil_bbs.append(bb)
+    if len(soil_bbs) >= val_size:
+        break
+
+for soil_bb in tqdm(soil_bbs): 
+    img = to_pil_image(mayds.get_bb_data(soil_bb))
+    filename = "_".join([str(c).zfill(len_filename_coord) for c in soil_bb]) + ".png"
+    img.save(os.path.join(may_out_dir, 'soil', filename), "png")
+```
+
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
+## June
+<!-- #endregion -->
 
 ### Maize
 
@@ -191,6 +236,177 @@ ax.scatter([centroid[0]], [centroid[1]], marker='x')
 box = patches.Rectangle((bb[2], bb[0]), 128, 128, linewidth=1, edgecolor='r', facecolor='none')
 ax.add_patch(box)
 plt.show()
+```
+
+### Soil
+
+```{python}
+june_weeds_mask = juneds.get_cls_mask(juneds.class_to_idx['weeds'])
+june_maize_mask = juneds.get_cls_mask(juneds.class_to_idx['maize'])
+june_labeled_area = juneds.uncrop_mask(juneds.labeled_area_cropped, juneds.labeled_area_transform)
+june_soil_mask = june_labeled_area & ~(juneds.get_cls_mask(juneds.class_to_idx['maize']) ^ juneds.get_cls_mask(juneds.class_to_idx['weeds']))
+```
+
+```{python}
+plt.imshow(june_soil_mask)
+```
+
+```{python}
+bb_center_start = 128 // 8
+bb_center_end = 128 - bb_center_start
+bb_center_size = (bb_center_end - bb_center_start) ** 2
+def is_valid_june_soil_sample(bb):
+    x_min, x_max, y_min, y_max = bb
+    bb_soil_mask = june_soil_mask[x_min:x_max, y_min:y_max]
+    bb_center_soil_mask = bb_soil_mask[bb_center_start:bb_center_end, bb_center_start:bb_center_end]
+    if (np.sum(bb_center_soil_mask) / bb_center_size) >= 1.:
+        return True
+    return False
+```
+
+```{python}
+june_soil_bbs = []
+idx = np.random.choice(range(len(juneds)), size=len(juneds), replace=False)
+for i in tqdm(idx):
+    bb = juneds.bbs[i]
+    if is_valid_june_soil_sample(bb):
+        june_soil_bbs.append(bb)
+    if len(june_soil_bbs) >= val_size:
+        break
+
+for soil_bb in tqdm(june_soil_bbs): 
+    img = to_pil_image(juneds.get_bb_data(soil_bb))
+    filename = "_".join([str(c).zfill(len_filename_coord) for c in soil_bb]) + ".png"
+    img.save(os.path.join(june_out_dir, 'soil', filename), "png")
+```
+
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true -->
+## DataModule Class testing
+<!-- #endregion -->
+
+```{python}
+from CitizenUAV.data import MixedDataModule
+dm = MixedDataModule(data_dir='/home/ndettmer/ssd_data/inat_subsets/maize_ternary_manual_preselect', val_data_dir=may_out_dir, val_size=1., batch_size=1)
+```
+
+```{python}
+val_dl = dm.val_dataloader()
+```
+
+```{python}
+img, t = next(iter(val_dl))
+```
+
+```{python}
+val_iter = iter(val_dl)
+n = 9
+side_len = int(n ** (1/2))
+fig, axs = plt.subplots(side_len, side_len, figsize=(10, 10))
+for i in range(n):
+    img, t = next(val_iter)
+    img = img.squeeze(0)
+    t = t.squeeze(0)
+    axs[i % side_len, i // side_len].imshow(to_pil_image(img))
+    axs[i % side_len, i // side_len].set_title(dm.val_ds.dataset.classes[t])
+plt.show()
+```
+
+## Metadata Generation
+
+```{python}
+from CitizenUAV.io_utils import read_split_inat_metadata, store_split_inat_metadata, get_pid_from_path
+import pandas as pd
+from torchvision.datasets import ImageFolder
+import numpy as np
+from torchvision.transforms.functional import to_pil_image
+from torchvision.transforms import ToTensor, Compose
+```
+
+```{python}
+example_metadata_path = '/home/ndettmer/ssd_data/inat_subsets/maize_ternary_manual_preselect/'
+ex_metadata = read_split_inat_metadata(example_metadata_path)
+```
+
+```{python}
+ex_metadata.columns
+```
+
+```{python}
+raster_metadata = pd.DataFrame(columns=ex_metadata.reset_index().columns)
+raster_metadata.photo_id = raster_metadata.photo_id.astype(str)
+raster_metadata.species = raster_metadata.species.astype(str)
+raster_metadata.distance = raster_metadata.distance.astype(float)
+raster_metadata.obs_id = raster_metadata.obs_id.astype(str)
+raster_metadata.n_photos = raster_metadata.n_photos.astype(int)
+raster_metadata.image_okay = raster_metadata.image_okay.astype(bool)
+raster_metadata.max_val = raster_metadata.max_val.astype(float)
+raster_metadata.min_val = raster_metadata.min_val.astype(float)
+raster_metadata.mean_val = raster_metadata.mean_val.astype(float)
+raster_metadata.path = raster_metadata.path.astype(str)
+raster_metadata.height = raster_metadata.height.astype(int)
+raster_metadata.width = raster_metadata.width.astype(int)
+raster_metadata.contrast = raster_metadata.contrast.astype(float)
+raster_metadata.saturation = raster_metadata.saturation.astype(float)
+raster_metadata.broken = raster_metadata.broken.astype(bool)
+raster_metadata.hand_picked = raster_metadata.hand_picked.astype(bool)
+raster_metadata.set_index('photo_id', inplace=True)
+```
+
+```{python}
+ds = ImageFolder(may_out_dir, transform=Compose([ToTensor()]))
+```
+
+```{python}
+for i in tqdm(range(len(ds))):
+    img, t = ds[i]
+    path, _ = ds.samples[i]
+    max_val = float(img.max())
+    min_val = float(img.min())
+    mean_val = float(img.mean())
+    contrast = max_val - min_val
+    saturation = contrast / max_val
+    row = [
+        ds.classes[t],
+        20,
+        '',
+        1,
+        True,
+        max_val,
+        min_val,
+        mean_val,
+        path,
+        img.shape[1],
+        img.shape[2],
+        contrast,
+        saturation,
+        False,
+        True
+    ]
+    raster_metadata.loc[get_pid_from_path(path)] = row
+```
+
+```{python}
+raster_metadata
+```
+
+```{python}
+ex_metadata
+```
+
+```{python}
+store_split_inat_metadata(raster_metadata, may_out_dir)
+```
+
+```{python}
+merged_metadata = read_split_inat_metadata('/home/ndettmer/ssd_data/mixed_datasets/maize_ternary/inat-manual_raster/')
+```
+
+```{python}
+len(merged_metadata)
+```
+
+```{python}
+len(ex_metadata) + len(raster_metadata)
 ```
 
 ```{python}

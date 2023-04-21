@@ -1,4 +1,5 @@
 from abc import ABC
+from copy import deepcopy
 from dataclasses import asdict, dataclass
 
 import affine
@@ -119,8 +120,6 @@ class InatDataModule(pl.LightningDataModule):
         validate_split(split)
         self.split = split
 
-        # Make sure the data directory is valid.
-        validate_data_dir(data_dir)
         self.data_dir = data_dir
 
         self.metadata = read_split_inat_metadata(self.data_dir, species)
@@ -158,7 +157,7 @@ class InatDataModule(pl.LightningDataModule):
         self._replace_ds(self.idx)
 
         if self.normalize:
-            self._add_normalize()
+            self.add_normalize()
 
         # Calculate absolute number of samples from split percentages.
         abs_split = list(np.floor(np.array(self.split)[:2] * len(self.ds)).astype(np.int32))
@@ -268,7 +267,7 @@ class InatDataModule(pl.LightningDataModule):
         means, stds = self.get_channel_mean_std()
         return transforms.Normalize(means, stds)
 
-    def _add_normalize(self):
+    def add_normalize(self, norm: Optional[nn.Module] = None):
 
         if isinstance(self.ds, Subset):
             normalize_exists = sum(['Normalize' in str(t) for t in self.ds.dataset.transform.transforms]) > 0
@@ -278,7 +277,8 @@ class InatDataModule(pl.LightningDataModule):
             raise TypeError(f"The dataset has the wrong type: {type(self.ds)}")
 
         if not normalize_exists:
-            norm = self.get_normalize_module()
+            if norm is None:
+                norm = self.get_normalize_module()
             if isinstance(self.ds, Subset):
                 self.ds.dataset.transform.transforms.append(norm)
             else:
@@ -467,7 +467,27 @@ class GTiffDataset(Dataset):
                         self.class_masks.append(shape_mask)
                         self.class_mask_transforms.append(shape_transform)
 
+            # add soil mask
             self.classes.append('soil')
+            # the soil mask is each pixel of the labeled area that is not labeled as any other class
+            soil_mask = self.uncrop_mask(self.labeled_area_cropped, self.labeled_area_transform).copy()
+            for cls_transform, cls_mask in zip(self.class_mask_transforms, self.class_masks):
+                soil_mask &= ~self.uncrop_mask(cls_mask, cls_transform)
+
+            # determine minimum point of the labeled area in the dataset coordinate system
+            min_point_geo = self.labeled_area_transform * (0, 0)
+            min_point_ds = ~self.rds.transform * min_point_geo
+            min_point_ds = tuple(reversed(min_point_ds))
+
+            # crop soil mask to the extent of the labeled area
+            soil_mask_cropped = soil_mask[
+                                int(min_point_ds[0]):int(min_point_ds[0]) + self.labeled_area_cropped.shape[0],
+                                int(min_point_ds[1]):int(min_point_ds[1]) + self.labeled_area_cropped.shape[1]]
+            self.class_masks.append(soil_mask_cropped.copy())
+            self.class_mask_transforms.append(deepcopy(self.labeled_area_transform))
+            del soil_mask
+            del soil_mask_cropped
+
             self.class_to_idx = {cls: idx for idx, cls in enumerate(self.classes)}
         else:
             self.return_targets = False
@@ -487,6 +507,7 @@ class GTiffDataset(Dataset):
         # TODO: For training take bounding boxes, that surround single shapes
         #   Idea: for each shape take the centroid of that shape
         #   and move window_size//2 in each direction to create the BB
+        #   Realization exists already in "Maize Validation Set.Rmd"
 
         cache_filename = f"{os.path.splitext(self.filename)[0]}-{self.window_size}-{self.stride}{'-labeled' if self.shape_dir else ''}"
 
@@ -805,30 +826,39 @@ class MixedDataModule(pl.LightningDataModule):
         inat_parser = InatDataModule.add_dm_specific_args(parent_parser)
         parser = inat_parser.add_argument_group("MixedDataModule")
         parser.add_argument("--val_data_dir", type=str, required=True)
+        parser.add_argument("--val_size", type=float, required=False, default=1.)
         return parent_parser
 
-    def __init__(self, data_dir: Union[str, Path], **kwargs):
+    def __init__(self, **kwargs):
+        super().__init__()
 
         self.val_data_dir = kwargs.pop('val_data_dir')
+        self.val_size = kwargs.pop('val_size', 1.)
         normalize_mixed = kwargs.pop('normalize', False)
+        kwargs['normalize'] = False
 
         # use iNat data for training only
         kwargs['split'] = (1., 0., 0.)
 
-        self.inat_dm = InatDataModule(kwargs)
+        self.inat_dm = InatDataModule(**kwargs)
+        self.batch_size = self.inat_dm.batch_size
+        self.num_workers = self.inat_dm.num_workers
 
         self.val_ds = ImageFolder(
             self.val_data_dir,
-            transform=self.inat_dm.train_ds.dataset.transform
+            transform=self.inat_dm.train_ds.dataset.dataset.transform
         )
+
+        val_idx = np.random.choice(range(len(self.val_ds)), size=int(len(self.val_ds) // self.val_size), replace=False)
+        self.val_ds = Subset(self.val_ds, val_idx)
 
         # normalize over both datasets
         if normalize_mixed:
-            # TODO
-            pass
+            if normalize_mixed:
+                self._add_normalize()
 
     def get_channel_mean_std(self):
-        filename = os.path.join(self.data_dir, 'mean_std_mixed.yml')
+        filename = os.path.join(self.inat_dm.data_dir, 'mean_std_mixed.yml')
         if os.path.exists(filename):
             with open(filename, 'r') as file:
                 data = yaml.safe_load(file)
@@ -847,10 +877,32 @@ class MixedDataModule(pl.LightningDataModule):
         return means, stds
 
     def all_samples_gen(self):
-        for i in range(len(self.ds)):
-            yield self.ds[i]
+        for i in range(len(self.inat_dm.ds)):
+            yield self.inat_dm.ds[i]
         for i in range(len(self.val_ds)):
             yield self.val_ds[i]
+
+    def get_normalize_module(self):
+        means, stds = self.get_channel_mean_std()
+        return transforms.Normalize(means, stds)
+
+    def _add_normalize(self):
+        norm = self.get_normalize_module()
+        self.inat_dm.add_normalize(norm)
+        self.val_ds.dataset.transform.transforms.append(norm)
+
+    def setup(self, stage: Optional[str] = None) -> None:
+        super().setup(stage)
+
+    def train_dataloader(self) -> TRAIN_DATALOADERS:
+        return self.inat_dm.train_dataloader()
+
+    def val_dataloader(self) -> TRAIN_DATALOADERS:
+        return DataLoader(self.val_ds, batch_size=self.batch_size, num_workers=self.num_workers)
+
+    def test_dataloader(self) -> TRAIN_DATALOADERS:
+        #return DataLoader(self.test_ds, batch_size=self.batch_size, num_workers=self.num_workers)
+        raise NotImplemented()
 
 
 class IterDataset(IterableDataset):

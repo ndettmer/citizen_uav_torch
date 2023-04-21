@@ -357,16 +357,20 @@ def offline_augmentation_regression_data(data_dir: os.PathLike, target_n, debug:
 
 
 def offline_augmentation_classification_data(data_dir: Union[str, Path], target_n, subdirs: list[str] = None,
-                                             min_distance: float = None, debug: bool = False):
+                                             no_metadata: bool = False, min_distance: float = None, debug: bool = False):
     """
     Perform offline augmentation on species-labeled image dataset.
     :param data_dir: The directory where the data lies.
     :param target_n: Target number of samples per class.
     :param subdirs: Sub-directories to consider (handled as targets in the ImageFolder class).
+    :param no_metadata: Ignore metadata.csv (e.g. if it doesn't exist).
     :param min_distance: Minimum distance to be considered for augmentation source.
     :param debug: In debug mode no file changes or new files are saved.
     :return: True, if the procedure succeeded.
     """
+    if no_metadata and min_distance is not None:
+        raise ValueError("metadata.csv is needed for distance filtering.")
+
     # create dataset
     ds = ImageFolder(data_dir, transform=transforms.Compose([transforms.ToTensor(), QuadCrop()]))
     idx = range(len(ds))
@@ -375,7 +379,8 @@ def offline_augmentation_classification_data(data_dir: Union[str, Path], target_
     if subdirs:
         idx = [i for i in idx if ds.classes[ds.targets[i]] in subdirs]
 
-    metadata = read_split_inat_metadata(data_dir)
+    if not no_metadata:
+        metadata = read_split_inat_metadata(data_dir)
     if min_distance:
         # load metadata file and filter samples by distance
         min_dist_pids = metadata[metadata.distance >= min_distance].index
@@ -437,10 +442,11 @@ def offline_augmentation_classification_data(data_dir: Union[str, Path], target_
             filepath = f"{filepath}_augmented_{n_copies}.png"
 
             if not debug:
-                # store updated metadata
-                row = metadata.loc[get_pid_from_path(orig_filepath)].copy()
-                metadata.loc[get_pid_from_path(filepath)] = row
-                store_split_inat_metadata(metadata, data_dir)
+                if not no_metadata:
+                    # store updated metadata
+                    row = metadata.loc[get_pid_from_path(orig_filepath)].copy()
+                    metadata.loc[get_pid_from_path(filepath)] = row
+                    store_split_inat_metadata(metadata, data_dir)
 
                 # save new image
                 augmented.save(filepath, 'png')
@@ -733,7 +739,7 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
     ds = GTiffDataset(dataset_path, window_size=window_size, stride=stride, normalize=normalize, means=means, stds=stds)
 
     # TODO: make generic
-    model = InatMogaNetClassifier.load_from_checkpoint(model_path)
+    model = InatSequentialClassifier.load_from_checkpoint(model_path)
     model.eval()
 
     if gpu and torch.cuda.is_available():
@@ -804,7 +810,7 @@ def pixel_conf_mat(
         shape_dir: Union[str, Path],
         train_data_dir: Union[str, Path],
         pred_file: Union[str, Path],
-        class_map: str,
+        class_map: Optional[str] = None,
         result_dir: Optional[Union[str, Path]] = None
 ) -> tuple[pd.DataFrame, pd.DataFrame, float]:
     """
@@ -829,7 +835,10 @@ def pixel_conf_mat(
     ds = GTiffDataset(dataset_path, shape_dir=shape_dir, window_size=window_size, stride=window_size)
 
     # map labels between datasets
-    rst_classes_to_inat_classes = json.loads(class_map)
+    if class_map is None:
+        rst_classes_to_inat_classes = {c: c for c in inat_classes}
+    else:
+        rst_classes_to_inat_classes = json.loads(class_map)
     rst_cls_idx_to_inat_cls_idx = {}
     for rst_cls in ds.classes:
         rst_cls_idx = ds.class_to_idx[rst_cls]

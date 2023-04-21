@@ -1,9 +1,10 @@
 from argparse import ArgumentParser
 from plyer import notification
+import os
+import numpy as np
 
-from CitizenUAV.models import InatClassifier
-from CitizenUAV.data import *
-from CitizenUAV.processes import *
+from CitizenUAV.models import InatSequentialClassifier
+from CitizenUAV.data import MixedDataModule
 from CitizenUAV.io_utils import write_params
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.loggers import TensorBoardLogger
@@ -17,7 +18,7 @@ if __name__ == "__main__":
     parser.add_argument("--min_delta", type=float, default=0)
     parser.add_argument("--seed", type=int, default=np.random.rand())
 
-    parser = InatDataModule.add_dm_specific_args(parser)
+    parser = MixedDataModule.add_dm_specific_args(parser)
     parser = InatSequentialClassifier.add_model_specific_args(parser)
     parser = Trainer.add_argparse_args(parser)
 
@@ -40,7 +41,7 @@ if __name__ == "__main__":
     tb_logger = TensorBoardLogger(save_dir=log_dir)
 
     dict_args = vars(args)
-    dm = InatDataModule(**dict_args)
+    dm = MixedDataModule(**dict_args)
     model = InatSequentialClassifier(**dict_args)
 
     callbacks = []
@@ -59,7 +60,7 @@ if __name__ == "__main__":
 
     trainer.fit(model, dm)
 
-    trainer.test(ckpt_path='best', dataloaders=dm.test_dataloader())
+    #trainer.test(ckpt_path='best', dataloaders=dm.test_dataloader())
 
     notification.notify(
         title="Classifier Training",
