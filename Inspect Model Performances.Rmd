@@ -40,7 +40,7 @@ class_map = json.dumps({
 test_data_dir = '/home/ndettmer/ssd_data/UOS_Data'
 ```
 
-<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
 ## Maize Ternary
 <!-- #endregion -->
 
@@ -584,7 +584,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
 ```
 
-<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true -->
+<!-- #region tags=[] -->
 ## Maize ternary, manually Pre-selected training data
 <!-- #endregion -->
 
@@ -1106,7 +1106,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
 ```
 
-<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] -->
+<!-- #region tags=[] -->
 ## Maize ternary with raster data
 <!-- #endregion -->
 
