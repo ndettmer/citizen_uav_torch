@@ -811,7 +811,8 @@ def pixel_conf_mat(
         train_data_dir: Union[str, Path],
         pred_file: Union[str, Path],
         class_map: Optional[str] = None,
-        result_dir: Optional[Union[str, Path]] = None
+        result_dir: Optional[Union[str, Path]] = None,
+        debug: bool = False
 ) -> tuple[pd.DataFrame, pd.DataFrame, float]:
     """
     Creating a pixel-wise confusion matrix for a trained model applied to a GeoTiff dataset.
@@ -821,6 +822,7 @@ def pixel_conf_mat(
     :param pred_file: Path to the probability map that came out of `predict_geotiff()`.
     :param class_map: JSON formatted mapping from raster classes to training dataset classes.
     :param result_dir: Directory where to store the confusion matrix as a PNG file.
+    :param debug: If True, make additional checks.
     :return: The pixel-wise confusion map, a DataFrame containing the pixel-wise predictions and targets, and the
         corresponding F1 score.
     """
@@ -855,8 +857,7 @@ def pixel_conf_mat(
     # create target map with inat targets
     target_map = np.full((len(inat_classes), ds.rds.height, ds.rds.width), 0, dtype=bool)
 
-    not_soil_classes = set(inat_classes) ^ {'soil'}
-    for inat_class in not_soil_classes:
+    for inat_class in inat_classes:
         # get inat class index
         inat_cls_idx = inat_class_to_idx[inat_class]
         # get corresponding raster class index
@@ -869,11 +870,13 @@ def pixel_conf_mat(
         # map coverage to target map with inat class indices
         target_map[inat_cls_idx, cover_idx[:, 0], cover_idx[:, 1]] = True
 
-        # treat soil separately by just filling the empty space with the soil label
-        target_map[inat_class_to_idx['soil']] = target_map[inat_class_to_idx['soil']] & ~target_map[inat_cls_idx]
-
     # condense map to 1 layer with class indices
     target_map = np.argmax(target_map, axis=0)
+    if debug:
+        # check if targets are assigned correctly
+        for inat_class in inat_classes:
+            assert np.sum(ds.targets == inat_cls_idx_to_rst_cls_idx[inat_class_to_idx[inat_class]]) \
+                   == target_map[inat_class_to_idx[inat_class]].sum()
 
     # get pixel positions of labeled area
     labeled_idx = np.argwhere(ds.get_labeled_area())
