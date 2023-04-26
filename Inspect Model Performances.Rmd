@@ -40,7 +40,7 @@ class_map = json.dumps({
 test_data_dir = '/home/ndettmer/ssd_data/UOS_Data'
 ```
 
-<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
 ## Maize Ternary
 <!-- #endregion -->
 
@@ -584,7 +584,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
 ```
 
-<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true -->
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
 ## Maize ternary, manually Pre-selected training data
 <!-- #endregion -->
 
@@ -1115,7 +1115,8 @@ cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class
 <!-- #endregion -->
 
 ```{python}
-train_classes = InatDataModule('/home/ndettmer/ssd_data/mixed_datasets/maize_ternary/inat-manual_raster/').ds.classes
+#train_classes = InatDataModule('/home/ndettmer/ssd_data/mixed_datasets/maize_ternary/inat-manual_raster/').ds.classes
+train_classes = ['maize', 'soil', 'weeds']
 ```
 
 ### 18.05.22
@@ -1250,7 +1251,9 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, json.dumps({c: c for c in train_classes}), result_dir=plot_dir)
 ```
 
+<!-- #region tags=[] -->
 ## Maize ternary raster data only
+<!-- #endregion -->
 
 ```{python}
 train_classes = InatDataModule('/home/ndettmer/ssd_data/UOS_Data/maize_ternary_valds_mixed/').ds.classes
