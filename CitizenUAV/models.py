@@ -222,7 +222,6 @@ class InatMogaNetClassifier(InatClassifier):
         self.softmax = nn.Softmax(dim=1)
 
     def forward(self, x):
-        # TODO: only outputs .3333
         x = self.moganet(x)
         x = self.softmax(x)
         return x
