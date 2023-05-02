@@ -219,9 +219,13 @@ class InatMogaNetClassifier(InatClassifier):
         self.adamw_eps = adamw_eps
         self.adamw_beta1 = adamw_beta1
         self.adamw_beta2 = adamw_beta2
+        self.softmax = nn.Softmax(dim=1)
 
     def forward(self, x):
-        return self.moganet(x)
+        # TODO: only outputs .3333
+        x = self.moganet(x)
+        x = self.softmax(x)
+        return x
 
     def configure_optimizers(self):
         return torch.optim.AdamW(
