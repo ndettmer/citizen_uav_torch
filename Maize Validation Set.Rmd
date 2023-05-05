@@ -286,7 +286,7 @@ for soil_bb in tqdm(june_soil_bbs):
 
 ```{python}
 from CitizenUAV.data import MixedDataModule
-dm = MixedDataModule(data_dir='/home/ndettmer/ssd_data/inat_subsets/maize_ternary_manual_preselect', val_data_dir=may_out_dir, val_size=1., batch_size=1)
+dm = MixedDataModule(data_dir='/home/ndettmer/ssd_data/inat_subsets/maize_ternary_raster_supplement', inat_dir='/home/ndettmer/ssd_data/inat_subsets/maize_ternary_manual_preselect/', raster_dir='/home/ndettmer/ssd_data/UOS_Data/maize_ternary_valds_mixed/', n_inat_samples_per_class=4000, n_raster_samples_per_class=10, batch_size=1)
 ```
 
 ```{python}
@@ -298,6 +298,14 @@ img, t = next(iter(val_dl))
 ```
 
 ```{python}
+img.shape
+```
+
+```{python}
+val_dl = dm.val_dataloader()
+
+img, t = next(iter(val_dl))
+
 val_iter = iter(val_dl)
 n = 9
 side_len = int(n ** (1/2))

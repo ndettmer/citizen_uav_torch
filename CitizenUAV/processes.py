@@ -706,7 +706,8 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
                     result_dir: Optional[Union[str | os.PathLike]] = None,
                     window_size: int = 128, stride: int = 1, gpu: bool = False, batch_size: int = 1,
                     normalize: bool = False, means: Optional[tuple] = None, stds: Optional[tuple] = None,
-                    probabilities: bool = False, pred_size: int = None, debug: bool = False) -> np.ndarray:
+                    probabilities: bool = False, pred_size: int = None, model_class: str = 'InatSequentialClassifier',
+                    debug: bool = False) -> np.ndarray:
     """
     Predict pixel-wise classes for a GeoTiff raster dataset with a given trained model using a moving window approach.
     :param model_path: Path to the model checkpoint.
@@ -722,6 +723,7 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
     :param stds: Normalization channel stds. Note that they should be scaled to [0,255]!
     :param probabilities: Add confidences and not 1-hot predictions.
     :param pred_size: Apply the prediction only to an area around the center pixel of the bounding box
+    :param model_class: Choose a model class from models.py.
     :return: Resulting label map containing the final predictions.
     """
 
@@ -738,8 +740,7 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
 
     ds = GTiffDataset(dataset_path, window_size=window_size, stride=stride, normalize=normalize, means=means, stds=stds)
 
-    # TODO: make generic
-    model = InatSequentialClassifier.load_from_checkpoint(model_path)
+    model = eval(model_class).load_from_checkpoint(model_path)
     model.eval()
 
     if gpu and torch.cuda.is_available():

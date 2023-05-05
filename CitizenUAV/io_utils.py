@@ -1,3 +1,4 @@
+import shutil
 from dataclasses import dataclass, asdict
 import os
 import sys
@@ -129,3 +130,15 @@ def write_params(dest_dir: Union[str, Path], params: dict, func_name: Optional[s
                             f'{datetime.now().strftime("%y-%m-%d_%H-%M")}{("_" + func_name) if func_name is not None else ""}_parameters.yml')
     with open(filename, 'w') as outfile:
         return yaml.dump(params, outfile)
+
+
+def empty_dir(target_dir):
+    for filename in os.listdir(target_dir):
+        file_path = os.path.join(target_dir, filename)
+        try:
+            if os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)
+        except Exception as e:
+            print('Failed to delete %s. Reason: %s' % (file_path, e))

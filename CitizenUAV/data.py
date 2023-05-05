@@ -10,6 +10,7 @@ from torch.utils.data import DataLoader, random_split, Subset, Dataset, Iterable
 from torch.utils.data.dataset import T_co
 from torchvision.datasets import ImageFolder
 from torchvision import transforms
+from torchvision.transforms.functional import to_pil_image
 
 import pandas as pd
 from PIL import Image
@@ -26,7 +27,7 @@ from collections import Counter
 import logging
 
 from CitizenUAV.transforms import *
-from CitizenUAV.io_utils import get_pid_from_path, read_split_inat_metadata
+from CitizenUAV.io_utils import get_pid_from_path, read_split_inat_metadata, empty_dir
 from CitizenUAV.math_utils import channel_mean_std
 
 
@@ -816,6 +817,198 @@ class GTiffDataset(Dataset):
 
 
 class MixedDataModule(pl.LightningDataModule):
+    """
+    This data module is meant for including an amount of raster data samples into the training process.
+    """
+
+    @staticmethod
+    def add_dm_specific_args(parent_parser):
+        parser = parent_parser.add_argument_group("MixedDataModule")
+        parser.add_argument("--data_dir", type=str)
+        parser.add_argument("--inat_dir", type=str)
+        parser.add_argument("--raster_dir", type=str)
+        parser.add_argument("--n_inat_samples_per_class", type=int)
+        parser.add_argument("--n_raster_samples_per_class", type=int)
+        parser.add_argument("--batch_size", type=int, default=4, required=False)
+        parser.add_argument("--split", type=float, nargs=3, default=(.72, .18, .1), required=False)
+        parser.add_argument("--img_size", type=int, default=128, required=False, choices=[2 ** x for x in range(6, 10)])
+        parser.add_argument("--balance", type=bool, default=False, required=False)
+        parser.add_argument("--normalize", type=bool, default=True, required=False)
+
+        return parent_parser
+
+    def __init__(
+            self,
+            data_dir: Union[str, Path],
+            inat_dir: Union[str, Path],
+            raster_dir: Union[str, Path],
+            n_inat_samples_per_class: int,
+            n_raster_samples_per_class: int,
+            batch_size: int = 4,
+            split: tuple = (.72, .18, .1),
+            img_size: int = 128,
+            balance: bool = True,
+            normalize: bool = True,
+            return_path: bool = False,
+            **kwargs
+    ):
+        super().__init__()
+
+        # Make sure split sums up to 1.
+        validate_split(split)
+        self.split = split
+
+        self.data_dir = data_dir
+        if not os.path.exists(self.data_dir):
+            os.makedirs(self.data_dir)
+
+        self.inat_dir = inat_dir
+        self.n_inat_samples_per_class = n_inat_samples_per_class
+        self.n_raster_samples_per_class = n_raster_samples_per_class
+        self.raster_dir = raster_dir
+        self.batch_size = batch_size
+        self.balance = balance
+        self.normalize = normalize
+        self.return_path = return_path
+        self.num_workers = os.cpu_count()
+
+        # Compose transformations for the output samples and create the dataset object.
+        self.img_transform = transforms.Compose([transforms.ToTensor(), QuadCrop(), transforms.Resize(img_size)])
+
+        if not self.ready():
+
+            os.remove(os.path.join(self.data_dir, 'mean_std.yml'))
+
+            # build mixed dataset
+            inat_ds = ImageFolder(self.inat_dir, transform=self.img_transform)
+            raster_ds = ImageFolder(self.raster_dir, transform=self.img_transform)
+
+            # For now just cover the case that classes match exactly
+            if inat_ds.class_to_idx != raster_ds.class_to_idx:
+                raise KeyError(f"Classes of given datasets do not match! {inat_ds.classes}, {raster_ds.classes}")
+
+            for cls_name in inat_ds.classes:
+                for source in ['inat', 'raster']:
+                    sink_class_path = os.path.join(self.data_dir, cls_name, source)
+                    if not os.path.exists(sink_class_path):
+                        os.makedirs(sink_class_path)
+                    elif os.listdir(sink_class_path):
+                        empty_dir(sink_class_path)
+
+                    source_ds = eval(f"{source}_ds")
+                    source_idx = range(len(source_ds))
+                    n_source_samples_per_class = eval(f"self.n_{source}_samples_per_class")
+                    if self.balance:
+                        possible_samples_per_class = dict(Counter(source_ds.targets))[source_ds.class_to_idx[cls_name]]
+                        n_source_samples_per_class = min([n_source_samples_per_class, possible_samples_per_class])
+
+                    source_idx = [i for i in source_idx if source_ds.classes[source_ds.targets[i]] == cls_name]
+                    source_idx = np.random.choice(source_idx, size=n_source_samples_per_class, replace=False)
+
+                    p_bar = tqdm(source_idx)
+                    p_bar.set_description(f"Preparing class {cls_name} from source {source}")
+                    for i in p_bar:
+                        img, t = source_ds[i]
+                        img = to_pil_image(img)
+                        img_source_path, _ = source_ds.samples[i]
+                        img_name = f"{get_pid_from_path(img_source_path)}.png"
+                        img_sink_path = os.path.join(sink_class_path, img_name)
+                        img.save(img_sink_path, 'png')
+
+        self.ds = ImageFolder(self.data_dir, self.img_transform)
+        self.ds.raster = [os.path.basename(os.path.dirname(s[0])) == 'raster' for s in self.ds.samples]
+        if normalize:
+            self._add_normalize()
+
+        idx = range(len(self.ds))
+        inat_idx = [i for i in idx if self.ds.raster[i]]
+        inat_split = list(np.floor(np.array(split)[:2] * len(inat_idx)).astype(np.int32))
+        inat_split.append(len(inat_idx) - np.sum(inat_split))
+        np.random.shuffle(inat_idx)
+        inat_train_idx = inat_idx[:inat_split[0]]
+        inat_val_idx = inat_idx[inat_split[0]:inat_split[0] + inat_split[1]]
+        inat_test_idx = inat_idx[inat_split[0] + inat_split[1]:]
+
+        raster_idx = list(set(list(idx)) ^ set(inat_idx))
+        raster_split = list(np.floor(np.array(split)[:2] * len(raster_idx)).astype(np.int32))
+        raster_split.append(len(raster_idx) - np.sum(raster_split))
+        np.random.shuffle(raster_idx)
+        raster_train_idx = raster_idx[:raster_split[0]]
+        raster_val_idx = raster_idx[raster_split[0]:raster_split[0] + raster_split[1]]
+        raster_test_idx = raster_idx[raster_split[0] + raster_split[1]:]
+
+        train_idx = list(inat_train_idx) + list(raster_train_idx)
+        self.train_ds = Subset(self.ds, train_idx)
+        val_idx = list(inat_val_idx) + list(raster_val_idx)
+        self.val_ds = Subset(self.ds, val_idx)
+        test_idx = list(inat_test_idx) + list(raster_test_idx)
+        self.test_ds = Subset(self.ds, test_idx)
+
+    def ready(self):
+        ready = True
+        classes = ImageFolder(self.inat_dir).classes
+        for cls_name in classes:
+            for source in ['inat', 'raster']:
+                sink_class_path = os.path.join(self.data_dir, cls_name, source)
+                n_source_samples_per_class = eval(f"self.n_{source}_samples_per_class")
+                if self.balance:
+                    source_class_path = os.path.join(eval(f"self.{source}_dir"), cls_name)
+                    possible_samples_per_class = len([fn for fn in os.listdir(source_class_path) if fn[-4:] == '.png'])
+                    n_source_samples_per_class = min([n_source_samples_per_class, possible_samples_per_class])
+                if not os.path.exists(sink_class_path) or len(os.listdir(sink_class_path)) < n_source_samples_per_class:
+                    ready = False
+
+        return ready
+
+    def train_dataloader(self) -> TRAIN_DATALOADERS:
+        return DataLoader(self.train_ds, batch_size=self.batch_size, num_workers=self.num_workers)
+
+    def val_dataloader(self) -> TRAIN_DATALOADERS:
+        return DataLoader(self.val_ds, batch_size=self.batch_size, num_workers=self.num_workers)
+
+    def test_dataloader(self) -> TRAIN_DATALOADERS:
+        return DataLoader(self.test_ds, batch_size=self.batch_size, num_workers=self.num_workers)
+
+    def _add_normalize(self, norm: Optional[nn.Module] = None):
+        if isinstance(self.ds, Subset):
+            normalize_exists = sum(['Normalize' in str(t) for t in self.ds.dataset.transform.transforms]) > 0
+        elif isinstance(self.ds, ImageFolder):
+            normalize_exists = sum(['Normalize' in str(t) for t in self.ds.transform.transforms]) > 0
+        else:
+            raise TypeError(f"The dataset has the wrong type: {type(self.ds)}")
+
+        if not normalize_exists:
+            if norm is None:
+                norm = self.get_normalize_module()
+            if isinstance(self.ds, Subset):
+                self.ds.dataset.transform.transforms.append(norm)
+            else:
+                self.ds.transform.transforms.append(norm)
+
+    def get_normalize_module(self):
+        means, stds = self.get_channel_mean_std()
+        return transforms.Normalize(means, stds)
+
+    def get_channel_mean_std(self):
+        filename = os.path.join(self.data_dir, 'mean_std.yml')
+        if os.path.exists(filename):
+            with open(filename, 'r') as file:
+                data = yaml.safe_load(file)
+            means = torch.FloatTensor(data['means'])
+            stds = torch.FloatTensor(data['stds'])
+        else:
+            means, stds = channel_mean_std(self.ds)
+            data = {
+                'means': means.numpy().tolist(),
+                'stds': stds.numpy().tolist()
+            }
+            with open(filename, 'w') as file:
+                yaml.dump(data, file)
+
+        return means, stds
+
+
+class RasterValidationDataModule(pl.LightningDataModule):
     """
     This data module is meant for training a classifier on iNaturalist data and validate the model performance on
     another raster dataset (instance of GTiffDataset).

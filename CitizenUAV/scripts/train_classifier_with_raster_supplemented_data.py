@@ -4,7 +4,7 @@ import os
 import numpy as np
 
 from CitizenUAV.models import InatSequentialClassifier
-from CitizenUAV.data import RasterValidationDataModule
+from CitizenUAV.data import MixedDataModule
 from CitizenUAV.io_utils import write_params
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.loggers import TensorBoardLogger
@@ -18,30 +18,26 @@ if __name__ == "__main__":
     parser.add_argument("--min_delta", type=float, default=0)
     parser.add_argument("--seed", type=int, default=np.random.rand())
 
-    parser = RasterValidationDataModule.add_dm_specific_args(parser)
+    parser = MixedDataModule.add_dm_specific_args(parser)
     parser = InatSequentialClassifier.add_model_specific_args(parser)
     parser = Trainer.add_argparse_args(parser)
 
     args = parser.parse_args()
     write_params(args.log_dir, vars(args), 'train_classifier')
 
-    species = args.species
     data_dir = args.data_dir
     log_dir = args.log_dir
     seed_everything(args.seed, workers=True)
 
-    if not species:
-        # if no subset is defined take all present species
-        args.n_classes = len(next(os.walk(args.data_dir))[1])
-    else:
-        args.n_classes = len(species)
+    # if no subset is defined take all present species
+    args.n_classes = len(next(os.walk(args.inat_dir))[1])
 
     if not os.path.isdir(log_dir):
         os.makedirs(log_dir)
     tb_logger = TensorBoardLogger(save_dir=log_dir)
 
     dict_args = vars(args)
-    dm = RasterValidationDataModule(**dict_args)
+    dm = MixedDataModule(**dict_args)
     model = InatSequentialClassifier(**dict_args)
 
     callbacks = []
@@ -60,7 +56,7 @@ if __name__ == "__main__":
 
     trainer.fit(model, dm)
 
-    #trainer.test(ckpt_path='best', dataloaders=dm.test_dataloader())
+    trainer.test(ckpt_path='best', dataloaders=dm.test_dataloader())
 
     notification.notify(
         title="Classifier Training",

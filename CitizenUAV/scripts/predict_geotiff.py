@@ -21,6 +21,8 @@ if __name__ == "__main__":
     parser.add_argument("--stds", nargs=3, type=float, required=False, default=None)
     parser.add_argument("--probabilities", type=bool, required=False, default=False)
     parser.add_argument("--pred_size", type=int, required=False, default=None)
+    parser.add_argument("--model_class", type=str, required=False, default='InatSequentialClassifier',
+                        choices=['InatSequentialClassifier', 'InatMogaNetClassifier'])
     parser.add_argument("--debug", type=bool, required=False, default=False)
     args = parser.parse_args()
     dict_args = vars(args)
