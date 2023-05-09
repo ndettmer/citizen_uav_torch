@@ -877,7 +877,9 @@ class MixedDataModule(pl.LightningDataModule):
 
         if not self.ready():
 
-            os.remove(os.path.join(self.data_dir, 'mean_std.yml'))
+            cache_file = os.path.join(self.data_dir, 'mean_std.yml')
+            if os.path.exists(cache_file):
+                os.remove(cache_file)
 
             # build mixed dataset
             inat_ds = ImageFolder(self.inat_dir, transform=self.img_transform)

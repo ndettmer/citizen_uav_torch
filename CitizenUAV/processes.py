@@ -707,7 +707,7 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
                     window_size: int = 128, stride: int = 1, gpu: bool = False, batch_size: int = 1,
                     normalize: bool = False, means: Optional[tuple] = None, stds: Optional[tuple] = None,
                     probabilities: bool = False, pred_size: int = None, model_class: str = 'InatSequentialClassifier',
-                    debug: bool = False) -> np.ndarray:
+                    debug: bool = False, **kwargs) -> tuple[np.ndarray, str]:
     """
     Predict pixel-wise classes for a GeoTiff raster dataset with a given trained model using a moving window approach.
     :param model_path: Path to the model checkpoint.
@@ -724,7 +724,7 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
     :param probabilities: Add confidences and not 1-hot predictions.
     :param pred_size: Apply the prediction only to an area around the center pixel of the bounding box
     :param model_class: Choose a model class from models.py.
-    :return: Resulting label map containing the final predictions.
+    :return: Resulting label map containing the final predictions and the path to the stored label map.
     """
 
     if result_dir is None:
@@ -799,11 +799,11 @@ def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[st
 
     if probabilities:
         np.save(result_path, label_map)
-        return label_map
+        return label_map, result_path
 
     voting_result = np.argmax(label_map, axis=0)
     np.save(result_path, voting_result)
-    return voting_result
+    return voting_result, result_path
 
 
 def pixel_conf_mat(

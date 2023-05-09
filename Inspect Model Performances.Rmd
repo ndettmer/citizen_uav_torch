@@ -37,7 +37,7 @@ class_map = json.dumps({
 test_data_dir = '/home/ndettmer/ssd_data/UOS_Data'
 ```
 
-<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
 ## Maize Ternary
 <!-- #endregion -->
 
@@ -581,7 +581,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
 ```
 
-<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true tags=[] -->
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
 ## Maize ternary, manually Pre-selected training data
 <!-- #endregion -->
 
@@ -1077,7 +1077,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
 ```
 
-<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
+<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
 #### version_6
 - image_size 128
 - stride 16
@@ -1126,7 +1126,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
 ```
 
-<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
 ## Maize ternary with raster data
 <!-- #endregion -->
 
@@ -1267,7 +1267,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, json.dumps({c: c for c in train_classes}), result_dir=plot_dir)
 ```
 
-<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true -->
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true tags=[] -->
 ## Maize ternary raster data only
 <!-- #endregion -->
 
@@ -1349,7 +1349,7 @@ ds = GTiffDataset(ds_path, stride=4, normalize=True, shape_dir=target_dir)
 train_classes = ImageFolder(train_data_dir).classes
 ```
 
-<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true -->
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
 #### version_0
 <!-- #endregion -->
 
@@ -1373,7 +1373,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
 ```
 
-<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true -->
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
 #### version_1
 <!-- #endregion -->
 
@@ -1397,7 +1397,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
 ```
 
-<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true -->
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
 #### version_2
 <!-- #endregion -->
 
@@ -1421,7 +1421,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
 ```
 
-<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true -->
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
 #### version_3
 <!-- #endregion -->
 
@@ -1445,21 +1445,84 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
 ```
 
-<!-- #region tags=[] -->
-### 13.06.23
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
+#### version_4
 <!-- #endregion -->
 
 ```{python}
-plot_dir = '/home/ndettmer/experiments/ma/classification/maize_ternary_raster_supplemented/plots'
-pred_dir = '/home/ndettmer/experiments/ma/classification/maize_ternary_raster_supplemented/predictions/220613_maize_rgb_test_area/'
-train_data_dir = '/home/ndettmer/ssd_data/mixed_datasets/maize_ternary_raster_supplemented'
-ds_path = os.path.join(test_data_dir, '220613_maize_rgb_test_area.tif')
-target_dir = os.path.join(test_data_dir, '1306_maize')
-ds = GTiffDataset(ds_path, stride=4, normalize=True, shape_dir=target_dir)
+predfile = os.path.join(pred_dir, 'version_4/23-05-05_14-11_probability_map.npy')
+prob_mask = np.load(predfile)
+prob_mask /= prob_mask.max()
 ```
 
 ```{python}
-predfile = os.path.join(pred_dir, 'version_0/23-05-02_17-59_probability_map.npy')
+figure, axs = plt.subplots(1, 3, figsize=(15, 15))
+for i in range(3):
+    label = train_classes[i]
+    #heat_map = sns.heatmap(pd.DataFrame(data=prob_mask[i]), annot=True, cmap='Spectral', fmt='g').get_figure()
+    axs[i].imshow(prob_mask[i])
+    axs[i].set_title(label)
+plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'png')))
+```
+
+```{python tags=c()}
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+```
+
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
+#### version_5
+<!-- #endregion -->
+
+```{python}
+predfile = os.path.join(pred_dir, 'version_5/23-05-05_14-13_probability_map.npy')
+prob_mask = np.load(predfile)
+prob_mask /= prob_mask.max()
+```
+
+```{python}
+figure, axs = plt.subplots(1, 3, figsize=(15, 15))
+for i in range(3):
+    label = train_classes[i]
+    #heat_map = sns.heatmap(pd.DataFrame(data=prob_mask[i]), annot=True, cmap='Spectral', fmt='g').get_figure()
+    axs[i].imshow(prob_mask[i])
+    axs[i].set_title(label)
+plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'png')))
+```
+
+```{python}
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+```
+
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
+#### version_6
+<!-- #endregion -->
+
+```{python}
+predfile = os.path.join(pred_dir, 'version_6/23-05-05_14-15_probability_map.npy')
+prob_mask = np.load(predfile)
+prob_mask /= prob_mask.max()
+```
+
+```{python}
+figure, axs = plt.subplots(1, 3, figsize=(15, 15))
+for i in range(3):
+    label = train_classes[i]
+    #heat_map = sns.heatmap(pd.DataFrame(data=prob_mask[i]), annot=True, cmap='Spectral', fmt='g').get_figure()
+    axs[i].imshow(prob_mask[i])
+    axs[i].set_title(label)
+plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'png')))
+```
+
+```{python tags=c()}
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+```
+
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true tags=[] -->
+#### version_7
+<!-- #endregion -->
+
+```{python}
+predfile = os.path.join(pred_dir, 'version_7/23-05-08_10-00_probability_map.npy')
 prob_mask = np.load(predfile)
 prob_mask /= prob_mask.max()
 ```
@@ -1479,6 +1542,91 @@ cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None,
 ```
 
 <!-- #region tags=[] jp-MarkdownHeadingCollapsed=true -->
+#### version_8
+<!-- #endregion -->
+
+```{python}
+predfile = os.path.join(pred_dir, 'version_8/23-05-08_10-05_probability_map.npy')
+prob_mask = np.load(predfile)
+prob_mask /= prob_mask.max()
+```
+
+```{python}
+figure, axs = plt.subplots(1, 3, figsize=(15, 15))
+for i in range(3):
+    label = train_classes[i]
+    #heat_map = sns.heatmap(pd.DataFrame(data=prob_mask[i]), annot=True, cmap='Spectral', fmt='g').get_figure()
+    axs[i].imshow(prob_mask[i])
+    axs[i].set_title(label)
+plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'png')))
+```
+
+```{python tags=c()}
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+```
+
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true -->
+#### version_9
+<!-- #endregion -->
+
+```{python}
+predfile = os.path.join(pred_dir, 'version_9/23-05-08_10-09_probability_map.npy')
+prob_mask = np.load(predfile)
+prob_mask /= prob_mask.max()
+```
+
+```{python}
+figure, axs = plt.subplots(1, 3, figsize=(15, 15))
+for i in range(3):
+    label = train_classes[i]
+    #heat_map = sns.heatmap(pd.DataFrame(data=prob_mask[i]), annot=True, cmap='Spectral', fmt='g').get_figure()
+    axs[i].imshow(prob_mask[i])
+    axs[i].set_title(label)
+plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'png')))
+```
+
+```{python tags=c()}
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+```
+
+<!-- #region tags=[] -->
+### 13.06.23
+<!-- #endregion -->
+
+```{python}
+plot_dir = '/home/ndettmer/experiments/ma/classification/maize_ternary_raster_supplemented/plots'
+pred_dir = '/home/ndettmer/experiments/ma/classification/maize_ternary_raster_supplemented/predictions/220613_maize_rgb_test_area/'
+train_data_dir = '/home/ndettmer/ssd_data/mixed_datasets/maize_ternary_raster_supplemented'
+ds_path = os.path.join(test_data_dir, '220613_maize_rgb_test_area.tif')
+target_dir = os.path.join(test_data_dir, '1306_maize')
+ds = GTiffDataset(ds_path, stride=4, normalize=True, shape_dir=target_dir)
+```
+
+```{python}
+predfile = os.path.join(pred_dir, 'version_0/23-05-02_17-59_probability_map.npy')
+prob_mask = np.load(predfile)
+prob_mask /= prob_mask.max()
+```
+
+<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] -->
+#### version_0
+<!-- #endregion -->
+
+```{python}
+figure, axs = plt.subplots(1, 3, figsize=(15, 15))
+for i in range(3):
+    label = train_classes[i]
+    #heat_map = sns.heatmap(pd.DataFrame(data=prob_mask[i]), annot=True, cmap='Spectral', fmt='g').get_figure()
+    axs[i].imshow(prob_mask[i])
+    axs[i].set_title(label)
+plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'png')))
+```
+
+```{python tags=c()}
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+```
+
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
 #### version_1
 <!-- #endregion -->
 
@@ -1502,7 +1650,9 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
 ```
 
+<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] -->
 #### version_2
+<!-- #endregion -->
 
 ```{python}
 predfile = os.path.join(pred_dir, 'version_2/23-05-03_18-45_probability_map.npy')
@@ -1524,10 +1674,150 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
 ```
 
+<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] -->
 #### version_3
+<!-- #endregion -->
 
 ```{python}
 predfile = os.path.join(pred_dir, 'version_3/23-05-03_19-36_probability_map.npy')
+prob_mask = np.load(predfile)
+prob_mask /= prob_mask.max()
+```
+
+```{python}
+figure, axs = plt.subplots(1, 3, figsize=(15, 15))
+for i in range(3):
+    label = train_classes[i]
+    #heat_map = sns.heatmap(pd.DataFrame(data=prob_mask[i]), annot=True, cmap='Spectral', fmt='g').get_figure()
+    axs[i].imshow(prob_mask[i])
+    axs[i].set_title(label)
+plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'png')))
+```
+
+```{python tags=c()}
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+```
+
+<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] -->
+#### version_4
+<!-- #endregion -->
+
+```{python}
+predfile = os.path.join(pred_dir, 'version_4/23-05-05_14-12_probability_map.npy')
+prob_mask = np.load(predfile)
+prob_mask /= prob_mask.max()
+```
+
+```{python}
+figure, axs = plt.subplots(1, 3, figsize=(15, 15))
+for i in range(3):
+    label = train_classes[i]
+    #heat_map = sns.heatmap(pd.DataFrame(data=prob_mask[i]), annot=True, cmap='Spectral', fmt='g').get_figure()
+    axs[i].imshow(prob_mask[i])
+    axs[i].set_title(label)
+plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'png')))
+```
+
+```{python tags=c()}
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+```
+
+<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] -->
+#### version_5
+<!-- #endregion -->
+
+```{python}
+predfile = os.path.join(pred_dir, 'version_5/23-05-05_14-14_probability_map.npy')
+prob_mask = np.load(predfile)
+prob_mask /= prob_mask.max()
+```
+
+```{python}
+figure, axs = plt.subplots(1, 3, figsize=(15, 15))
+for i in range(3):
+    label = train_classes[i]
+    #heat_map = sns.heatmap(pd.DataFrame(data=prob_mask[i]), annot=True, cmap='Spectral', fmt='g').get_figure()
+    axs[i].imshow(prob_mask[i])
+    axs[i].set_title(label)
+plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'png')))
+```
+
+```{python tags=c()}
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+```
+
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true -->
+#### version_6
+<!-- #endregion -->
+
+```{python}
+predfile = os.path.join(pred_dir, 'version_6/23-05-05_14-16_probability_map.npy')
+prob_mask = np.load(predfile)
+prob_mask /= prob_mask.max()
+```
+
+```{python}
+figure, axs = plt.subplots(1, 3, figsize=(15, 15))
+for i in range(3):
+    label = train_classes[i]
+    #heat_map = sns.heatmap(pd.DataFrame(data=prob_mask[i]), annot=True, cmap='Spectral', fmt='g').get_figure()
+    axs[i].imshow(prob_mask[i])
+    axs[i].set_title(label)
+plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'png')))
+```
+
+```{python tags=c()}
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+```
+
+#### version_7
+
+```{python}
+predfile = os.path.join(pred_dir, 'version_7/23-05-08_10-02_probability_map.npy')
+prob_mask = np.load(predfile)
+prob_mask /= prob_mask.max()
+```
+
+```{python}
+figure, axs = plt.subplots(1, 3, figsize=(15, 15))
+for i in range(3):
+    label = train_classes[i]
+    #heat_map = sns.heatmap(pd.DataFrame(data=prob_mask[i]), annot=True, cmap='Spectral', fmt='g').get_figure()
+    axs[i].imshow(prob_mask[i])
+    axs[i].set_title(label)
+plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'png')))
+```
+
+```{python tags=c()}
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+```
+
+#### version_8
+
+```{python}
+predfile = os.path.join(pred_dir, 'version_8/23-05-08_10-06_probability_map.npy')
+prob_mask = np.load(predfile)
+prob_mask /= prob_mask.max()
+```
+
+```{python}
+figure, axs = plt.subplots(1, 3, figsize=(15, 15))
+for i in range(3):
+    label = train_classes[i]
+    #heat_map = sns.heatmap(pd.DataFrame(data=prob_mask[i]), annot=True, cmap='Spectral', fmt='g').get_figure()
+    axs[i].imshow(prob_mask[i])
+    axs[i].set_title(label)
+plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'png')))
+```
+
+```{python tags=c()}
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+```
+
+#### version_9
+
+```{python}
+predfile = os.path.join(pred_dir, 'version_9/23-05-08_10-10_probability_map.npy')
 prob_mask = np.load(predfile)
 prob_mask /= prob_mask.max()
 ```
