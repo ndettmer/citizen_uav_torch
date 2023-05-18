@@ -13,7 +13,7 @@ jupyter:
 ---
 
 ```{python}
-from CitizenUAV.models import InatClassifier
+from CitizenUAV.models import InatSequentialClassifier
 from CitizenUAV.data import InatDataModule
 from CitizenUAV.processes import optimize_image_resnet
 from torch import nn
@@ -30,25 +30,39 @@ import os
 
 ```{python}
 result_dir = '/home/ndettmer/experiments/ma/classification/maize_ternary/predictions/style_transfer/'
-dm = InatDataModule('/home/ndettmer/ssd_data/inat_subsets/maize_ternary', normalize=False, batch_size=1, min_distance=5, return_path=True)
+dm = InatDataModule('/home/ndettmer/ssd_data/inat_subsets/maize_ternary_manual_preselect', normalize=False, batch_size=1, min_distance=5, return_path=True)
 norm = dm.get_normalize_module()
-model_version = 'version_0'
-cnn = InatClassifier.load_from_checkpoint(f'/home/ndettmer/experiments/ma/classification/maize_ternary/lightning_logs/{model_version}/checkpoints/epoch=49-step=43200.ckpt')
+model_version = 'version_4'
+cnn = InatSequentialClassifier.load_from_checkpoint(f'/home/ndettmer/experiments/ma/classification/maize_ternary_manual_preselect/lightning_logs/{model_version}/checkpoints/epoch=49-step=43200.ckpt')
 cnn.eval()
 
-pred_df = pd.read_csv(f'/home/ndettmer/experiments/ma/classification/maize_ternary/predictions/inat/{model_version}/23-02-09_11-49_predictions.csv')
+pred_df = pd.read_csv(f'/home/ndettmer/experiments/ma/classification/maize_ternary_manual_preselect/predictions/inat/{model_version}/23-05-18_12-40_predictions.csv')
+```
+
+```{python}
+pred_df[pred_df.target_text == 'soil'].prediction.unique()
+```
+
+```{python}
+pred_df[(pred_df.target_text == 'soil') & (pred_df.prediction_text == 'soil')]
 ```
 
 ```{python}
 def get_safe_pred_sample(label):
-    return pred_df[(pred_df.target_text == label) & (pred_df.prediction_text == label) & (pred_df[f'{label}_prob'] == 1)].sample()
+    subset = pred_df[(pred_df.target_text == label) & (pred_df.prediction_text == label)]
+    max_prob = subset[f"{label}_prob"].max()
+    subset = subset[subset[f"{label}_prob"] == max_prob]
+    if len(subset) > 0:
+        return subset.sample()
+    print(f"No sample found for label {label}")
+    return None
 ```
 
 ```{python}
-maize_sample_pid = get_safe_pred_sample('zea mays').pid.values[0]
+maize_sample_pid = get_safe_pred_sample('maize').pid.values[0]
 maize_sample, _, _ = dm.ds.dataset.get_item_by_pid(maize_sample_pid)
 
-weed_sample_pid = get_safe_pred_sample('weed').pid.values[0]
+weed_sample_pid = get_safe_pred_sample('weeds').pid.values[0]
 weed_sample, _, _ = dm.ds.dataset.get_item_by_pid(weed_sample_pid)
 
 soil_sample_pid = get_safe_pred_sample('soil').pid.values[0]

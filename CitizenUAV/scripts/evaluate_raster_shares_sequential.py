@@ -25,6 +25,7 @@ if __name__ == "__main__":
     parser.add_argument("--patience", type=int, default=-1)
     parser.add_argument("--min_delta", type=float, default=0)
     parser.add_argument("--n_runs", type=int, help="Number of runs per value for n_supplement.")
+    parser.add_argument("--n_supplement_min", type=int, help="Maximum number of raster supplement samples per class.", required=False, default=0)
     parser.add_argument("--n_supplement_max", type=int, help="Maximum number of raster supplement samples per class.")
     parser.add_argument("--n_supplement_step", type=int,
                         help="Stipe size for increasing number of raster supplement samples per class.")
@@ -64,7 +65,7 @@ if __name__ == "__main__":
     f1_df.version = f1_df.version.astype(int)
     f1_df.n_supplement = f1_df.n_supplement.astype(int)
 
-    for n_supplement in range(0, args.n_supplement_max, args.n_supplement_step):
+    for n_supplement in range(args.n_supplement_min, args.n_supplement_max, args.n_supplement_step):
         dict_args['n_raster_samples_per_class'] = n_supplement
 
         for i_run in range(args.n_runs):
@@ -120,13 +121,13 @@ if __name__ == "__main__":
 
             f1_df.loc[version_no] = f1_row
 
-    f1_df.to_csv(
-        os.path.join(
-            dict_args['result_dir'],
-            f"{datetime.now().strftime('%y-%m-%d_%H-%M')}_{dict_args['backbone_model']}_f1_df.csv"
-        ),
-        index=False
-    )
+        f1_df.to_csv(
+            os.path.join(
+                dict_args['result_dir'],
+                f"{datetime.now().strftime('%y-%m-%d_%H-%M')}_n{n_supplement}_{dict_args['backbone_model']}_f1_df.csv"
+            ),
+            index=False
+        )
 
     notification.notify(
         title="Raster Share Evaluation",

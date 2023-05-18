@@ -63,7 +63,7 @@ def channel_mean_std(ds: Dataset) -> Tuple[torch.Tensor, torch.Tensor]:
 
     pbar = tqdm(dl)
     pbar.set_description("Calculating means and stds for dataset normalization")
-    for images, _ in tqdm(dl):
+    for images, *_ in tqdm(dl):
         b, c, h, w = images.shape
         n_batch_pixels = b * h * w
         sum_ = torch.sum(images, dim=[0, 2, 3])

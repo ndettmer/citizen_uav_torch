@@ -646,11 +646,12 @@ def create_gim_metadata(data_dir: os.PathLike, classes: list = None, debug: bool
 
 def predict_inat(model_path: Union[str, Path], data_dir: Union[str, Path], result_dir: Union[str, Path],
                  img_size: int = 128,
-                 min_distance: float = None, gpu: Optional[bool] = None, batch_size: int = 1, normalize: bool = False):
+                 min_distance: float = None, gpu: Optional[bool] = None, batch_size: int = 1, normalize: bool = False,
+                 model_class: str = 'InatSequentialClassifier'):
     dm = InatDataModule(data_dir, img_size=img_size, normalize=normalize, min_distance=min_distance, split=(0, 0, 1),
                         batch_size=batch_size, return_path=True)
     dm.setup()
-    model = InatClassifier.load_from_checkpoint(model_path)
+    model = eval(model_class).load_from_checkpoint(model_path)
     model.eval()
 
     if gpu is None:

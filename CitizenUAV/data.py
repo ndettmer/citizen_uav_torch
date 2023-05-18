@@ -875,7 +875,7 @@ class MixedDataModule(pl.LightningDataModule):
         # Compose transformations for the output samples and create the dataset object.
         self.img_transform = transforms.Compose([transforms.ToTensor(), QuadCrop(), transforms.Resize(img_size)])
 
-        if not self.ready():
+        if not self.ready() or True:
 
             cache_file = os.path.join(self.data_dir, 'mean_std.yml')
             if os.path.exists(cache_file):
