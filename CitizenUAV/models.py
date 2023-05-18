@@ -236,6 +236,14 @@ class InatMogaNetClassifier(InatClassifier):
         )
 
 
+class InatRevColClassifier(pl.LightningModule):
+    # TODO
+
+    def __init__(self, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
+        pass
+
+
 class InatRegressor(pl.LightningModule):
     # Only Distance is needed!!
     # Filtering by angle had no positive effects!
