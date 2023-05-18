@@ -36,15 +36,7 @@ model_version = 'version_4'
 cnn = InatSequentialClassifier.load_from_checkpoint(f'/home/ndettmer/experiments/ma/classification/maize_ternary_manual_preselect/lightning_logs/{model_version}/checkpoints/epoch=49-step=43200.ckpt')
 cnn.eval()
 
-pred_df = pd.read_csv(f'/home/ndettmer/experiments/ma/classification/maize_ternary_manual_preselect/predictions/inat/{model_version}/23-05-18_12-40_predictions.csv')
-```
-
-```{python}
-pred_df[pred_df.target_text == 'soil'].prediction.unique()
-```
-
-```{python}
-pred_df[(pred_df.target_text == 'soil') & (pred_df.prediction_text == 'soil')]
+pred_df = pd.read_csv(f'/home/ndettmer/experiments/ma/classification/maize_ternary_manual_preselect_old/predictions/inat/{model_version}/23-05-18_15-21_predictions.csv')
 ```
 
 ```{python}
@@ -59,10 +51,10 @@ def get_safe_pred_sample(label):
 ```
 
 ```{python}
-maize_sample_pid = get_safe_pred_sample('maize').pid.values[0]
+maize_sample_pid = get_safe_pred_sample('zea mays').pid.values[0]
 maize_sample, _, _ = dm.ds.dataset.get_item_by_pid(maize_sample_pid)
 
-weed_sample_pid = get_safe_pred_sample('weeds').pid.values[0]
+weed_sample_pid = get_safe_pred_sample('weed').pid.values[0]
 weed_sample, _, _ = dm.ds.dataset.get_item_by_pid(weed_sample_pid)
 
 soil_sample_pid = get_safe_pred_sample('soil').pid.values[0]
@@ -99,7 +91,7 @@ I want to visualize the outputs of Stages 2, 3, 4 and 5.
 - Stage 4: `model.feature_extractor[6]`
 - Stage 5: `model.feature_extractor[7]`
 
-<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] -->
+<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
 ## Content and Style
 <!-- #endregion -->
 
@@ -175,13 +167,13 @@ plt.savefig(f'{result_dir}/{soil_sample_pid}_{model_version}_style_repr.png')
 ## Feature Maps
 
 ```{python}
-stage_2.eval()
-with torch.no_grad():
-    fms = stage_2(maize_sample.unsqueeze(0))
+stage_2 = nn.Sequential(*list(cnn.feature_extractor[:5]))
 ```
 
 ```{python}
-stage_2[2].weight.device == maize_sample.device 
+stage_2.eval()
+with torch.no_grad():
+    fms = stage_2(maize_sample.unsqueeze(0))
 ```
 
 ```{python}
@@ -193,17 +185,56 @@ fig, axs = plt.subplots(ax_len, ax_len, figsize=(20, 20))
 for i in range(n_maps):
     fm = fms[i]
     axs[i % ax_len, i // ax_len].imshow(to_pil_image(fm))
+    axs[i % ax_len, i // ax_len].set_title(i)
     
 plt.show()
 ```
 
 ```{python}
-stage_2[5][2].conv3.weight.shape
+max_activation = torch.argmax(torch.sum(fms, dim=(1,2)))
 ```
 
 ```{python}
-stage_2[5][2]
+max_activation
 ```
+
+```{python}
+stage_3 = nn.Sequential(*list(cnn.feature_extractor[:6]))
+```
+
+```{python}
+stage_3.eval()
+with torch.no_grad():
+    fms = stage_3(maize_sample.unsqueeze(0))
+```
+
+```{python}
+fms = fms.squeeze(0)
+n_maps = fms.shape[0]
+ax_len = int(np.ceil(np.sqrt(n_maps)))
+
+fig, axs = plt.subplots(ax_len, ax_len, figsize=(20, 20))
+for i in range(n_maps):
+    fm = fms[i]
+    try:
+        axs[i % ax_len, i // ax_len].imshow(to_pil_image(fm))
+        axs[i % ax_len, i // ax_len].set_title(i)
+    except IndexError:
+        print(i)
+        raise
+    
+plt.show()
+```
+
+```{python}
+max_activation = torch.argmax(torch.sum(fms, dim=(1,2)))
+```
+
+```{python}
+max_activation
+```
+
+NOTE: Let's try neuron 39 of stage 2 for now. 
 
 ```{python}
 
