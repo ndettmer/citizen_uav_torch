@@ -5,6 +5,9 @@ import torch.cuda
 from PIL import UnidentifiedImageError
 from io import BytesIO
 
+from captum.attr import IntegratedGradients
+from captum.attr import visualization as viz
+from matplotlib.colors import LinearSegmentedColormap
 from torch import optim
 
 from CitizenUAV.losses import ContentLoss, StyleLoss
@@ -1035,3 +1038,47 @@ def optimize_image_resnet(cnn: InatClassifier, stages: list[int], norm_module: n
         loss_module.float().cpu()
 
     return x
+
+
+def visualize_features(input_img, filename, model, dm, n_steps, out_dir):
+    norm = dm.get_normalize_module()
+    transformed_img = input_img.unsqueeze(0)
+    x = norm(transformed_img)
+    out = model(x)
+
+    prediction_socre, pred_label_idx = torch.topk(out, 1)
+    integrated_gradients = IntegratedGradients(model)
+    attributions_ig = integrated_gradients.attribute(x, target=pred_label_idx, n_steps=n_steps)
+
+    cmap = LinearSegmentedColormap.from_list('custom blue', [(0, '#ffffff'), (.25, '#000000'), (1, '#000000')], N=256)
+    ig_viz = viz.visualize_image_attr(
+        np.transpose(attributions_ig.squeeze().cpu().detach().numpy(), (1,2,0)),
+        np.transpose(transformed_img.squeeze().cpu().detach().numpy(), (1,2,0)),
+        method='masked_image',
+        cmap=cmap,
+        show_colorbar=True,
+        sign='positive',
+        outlier_perc=1,
+        use_pyplot=False
+    )[0]
+
+    plt.figure()
+    plt.imshow(to_pil_image(input_img))
+    plt.savefig(os.path.join(out_dir, f"{filename}_orig.png"))
+    ig_viz.savefig(os.path.join(out_dir, f"{filename}_viz.png"))
+
+
+def visualize_class_features(data_dir, model_path, preds_path, out_dir, n_steps=200, samples_per_class=5, model_class='InatSequentialClassifier'):
+    dm = InatDataModule(data_dir, normalize=False, batch_size=1, return_path=True)
+    model = eval(model_class).load_from_checkpoint(model_path)
+    _ = model.eval()
+    pred_df = pd.read_csv(preds_path)
+
+    for cls_name in dm.ds.classes:
+        pred_df[f'{cls_name}_prob'] = pred_df[f'{cls_name}_prob'].astype(float)
+        cls_idx = dm.ds.dataset.class_to_idx[cls_name]
+        samples = pred_df[(pred_df.target == cls_idx) & (pred_df.prediction == cls_idx)].nlargest(samples_per_class, columns=[f'{cls_name}_prob'])
+        sample_pids = samples.pid.values
+        for pid in sample_pids:
+            sample_img, _, _ = dm.ds.dataset.get_item_by_pid(pid)
+            visualize_features(sample_img, pid, model, dm, n_steps, out_dir)

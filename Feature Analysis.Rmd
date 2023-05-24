@@ -30,7 +30,7 @@ import os
 
 ```{python}
 result_dir = '/home/ndettmer/experiments/ma/classification/maize_ternary/predictions/style_transfer/'
-dm = InatDataModule('/home/ndettmer/ssd_data/inat_subsets/maize_ternary_manual_preselect', normalize=False, batch_size=1, min_distance=5, return_path=True)
+dm = InatDataModule('/home/ndettmer/ssd_data/inat_subsets/maize_ternary_manual_preselect_old', normalize=False, batch_size=1, min_distance=5, return_path=True)
 norm = dm.get_normalize_module()
 model_version = 'version_4'
 cnn = InatSequentialClassifier.load_from_checkpoint(f'/home/ndettmer/experiments/ma/classification/maize_ternary_manual_preselect/lightning_logs/{model_version}/checkpoints/epoch=49-step=43200.ckpt')
@@ -91,7 +91,7 @@ I want to visualize the outputs of Stages 2, 3, 4 and 5.
 - Stage 4: `model.feature_extractor[6]`
 - Stage 5: `model.feature_extractor[7]`
 
-<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
+<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
 ## Content and Style
 <!-- #endregion -->
 
@@ -164,7 +164,9 @@ plt.imshow(style_repr)
 plt.savefig(f'{result_dir}/{soil_sample_pid}_{model_version}_style_repr.png')
 ```
 
+<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] -->
 ## Feature Maps
+<!-- #endregion -->
 
 ```{python}
 stage_2 = nn.Sequential(*list(cnn.feature_extractor[:5]))
@@ -235,6 +237,132 @@ max_activation
 ```
 
 NOTE: Let's try neuron 39 of stage 2 for now. 
+
+
+## Captum
+
+```{python}
+from captum.attr import IntegratedGradients
+from captum.attr import visualization as viz
+from matplotlib.colors import LinearSegmentedColormap
+```
+
+```{python}
+def visualize_features(input_img, filename, model, dm, n_steps, out_dir):
+    assert len(input_img.shape) == 3
+    norm = dm.get_normalize_module()
+    
+    _ = model.eval()
+    transformed_img = input_img.unsqueeze(0)
+    x = norm(transformed_img)
+    out = model(x)
+    
+    prediction_socre, pred_label_idx = torch.topk(out, 1)
+    predicted_label = dm.ds.classes[pred_label_idx.item()]
+    integrated_gradients = IntegratedGradients(model)
+    attributions_ig = integrated_gradients.attribute(x, target=pred_label_idx, n_steps=n_steps)
+    
+    cmap = LinearSegmentedColormap.from_list('custom blue', [(0, '#ffffff'), (.25, '#000000'), (1, '#000000')], N=256)
+    ig_viz = viz.visualize_image_attr(
+        np.transpose(attributions_ig.squeeze().cpu().detach().numpy(), (1,2,0)), 
+        np.transpose(transformed_img.squeeze().cpu().detach().numpy(), (1,2,0)),
+        method='masked_image',
+        cmap=cmap,
+        show_colorbar=True,
+        sign='positive',
+        outlier_perc=1,
+        use_pyplot=False
+    )[0]
+    
+    plt.figure()
+    plt.imshow(to_pil_image(input_img))
+    plt.savefig(os.path.join(out_dir, f"{filename}_orig.png"))
+    ig_viz.savefig(os.path.join(out_dir, f"{filename}_viz.png"))
+    
+```
+
+```{python}
+def visualize_class_features(data_dir, model_path, preds_path, out_dir, n_steps=200, samples_per_class=5, model_class='InatSequentialClassifier'):
+    dm = InatDataModule(data_dir, normalize=False, batch_size=1, return_path=True)
+    norm = dm.get_normalize_module()
+    model = eval(model_class).load_from_checkpoint(model_path)
+    pred_df = pd.read_csv(preds_path)
+    
+    for cls_name in dm.ds.classes:
+        pred_df[f'{cls_name}_prob'] = pred_df[f'{cls_name}_prob'].astype(float)
+        cls_idx = dm.ds.dataset.class_to_idx[cls_name]
+        samples = pred_df[(pred_df.target == cls_idx) & (pred_df.prediction == cls_idx)].nlargest(samples_per_class, columns=[f'{cls_name}_prob'])
+        sample_pids = samples.pid.values
+        for pid in sample_pids:
+            sample_img, _, _ = dm.ds.dataset.get_item_by_pid(pid)
+            visualize_features(sample_img, pid, model, dm, n_steps, out_dir)
+```
+
+```{python}
+visualize_class_features(
+    '/home/ndettmer/ssd_data/inat_subsets/maize_ternary_manual_preselect_old', 
+    '/home/ndettmer/experiments/ma/classification/maize_ternary_manual_preselect/lightning_logs/version_4/checkpoints/epoch=49-step=43200.ckpt', 
+    '/home/ndettmer/experiments/ma/classification/maize_ternary_manual_preselect_old/predictions/inat/version_4/23-05-18_15-21_predictions.csv', 
+    '/home/ndettmer/test', n_steps=1
+)
+```
+
+```{python}
+model = cnn
+_ = model.eval()
+```
+
+```{python}
+transformed_img = weed_sample.unsqueeze(0)
+input = norm(transformed_img)
+output = model(input)
+```
+
+```{python}
+prediction_score, pred_label_idx = torch.topk(output, 1)
+predicted_label = dm.ds.classes[pred_label_idx.item()]
+```
+
+```{python}
+integrated_gradients = IntegratedGradients(model)
+```
+
+```{python}
+attributions_ig = integrated_gradients.attribute(input, target=pred_label_idx, n_steps=200)
+```
+
+```{python}
+default_cmap = LinearSegmentedColormap.from_list('custom blue', 
+                                                 [(0, '#ffffff'),
+                                                  (0.25, '#000000'),
+                                                  (1, '#000000')], N=256)
+
+_ = viz.visualize_image_attr(np.transpose(attributions_ig.squeeze().cpu().detach().numpy(), (1,2,0)),
+                             np.transpose(transformed_img.squeeze().cpu().detach().numpy(), (1,2,0)),
+                             method='masked_image',
+                             cmap=default_cmap,
+                             show_colorbar=True,
+                             sign='positive',
+                             outlier_perc=1)
+```
+
+```{python}
+ig_fig, ig_ax = viz.visualize_image_attr(np.transpose(attributions_ig.squeeze().cpu().detach().numpy(), (1,2,0)),
+                             np.transpose(transformed_img.squeeze().cpu().detach().numpy(), (1,2,0)),
+                             method='masked_image',
+                             cmap=default_cmap,
+                             show_colorbar=True,
+                             sign='positive',
+                             outlier_perc=1)
+```
+
+```{python}
+fig, axes = plt.subplots(1, 2)
+axes[0].imshow(to_pil_image(transformed_img.squeeze()))
+axes[1] = ig_ax
+plt.show()
+
+```
 
 ```{python}
 

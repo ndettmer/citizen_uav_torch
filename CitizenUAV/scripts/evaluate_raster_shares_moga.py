@@ -57,7 +57,7 @@ if __name__ == "__main__":
 
     dict_args = vars(args)
     dict_args['gpu'] = dict_args['accelerator'] == 'cuda'
-    dict_args['model_class'] = 'InatSequentialClassifier'
+    dict_args['model_class'] = 'InatMogaNetClassifier'
     dict_args['window_size'] = dict_args['img_size']
     dict_args['result_dir'] = dict_args['log_dir']
 
