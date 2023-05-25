@@ -5,7 +5,7 @@ import torch.cuda
 from PIL import UnidentifiedImageError
 from io import BytesIO
 
-from captum.attr import IntegratedGradients
+from captum.attr import IntegratedGradients, Occlusion
 from captum.attr import visualization as viz
 from matplotlib.colors import LinearSegmentedColormap
 from torch import optim
@@ -1040,35 +1040,80 @@ def optimize_image_resnet(cnn: InatClassifier, stages: list[int], norm_module: n
     return x
 
 
-def visualize_features(input_img, filename, model, dm, n_steps, out_dir):
-    norm = dm.get_normalize_module()
-    transformed_img = input_img.unsqueeze(0)
-    x = norm(transformed_img)
-    out = model(x)
+def visualize_integrated_gradients(x: torch.Tensor, pred_label_idx: torch.Tensor, model: nn.Module,
+                                   transformed_img: torch.Tensor, out_dir: Union[Path, str],
+                                   filename: Union[Path, str]):
 
-    prediction_socre, pred_label_idx = torch.topk(out, 1)
     integrated_gradients = IntegratedGradients(model)
-    attributions_ig = integrated_gradients.attribute(x, target=pred_label_idx, n_steps=n_steps)
+    attributions_ig = integrated_gradients.attribute(
+        x,
+        target=pred_label_idx,
+        n_steps=200
+    )
 
     cmap = LinearSegmentedColormap.from_list('custom blue', [(0, '#ffffff'), (.25, '#000000'), (1, '#000000')], N=256)
-    ig_viz = viz.visualize_image_attr(
-        np.transpose(attributions_ig.squeeze().cpu().detach().numpy(), (1,2,0)),
-        np.transpose(transformed_img.squeeze().cpu().detach().numpy(), (1,2,0)),
-        method='masked_image',
+    ig_viz = viz.visualize_image_attr_multiple(
+        np.transpose(attributions_ig.squeeze().cpu().detach().numpy(), (1, 2, 0)),
+        np.transpose(transformed_img.squeeze().cpu().detach().numpy(), (1, 2, 0)),
+        methods=['original_image', 'masked_image'],
         cmap=cmap,
         show_colorbar=True,
-        sign='positive',
+        signs=['all', 'positive'],
         outlier_perc=1,
         use_pyplot=False
     )[0]
 
-    plt.figure()
-    plt.imshow(to_pil_image(input_img))
-    plt.savefig(os.path.join(out_dir, f"{filename}_orig.png"))
-    ig_viz.savefig(os.path.join(out_dir, f"{filename}_viz.png"))
+    ig_viz.savefig(os.path.join(out_dir, f"{filename}_integrated_gradients.png"))
 
 
-def visualize_class_features(data_dir, model_path, preds_path, out_dir, n_steps=200, samples_per_class=5, model_class='InatSequentialClassifier'):
+def visualize_occlusion(x: torch.Tensor, pred_label_idx: torch.Tensor, model: nn.Module,
+                        transformed_img: torch.Tensor, out_dir: Union[Path, str],
+                        filename: Union[Path, str]):
+
+    occlusion = Occlusion(model)
+    attributions_occ = occlusion.attribute(
+        x,
+        strides=(3, 6, 6),
+        target=pred_label_idx,
+        sliding_window_shapes=(3, 12, 12),
+        baselines=0,
+        show_progress=True
+    )
+
+    occ_viz = viz.visualize_image_attr_multiple(
+        np.transpose(attributions_occ.squeeze().cpu().detach().numpy(), (1, 2, 0)),
+        np.transpose(transformed_img.squeeze().cpu().detach().numpy(), (1, 2, 0)),
+        ["original_image", "heat_map"],
+        ["all", "positive"],
+        show_colorbar=True,
+        outlier_perc=2,
+        use_pyplot=False
+    )[0]
+    occ_viz.savefig(os.path.join(out_dir, f"{filename}_occlusion.png"))
+
+
+def visualize_features(input_img: torch.Tensor, filename: Union[Path, str], model: nn.Module, dm: InatDataModule,
+                       out_dir: Union[Path, str]):
+    norm = dm.get_normalize_module()
+    transformed_img = input_img.unsqueeze(0)
+    x = norm(transformed_img)
+    out = model(x)
+    prediction_socre, pred_label_idx = torch.topk(out, 1)
+
+    visualize_integrated_gradients(x, pred_label_idx, model, transformed_img, out_dir, filename)
+    visualize_occlusion(x, pred_label_idx, model, transformed_img, out_dir, filename)
+
+
+def visualize_class_features(data_dir: Union[Path, str], model_path: Union[Path, str], preds_path: Union[Path, str],
+                             out_dir: Optional[Union[Path, str]] = None, samples_per_class: int = 5,
+                             model_class: str = 'InatSequentialClassifier'):
+
+    if out_dir is None:
+        out_dir = os.path.join(os.path.dirname(preds_path), "plots")
+
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+
     dm = InatDataModule(data_dir, normalize=False, batch_size=1, return_path=True)
     model = eval(model_class).load_from_checkpoint(model_path)
     _ = model.eval()
@@ -1077,8 +1122,9 @@ def visualize_class_features(data_dir, model_path, preds_path, out_dir, n_steps=
     for cls_name in dm.ds.classes:
         pred_df[f'{cls_name}_prob'] = pred_df[f'{cls_name}_prob'].astype(float)
         cls_idx = dm.ds.dataset.class_to_idx[cls_name]
-        samples = pred_df[(pred_df.target == cls_idx) & (pred_df.prediction == cls_idx)].nlargest(samples_per_class, columns=[f'{cls_name}_prob'])
+        samples = pred_df[(pred_df.target == cls_idx) & (pred_df.prediction == cls_idx)].nlargest(
+            samples_per_class, columns=[f'{cls_name}_prob'])
         sample_pids = samples.pid.values
         for pid in sample_pids:
             sample_img, _, _ = dm.ds.dataset.get_item_by_pid(pid)
-            visualize_features(sample_img, pid, model, dm, n_steps, out_dir)
+            visualize_features(sample_img, pid, model, dm, out_dir)
