@@ -323,6 +323,82 @@ _ = viz.visualize_image_attr_multiple(np.transpose(attributions_occ.squeeze().cp
 pred_label_idx
 ```
 
+### GradCAM
+
+```{python}
+n_samples = 10
+pred_df['prob_std'] = pred_df[['soil_prob', 'weed_prob', 'zea mays_prob']].std(1)
+unconfident_samples = pred_df.loc[pred_df.prob_std.nsmallest(n_samples).index]
+```
+
+```{python}
+unconfident_samples
+```
+
+```{python}
+us = unconfident_samples.sample()
+us_image, *_ = dm.ds.dataset.get_item_by_pid(us.pid.values[0])
+```
+
+```{python}
+transformed_img = us_image.unsqueeze(0)
+input = norm(transformed_img)
+output = model(input)
+```
+
+```{python}
+prediction_score, pred_label_idx = torch.topk(output, 1)
+predicted_label = dm.ds.classes[pred_label_idx.item()]
+```
+
+```{python}
+target_layer = [l for l in list(model.feature_extractor[-1][-1].children()) if isinstance(l, nn.Conv2d)][-1]
+```
+
+```{python}
+from captum.attr import GuidedGradCam
+g_grad_cam = GuidedGradCam(model, target_layer)
+```
+
+```{python}
+attributions_cams = [g_grad_cam.attribute(input.requires_grad_(), t) for t in range(len(dm.ds.classes))]
+```
+
+```{python}
+for attributions_cam in attributions_cams: 
+    _ = viz.visualize_image_attr_multiple(np.transpose(attributions_cam.squeeze().cpu().detach().numpy(), (1,2,0)),
+                                      np.transpose(transformed_img.squeeze().cpu().detach().numpy(), (1,2,0)),
+                                      ["original_image", "masked_image"],
+                                      ["all", "positive"],
+                                      show_colorbar=True,
+                                      outlier_perc=2,
+                                     )
+```
+
+```{python}
+pred_scores = model(input)
+```
+
+```{python}
+pred_scores.squeeze()[0].item()
+```
+
+```{python}
+fig = viz.visualize_image_attr_multiple(np.transpose(attributions_cams[0].squeeze().cpu().detach().numpy(), (1,2,0)),
+                                      np.transpose(transformed_img.squeeze().cpu().detach().numpy(), (1,2,0)),
+                                      ["original_image", "masked_image"],
+                                      ["all", "positive"],
+                                      show_colorbar=True,
+                                      outlier_perc=2,
+                                      use_pyplot=False
+                                     )[0]
+
+```
+
+```{python}
+fig.set_title("Hey")
+```
+
 ```{python}
 
 ```

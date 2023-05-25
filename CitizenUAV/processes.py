@@ -5,7 +5,7 @@ import torch.cuda
 from PIL import UnidentifiedImageError
 from io import BytesIO
 
-from captum.attr import IntegratedGradients, Occlusion
+from captum.attr import IntegratedGradients, Occlusion, GuidedGradCam
 from captum.attr import visualization as viz
 from matplotlib.colors import LinearSegmentedColormap
 from torch import optim
@@ -1092,11 +1092,19 @@ def visualize_occlusion(x: torch.Tensor, pred_label_idx: torch.Tensor, model: nn
     occ_viz.savefig(os.path.join(out_dir, f"{filename}_occlusion.png"))
 
 
-def visualize_features(input_img: torch.Tensor, filename: Union[Path, str], model: nn.Module, dm: InatDataModule,
-                       out_dir: Union[Path, str]):
+def prepare_inputs(input_img: torch.Tensor, dm: InatDataModule):
     norm = dm.get_normalize_module()
     transformed_img = input_img.unsqueeze(0)
     x = norm(transformed_img)
+
+    return x, transformed_img
+
+
+def visualize_features(input_img: torch.Tensor, filename: Union[Path, str], model: nn.Module, dm: InatDataModule,
+                       out_dir: Union[Path, str]):
+
+    x, transformed_img = prepare_inputs(input_img, dm)
+
     out = model(x)
     prediction_socre, pred_label_idx = torch.topk(out, 1)
 
@@ -1128,3 +1136,51 @@ def visualize_class_features(data_dir: Union[Path, str], model_path: Union[Path,
         for pid in sample_pids:
             sample_img, _, _ = dm.ds.dataset.get_item_by_pid(pid)
             visualize_features(sample_img, pid, model, dm, out_dir)
+
+
+def visualize_grad_cam(input_img: torch.Tensor, filename: Union[Path, str], model: nn.Module, target_layer,
+                       dm: InatDataModule, out_dir: Union[Path, str]):
+
+    x, transformed_img = prepare_inputs(input_img, dm)
+    pred_scores = model(x).squeeze()
+
+    gg_cam = GuidedGradCam(model, target_layer)
+    attributions_cams = [gg_cam.attribute(x.requires_grad_(), t) for t in range(len(dm.ds.classes))]
+
+    for t, attr_cam in enumerate(attributions_cams):
+        cam_viz = viz.visualize_image_attr_multiple(
+            np.transpose(attr_cam.squeeze().cpu().detach().numpy(), (1, 2, 0)),
+            np.transpose(transformed_img.squeeze().cpu().detach().numpy(), (1, 2, 0)),
+            ["original_image", "heat_map"],
+            ["all", "positive"],
+            show_colorbar=True,
+            outlier_perc=2,
+            use_pyplot=False
+        )[0]
+
+        cam_viz.savefig(os.path.join(out_dir, f"{filename}_guided_grad_cam_{dm.ds.classes[t]}.png"))
+
+
+def visualize_confusion_resnet(data_dir: Union[Path, str], model_path: Union[Path, str], preds_path: Union[Path, str],
+                               out_dir: Optional[Union[Path, str]] = None, n_samples: int = 5):
+
+    if out_dir is None:
+        out_dir = os.path.join(os.path.dirname(preds_path), "plots")
+
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+
+    dm = InatDataModule(data_dir, normalize=False, batch_size=1, return_path=True)
+    model = InatSequentialClassifier.load_from_checkpoint(model_path)
+    target_layer = [layer for layer in list(model.feature_extractor[-1][-1].children())
+                    if isinstance(layer, nn.Conv2d)][-1]
+    _ = model.eval()
+    pred_df = pd.read_csv(preds_path)
+    pred_df['prob_std'] = pred_df[['soil_prob', 'weed_prob', 'zea mays_prob']].std(1)
+    unconfident_samples = pred_df.loc[pred_df.prob_std.nsmallest(n_samples).index]
+
+    pids = unconfident_samples.pid.values
+    for pid in pids:
+        sample_img, *_ = dm.ds.dataset.get_item_by_pid(pid)
+        visualize_grad_cam(sample_img, pid, model, target_layer, dm, out_dir)
+
