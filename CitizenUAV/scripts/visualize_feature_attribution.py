@@ -9,7 +9,7 @@ if __name__ == "__main__":
     parser.add_argument("--data_dir", type=str)
     parser.add_argument("--model_path", type=str)
     parser.add_argument("--preds_path", type=str)
-    parser.add_argument("--out_dir", type=str)
+    parser.add_argument("--out_dir", type=str, required=False)
     parser.add_argument("--samples_per_class", type=int, required=False, default=5)
     parser.add_argument("--model_class", type=str, required=False,
                         choices=['InatSequentialClassifier', 'InatMogaNetClassifier'],
