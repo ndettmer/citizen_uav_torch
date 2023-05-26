@@ -4,6 +4,7 @@ import json
 import torch.cuda
 from PIL import UnidentifiedImageError
 from io import BytesIO
+from scipy.stats import zscore
 
 from captum.attr import IntegratedGradients, Occlusion, GuidedGradCam
 from captum.attr import visualization as viz
@@ -1063,6 +1064,7 @@ def visualize_integrated_gradients(x: torch.Tensor, pred_label_idx: torch.Tensor
         use_pyplot=False
     )[0]
 
+    ig_viz.suptitle(f"{filename}, Integrated Gradients")
     ig_viz.savefig(os.path.join(out_dir, f"{filename}_integrated_gradients.png"))
 
 
@@ -1089,6 +1091,8 @@ def visualize_occlusion(x: torch.Tensor, pred_label_idx: torch.Tensor, model: nn
         outlier_perc=2,
         use_pyplot=False
     )[0]
+
+    occ_viz.suptitle(f"{filename}, Occlusion")
     occ_viz.savefig(os.path.join(out_dir, f"{filename}_occlusion.png"))
 
 
@@ -1158,11 +1162,12 @@ def visualize_grad_cam(input_img: torch.Tensor, filename: Union[Path, str], mode
             use_pyplot=False
         )[0]
 
+        cam_viz.suptitle(f"{filename}, GuidedGradCAM, {dm.ds.classes[t]}: {np.around(pred_scores[t].item(), 4)}")
         cam_viz.savefig(os.path.join(out_dir, f"{filename}_guided_grad_cam_{dm.ds.classes[t]}.png"))
 
 
 def visualize_confusion_resnet(data_dir: Union[Path, str], model_path: Union[Path, str], preds_path: Union[Path, str],
-                               out_dir: Optional[Union[Path, str]] = None, n_samples: int = 5):
+                               out_dir: Optional[Union[Path, str]] = None, n_samples: Optional[int] = None):
 
     if out_dir is None:
         out_dir = os.path.join(os.path.dirname(preds_path), "plots")
@@ -1176,11 +1181,20 @@ def visualize_confusion_resnet(data_dir: Union[Path, str], model_path: Union[Pat
                     if isinstance(layer, nn.Conv2d)][-1]
     _ = model.eval()
     pred_df = pd.read_csv(preds_path)
-    pred_df['prob_std'] = pred_df[['soil_prob', 'weed_prob', 'zea mays_prob']].std(1)
-    unconfident_samples = pred_df.loc[pred_df.prob_std.nsmallest(n_samples).index]
+    prob_columns = [col for col in pred_df.columns if col.endswith('_prob')]
+    pred_df['prob_std'] = pred_df[prob_columns].std(1)
+
+    if n_samples is None:
+        pred_df['prob_std_zscore'] = np.abs(zscore(pred_df['prob_std']))
+        prob_std_mean = pred_df.prob_std.mean()
+        unconfident_samples = pred_df[(pred_df.prob_std_zscore > 3) & (pred_df.prob_std < prob_std_mean)]
+    else:
+        unconfident_samples = pred_df.loc[pred_df.prob_std.nsmallest(n_samples).index]
 
     pids = unconfident_samples.pid.values
-    for pid in pids:
+    p_bar = tqdm(pids)
+    p_bar.set_description("Visualizing confusion")
+    for pid in p_bar:
         sample_img, *_ = dm.ds.dataset.get_item_by_pid(pid)
         visualize_grad_cam(sample_img, pid, model, target_layer, dm, out_dir)
 

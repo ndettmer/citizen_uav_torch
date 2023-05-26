@@ -326,13 +326,24 @@ pred_label_idx
 ### GradCAM
 
 ```{python}
-n_samples = 10
-pred_df['prob_std'] = pred_df[['soil_prob', 'weed_prob', 'zea mays_prob']].std(1)
+n_samples = 30
+prob_columns = [col for col in pred_df.columns if col.endswith('_prob')]
+pred_df['prob_std'] = pred_df[prob_columns].std(1)
 unconfident_samples = pred_df.loc[pred_df.prob_std.nsmallest(n_samples).index]
 ```
 
 ```{python}
-unconfident_samples
+from scipy.stats import zscore
+pred_df['prob_std_zscore'] = np.abs(zscore(pred_df['prob_std']))
+```
+
+```{python}
+prob_std_mean = pred_df['prob_std'].mean()
+pred_df[(pred_df['prob_std_zscore'] > 3) & (pred_df['prob_std'] < prob_std_mean)].sort_values('prob_std', ascending=True)
+```
+
+```{python}
+
 ```
 
 ```{python}

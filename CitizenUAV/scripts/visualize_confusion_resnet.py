@@ -2,6 +2,7 @@ from CitizenUAV.processes import visualize_confusion_resnet
 from CitizenUAV.io_utils import write_params
 from argparse import ArgumentParser
 from plyer import notification
+from typing import Optional
 
 
 if __name__ == "__main__":
@@ -10,7 +11,7 @@ if __name__ == "__main__":
     parser.add_argument("--model_path", type=str)
     parser.add_argument("--preds_path", type=str)
     parser.add_argument("--out_dir", type=str, required=False)
-    parser.add_argument("--n_samples", type=int, required=False, default=5)
+    parser.add_argument("--n_samples", type=int, required=False, default=None)
 
     args = parser.parse_args()
     dict_args = vars(args)

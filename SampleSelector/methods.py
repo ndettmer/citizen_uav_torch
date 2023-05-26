@@ -11,7 +11,7 @@ def iter_files(data_dir, argv):
       1. pick sample
       2. ditch sample
     if a sample is picked hand_picked for this sample is set to True
-    if a sample is diteched hand_picked for this sample is set to False
+    if a sample is ditched hand_picked for this sample is set to False
     """
 
     app = QApplication(argv)
