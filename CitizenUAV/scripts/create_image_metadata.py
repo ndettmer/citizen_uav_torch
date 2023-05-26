@@ -1,5 +1,5 @@
 from argparse import ArgumentParser
-from CitizenUAV.processes import create_gim_metadata
+from CitizenUAV.processes import create_image_metadata
 
 
 if __name__ == "__main__":
@@ -10,4 +10,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     dict_args = vars(args)
-    create_gim_metadata(**dict_args)
+    create_image_metadata(**dict_args)

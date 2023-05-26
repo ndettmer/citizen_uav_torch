@@ -1,3 +1,5 @@
+import warnings
+
 import pyinaturalist as pin
 import json
 
@@ -620,7 +622,7 @@ def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, 
     return metadata
 
 
-def create_gim_metadata(data_dir: os.PathLike, classes: list = None, debug: bool = False):
+def create_image_metadata(data_dir: os.PathLike, classes: list = None, debug: bool = False):
     metadata = pd.DataFrame(columns=["photo_id", "species", "distance", "obs_id", "n_photos", "label", "image_okay"])
     metadata.set_index('photo_id', inplace=True)
 
@@ -1053,16 +1055,34 @@ def visualize_integrated_gradients(x: torch.Tensor, pred_label_idx: torch.Tensor
     )
 
     cmap = LinearSegmentedColormap.from_list('custom blue', [(0, '#ffffff'), (.25, '#000000'), (1, '#000000')], N=256)
-    ig_viz = viz.visualize_image_attr_multiple(
-        np.transpose(attributions_ig.squeeze().cpu().detach().numpy(), (1, 2, 0)),
-        np.transpose(transformed_img.squeeze().cpu().detach().numpy(), (1, 2, 0)),
-        methods=['original_image', 'masked_image'],
-        cmap=cmap,
-        show_colorbar=True,
-        signs=['all', 'positive'],
-        outlier_perc=1,
-        use_pyplot=False
-    )[0]
+
+    comments = ""
+    try:
+        ig_viz = viz.visualize_image_attr_multiple(
+            np.transpose(attributions_ig.squeeze().cpu().detach().numpy(), (1, 2, 0)),
+            np.transpose(transformed_img.squeeze().cpu().detach().numpy(), (1, 2, 0)),
+            methods=['original_image', 'masked_image'],
+            cmap=cmap,
+            show_colorbar=True,
+            signs=['all', 'positive'],
+            outlier_perc=1,
+            use_pyplot=False
+        )[0]
+    except UserWarning as w:
+        ig_viz = viz.visualize_image_attr_multiple(
+            np.transpose(attributions_ig.squeeze().cpu().detach().numpy(), (1, 2, 0)),
+            np.transpose(transformed_img.squeeze().cpu().detach().numpy(), (1, 2, 0)),
+            methods=['original_image', 'masked_image'],
+            cmap=cmap,
+            show_colorbar=True,
+            signs=['all', 'positive'],
+            outlier_perc=1,
+            use_pyplot=False
+        )[0]
+        if "approximately 0" in str(w):
+            comments += ", W: Low values!"
+        else:
+            warnings.warn(str(w), UserWarning)
 
     ig_viz.suptitle(f"{filename}, Integrated Gradients")
     ig_viz.savefig(os.path.join(out_dir, f"{filename}_integrated_gradients.png"))
@@ -1082,17 +1102,33 @@ def visualize_occlusion(x: torch.Tensor, pred_label_idx: torch.Tensor, model: nn
         show_progress=True
     )
 
-    occ_viz = viz.visualize_image_attr_multiple(
-        np.transpose(attributions_occ.squeeze().cpu().detach().numpy(), (1, 2, 0)),
-        np.transpose(transformed_img.squeeze().cpu().detach().numpy(), (1, 2, 0)),
-        ["original_image", "heat_map"],
-        ["all", "positive"],
-        show_colorbar=True,
-        outlier_perc=2,
-        use_pyplot=False
-    )[0]
+    comments = ""
+    try:
+        occ_viz = viz.visualize_image_attr_multiple(
+            np.transpose(attributions_occ.squeeze().cpu().detach().numpy(), (1, 2, 0)),
+            np.transpose(transformed_img.squeeze().cpu().detach().numpy(), (1, 2, 0)),
+            ["original_image", "heat_map"],
+            ["all", "positive"],
+            show_colorbar=True,
+            outlier_perc=2,
+            use_pyplot=False
+        )[0]
+    except UserWarning as w:
+        occ_viz = viz.visualize_image_attr_multiple(
+            np.transpose(attributions_occ.squeeze().cpu().detach().numpy(), (1, 2, 0)),
+            np.transpose(transformed_img.squeeze().cpu().detach().numpy(), (1, 2, 0)),
+            ["original_image", "heat_map"],
+            ["all", "positive"],
+            show_colorbar=True,
+            outlier_perc=2,
+            use_pyplot=False
+        )[0]
+        if "approximately 0" in str(w):
+            comments += ", W: Low values!"
+        else:
+            warnings.warn(str(w), UserWarning)
 
-    occ_viz.suptitle(f"{filename}, Occlusion")
+    occ_viz.suptitle(f"{filename}, Occlusion{comments}")
     occ_viz.savefig(os.path.join(out_dir, f"{filename}_occlusion.png"))
 
 
@@ -1110,7 +1146,7 @@ def visualize_features(input_img: torch.Tensor, filename: Union[Path, str], mode
     x, transformed_img = prepare_inputs(input_img, dm)
 
     out = model(x)
-    prediction_socre, pred_label_idx = torch.topk(out, 1)
+    prediction_score, pred_label_idx = torch.topk(out, 1)
 
     visualize_integrated_gradients(x, pred_label_idx, model, transformed_img, out_dir, filename)
     visualize_occlusion(x, pred_label_idx, model, transformed_img, out_dir, filename)
@@ -1152,15 +1188,31 @@ def visualize_grad_cam(input_img: torch.Tensor, filename: Union[Path, str], mode
     attributions_cams = [gg_cam.attribute(x.requires_grad_(), t) for t in range(len(dm.ds.classes))]
 
     for t, attr_cam in enumerate(attributions_cams):
-        cam_viz = viz.visualize_image_attr_multiple(
-            np.transpose(attr_cam.squeeze().cpu().detach().numpy(), (1, 2, 0)),
-            np.transpose(transformed_img.squeeze().cpu().detach().numpy(), (1, 2, 0)),
-            ["original_image", "heat_map"],
-            ["all", "positive"],
-            show_colorbar=True,
-            outlier_perc=2,
-            use_pyplot=False
-        )[0]
+        comments = ""
+        try:
+            cam_viz = viz.visualize_image_attr_multiple(
+                np.transpose(attr_cam.squeeze().cpu().detach().numpy(), (1, 2, 0)),
+                np.transpose(transformed_img.squeeze().cpu().detach().numpy(), (1, 2, 0)),
+                ["original_image", "heat_map"],
+                ["all", "positive"],
+                show_colorbar=True,
+                outlier_perc=2,
+                use_pyplot=False
+            )[0]
+        except UserWarning as w:
+            cam_viz = viz.visualize_image_attr_multiple(
+                np.transpose(attr_cam.squeeze().cpu().detach().numpy(), (1, 2, 0)),
+                np.transpose(transformed_img.squeeze().cpu().detach().numpy(), (1, 2, 0)),
+                ["original_image", "heat_map"],
+                ["all", "positive"],
+                show_colorbar=True,
+                outlier_perc=2,
+                use_pyplot=False
+            )[0]
+            if "approximately 0" in str(w):
+                comments += ", W: Low values!"
+            else:
+                warnings.warn(str(w), UserWarning)
 
         cam_viz.suptitle(f"{filename}, GuidedGradCAM, {dm.ds.classes[t]}: {np.around(pred_scores[t].item(), 4)}")
         cam_viz.savefig(os.path.join(out_dir, f"{filename}_guided_grad_cam_{dm.ds.classes[t]}.png"))

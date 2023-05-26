@@ -407,9 +407,5 @@ fig = viz.visualize_image_attr_multiple(np.transpose(attributions_cams[0].squeez
 ```
 
 ```{python}
-fig.set_title("Hey")
-```
-
-```{python}
 
 ```
