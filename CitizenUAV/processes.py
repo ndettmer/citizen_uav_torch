@@ -8,7 +8,7 @@ from PIL import UnidentifiedImageError
 from io import BytesIO
 from scipy.stats import zscore
 
-from captum.attr import IntegratedGradients, Occlusion, GuidedGradCam
+from captum.attr import IntegratedGradients, Occlusion, GuidedGradCam, NoiseTunnel
 from captum.attr import visualization as viz
 from matplotlib.colors import LinearSegmentedColormap
 from torch import optim
@@ -1045,35 +1045,40 @@ def optimize_image_resnet(cnn: InatClassifier, stages: list[int], norm_module: n
 
 def visualize_integrated_gradients(x: torch.Tensor, pred_label_idx: torch.Tensor, model: nn.Module,
                                    transformed_img: torch.Tensor, out_dir: Union[Path, str],
-                                   filename: Union[Path, str]):
+                                   filename: Union[Path, str], species=''):
 
     integrated_gradients = IntegratedGradients(model)
-    attributions_ig = integrated_gradients.attribute(
+    noise_tunnel = NoiseTunnel(integrated_gradients)
+    attributions_ig_nt = noise_tunnel.attribute(
         x,
         target=pred_label_idx,
-        n_steps=200
+        n_steps=200,
+        nt_samples=10,
+        nt_type='smoothgrad_sq'
     )
 
     cmap = LinearSegmentedColormap.from_list('custom blue', [(0, '#ffffff'), (.25, '#000000'), (1, '#000000')], N=256)
 
+    attributions_ig_np = attributions_ig_nt.squeeze().cpu().detach().numpy()
+    attributions_ig_max = np.around(attributions_ig_np.max(), 5)
     ig_viz = viz.visualize_image_attr_multiple(
-        np.transpose(attributions_ig.squeeze().cpu().detach().numpy(), (1, 2, 0)),
+        np.transpose(attributions_ig_np, (1, 2, 0)),
         np.transpose(transformed_img.squeeze().cpu().detach().numpy(), (1, 2, 0)),
-        methods=['original_image', 'masked_image'],
+        methods=['original_image', 'masked_image', 'heat_map'],
         cmap=cmap,
         show_colorbar=True,
-        signs=['all', 'positive'],
+        signs=['all', 'positive', 'positive'],
         outlier_perc=1,
         use_pyplot=False
     )[0]
 
-    ig_viz.suptitle(f"{filename}, Integrated Gradients")
+    ig_viz.suptitle(f"{filename}, {species}, Integrated Gradients, Max: {attributions_ig_max}")
     ig_viz.savefig(os.path.join(out_dir, f"{filename}_integrated_gradients.png"))
 
 
 def visualize_occlusion(x: torch.Tensor, pred_label_idx: torch.Tensor, model: nn.Module,
                         transformed_img: torch.Tensor, out_dir: Union[Path, str],
-                        filename: Union[Path, str]):
+                        filename: Union[Path, str], species=''):
 
     occlusion = Occlusion(model)
     attributions_occ = occlusion.attribute(
@@ -1085,8 +1090,10 @@ def visualize_occlusion(x: torch.Tensor, pred_label_idx: torch.Tensor, model: nn
         show_progress=True
     )
 
+    attributions_occ_np = attributions_occ.squeeze().cpu().detach().numpy()
+    attributions_occ_max = np.around(attributions_occ_np.max(), 5)
     occ_viz = viz.visualize_image_attr_multiple(
-        np.transpose(attributions_occ.squeeze().cpu().detach().numpy(), (1, 2, 0)),
+        np.transpose(attributions_occ_np, (1, 2, 0)),
         np.transpose(transformed_img.squeeze().cpu().detach().numpy(), (1, 2, 0)),
         ["original_image", "heat_map"],
         ["all", "positive"],
@@ -1095,7 +1102,7 @@ def visualize_occlusion(x: torch.Tensor, pred_label_idx: torch.Tensor, model: nn
         use_pyplot=False
     )[0]
 
-    occ_viz.suptitle(f"{filename}, Occlusion")
+    occ_viz.suptitle(f"{filename}, {species}, Occlusion, Max: {attributions_occ_max}")
     occ_viz.savefig(os.path.join(out_dir, f"{filename}_occlusion.png"))
 
 
@@ -1108,15 +1115,15 @@ def prepare_inputs(input_img: torch.Tensor, dm: InatDataModule):
 
 
 def visualize_features(input_img: torch.Tensor, filename: Union[Path, str], model: nn.Module, dm: InatDataModule,
-                       out_dir: Union[Path, str]):
+                       out_dir: Union[Path, str], species=''):
 
     x, transformed_img = prepare_inputs(input_img, dm)
 
     out = model(x)
     prediction_score, pred_label_idx = torch.topk(out, 1)
 
-    visualize_integrated_gradients(x, pred_label_idx, model, transformed_img, out_dir, filename)
-    visualize_occlusion(x, pred_label_idx, model, transformed_img, out_dir, filename)
+    visualize_integrated_gradients(x, pred_label_idx, model, transformed_img, out_dir, filename, species)
+    visualize_occlusion(x, pred_label_idx, model, transformed_img, out_dir, filename, species)
 
 
 def visualize_class_features(data_dir: Union[Path, str], model_path: Union[Path, str], preds_path: Union[Path, str],
@@ -1141,12 +1148,13 @@ def visualize_class_features(data_dir: Union[Path, str], model_path: Union[Path,
             samples_per_class, columns=[f'{cls_name}_prob'])
         sample_pids = samples.pid.values
         for pid in sample_pids:
-            sample_img, _, _ = dm.ds.dataset.get_item_by_pid(pid)
-            visualize_features(sample_img, pid, model, dm, out_dir)
+            sample_img, t, path = dm.ds.dataset.get_item_by_pid(pid)
+            species = os.path.basename(os.path.dirname(path))
+            visualize_features(sample_img, pid, model, dm, out_dir, species)
 
 
 def visualize_grad_cam(input_img: torch.Tensor, filename: Union[Path, str], model: nn.Module, target_layer,
-                       dm: InatDataModule, out_dir: Union[Path, str]):
+                       dm: InatDataModule, out_dir: Union[Path, str], species=''):
 
     x, transformed_img = prepare_inputs(input_img, dm)
     pred_scores = model(x).squeeze()
@@ -1155,8 +1163,12 @@ def visualize_grad_cam(input_img: torch.Tensor, filename: Union[Path, str], mode
     attributions_cams = [gg_cam.attribute(x.requires_grad_(), t) for t in range(len(dm.ds.classes))]
 
     for t, attr_cam in enumerate(attributions_cams):
+        attr_cam_np = attr_cam.squeeze().cpu().detach().numpy()
+        attr_cam_max = np.around(attr_cam_np.max(), 5)
+        if attr_cam_max == 0:
+            continue
         cam_viz = viz.visualize_image_attr_multiple(
-            np.transpose(attr_cam.squeeze().cpu().detach().numpy(), (1, 2, 0)),
+            np.transpose(attr_cam_np, (1, 2, 0)),
             np.transpose(transformed_img.squeeze().cpu().detach().numpy(), (1, 2, 0)),
             ["original_image", "heat_map"],
             ["all", "positive"],
@@ -1165,7 +1177,8 @@ def visualize_grad_cam(input_img: torch.Tensor, filename: Union[Path, str], mode
             use_pyplot=False
         )[0]
 
-        cam_viz.suptitle(f"{filename}, GuidedGradCAM, {dm.ds.classes[t]}: {np.around(pred_scores[t].item(), 4)}")
+        cam_viz.suptitle(f"{filename}, {species}, GuidedGradCAM, Max: {attr_cam_max}, "
+                         f"{dm.ds.classes[t]}: {np.around(pred_scores[t].item(), 4)}")
         cam_viz.savefig(os.path.join(out_dir, f"{filename}_guided_grad_cam_{dm.ds.classes[t]}.png"))
 
 
@@ -1198,6 +1211,8 @@ def visualize_confusion_resnet(data_dir: Union[Path, str], model_path: Union[Pat
     p_bar = tqdm(pids)
     p_bar.set_description("Visualizing confusion")
     for pid in p_bar:
-        sample_img, *_ = dm.ds.dataset.get_item_by_pid(pid)
-        visualize_grad_cam(sample_img, pid, model, target_layer, dm, out_dir)
+        sample_img, t, path = dm.ds.dataset.get_item_by_pid(pid)
+        species = os.path.basename(os.path.dirname(path))
+
+        visualize_grad_cam(sample_img, pid, model, target_layer, dm, out_dir, species)
 

@@ -91,7 +91,7 @@ I want to visualize the outputs of Stages 2, 3, 4 and 5.
 - Stage 4: `model.feature_extractor[6]`
 - Stage 5: `model.feature_extractor[7]`
 
-<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
+<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
 ## Content and Style
 <!-- #endregion -->
 
@@ -164,7 +164,7 @@ plt.imshow(style_repr)
 plt.savefig(f'{result_dir}/{soil_sample_pid}_{model_version}_style_repr.png')
 ```
 
-<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
+<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
 ## Feature Maps
 <!-- #endregion -->
 
@@ -242,9 +242,13 @@ NOTE: Let's try neuron 39 of stage 2 for now.
 ## Captum
 
 ```{python}
-from captum.attr import IntegratedGradients
+from captum.attr import IntegratedGradients, NoiseTunnel
 from captum.attr import visualization as viz
 from matplotlib.colors import LinearSegmentedColormap
+```
+
+```{python}
+pred_df
 ```
 
 <!-- #region tags=[] -->
@@ -254,6 +258,18 @@ from matplotlib.colors import LinearSegmentedColormap
 ```{python}
 model = cnn
 _ = model.eval()
+```
+
+```{python}
+x, *_ = dm.ds.dataset.get_item_by_pid('207105943')
+```
+
+```{python}
+to_pil_image(x)
+```
+
+```{python}
+model(norm(x).unsqueeze(0))
 ```
 
 ```{python}
@@ -269,10 +285,12 @@ predicted_label = dm.ds.classes[pred_label_idx.item()]
 
 ```{python}
 integrated_gradients = IntegratedGradients(model)
+noise_tunnel = NoiseTunnel(integrated_gradients)
 ```
 
 ```{python}
-attributions_ig = integrated_gradients.attribute(input, target=pred_label_idx, n_steps=200)
+#attributions_ig = integrated_gradients.attribute(input, target=pred_label_idx, n_steps=200)
+attributions_ig_nt = noise_tunnel.attribute(input, target=pred_label_idx, n_steps=200, nt_samples=10, nt_type='smoothgrad_sq')
 ```
 
 ```{python}
@@ -281,9 +299,9 @@ default_cmap = LinearSegmentedColormap.from_list('custom blue',
                                                   (0.25, '#000000'),
                                                   (1, '#000000')], N=256)
 
-_ = viz.visualize_image_attr_multiple(np.transpose(attributions_ig.squeeze().cpu().detach().numpy(), (1,2,0)),
+_ = viz.visualize_image_attr_multiple(np.transpose(attributions_ig_nt.squeeze().cpu().detach().numpy(), (1,2,0)),
                                       np.transpose(transformed_img.squeeze().cpu().detach().numpy(), (1,2,0)),
-                                      ["original_image", "masked_image"],
+                                      ["original_image", "heat_map"],
                                       ["all", "positive"],
                                       cmap=default_cmap,
                                       show_colorbar=True,
@@ -339,11 +357,11 @@ pred_df['prob_std_zscore'] = np.abs(zscore(pred_df['prob_std']))
 
 ```{python}
 prob_std_mean = pred_df['prob_std'].mean()
-pred_df[(pred_df['prob_std_zscore'] > 3) & (pred_df['prob_std'] < prob_std_mean)].sort_values('prob_std', ascending=True)
+pred_df[(pred_df['prob_std_zscore'] > 3) & (pred_df['prob_std'] < prob_std_mean)].sort_values('prob_std', ascending=False)
 ```
 
 ```{python}
-
+pred_df[(pred_df.target == 1) & (pred_df.prediction == 1)].nlargest(5, columns=['prob_std'])
 ```
 
 ```{python}

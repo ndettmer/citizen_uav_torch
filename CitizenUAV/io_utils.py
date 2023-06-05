@@ -3,17 +3,12 @@ from dataclasses import dataclass, asdict
 import os
 import sys
 from datetime import datetime
-from typing import Tuple, Union, Optional
+from typing import Union, Optional
 from pathlib import Path
 import logging
 import yaml
-import numpy as np
-from abc import ABC
 
 import pandas as pd
-from torch.utils.data import Dataset, DataLoader
-import torch
-from tqdm import tqdm
 
 
 def get_pid_from_path(path):
@@ -86,7 +81,7 @@ def read_split_inat_metadata(data_dir: Union[str, Path], species: Optional[list[
 
 
 def store_split_inat_metadata(metadata: pd.DataFrame, data_dir: Union[str, Path]):
-    classnames = next(os.walk(data_dir))
+    classnames = next(os.walk(data_dir))[1]
 
     for spec in metadata.species.unique():
         df = metadata[metadata.species == spec]
