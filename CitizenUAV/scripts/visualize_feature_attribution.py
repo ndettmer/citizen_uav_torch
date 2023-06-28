@@ -14,6 +14,8 @@ if __name__ == "__main__":
     parser.add_argument("--model_class", type=str, required=False,
                         choices=['InatSequentialClassifier', 'InatMogaNetClassifier'],
                         default='InatSequentialClassifier')
+    parser.add_argument("--nt_samples", type=int, required=False, default=10,
+                        help="Number of noise tunnel samples to be used in integrated gradients.")
 
     args = parser.parse_args()
     dict_args = vars(args)

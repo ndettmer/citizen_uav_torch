@@ -336,7 +336,7 @@ class RandomClassifier(pl.LightningModule):
         return torch.rand((batch_size, self.n_classes))
 
 
-def count_parameters(model):
+def count_parameters(model: nn.Module):
     """
     source: https://discuss.pytorch.org/t/how-do-i-check-the-number-of-parameters-of-a-model/4325/7
     """

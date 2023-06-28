@@ -1045,7 +1045,7 @@ def optimize_image_resnet(cnn: InatClassifier, stages: list[int], norm_module: n
 
 def visualize_integrated_gradients(x: torch.Tensor, pred_label_idx: torch.Tensor, model: nn.Module,
                                    transformed_img: torch.Tensor, out_dir: Union[Path, str],
-                                   filename: Union[Path, str], species=''):
+                                   filename: Union[Path, str], species: str = '', nt_samples: int = 10):
 
     integrated_gradients = IntegratedGradients(model)
     noise_tunnel = NoiseTunnel(integrated_gradients)
@@ -1053,7 +1053,7 @@ def visualize_integrated_gradients(x: torch.Tensor, pred_label_idx: torch.Tensor
         x,
         target=pred_label_idx,
         n_steps=200,
-        nt_samples=10,
+        nt_samples=nt_samples,
         nt_type='smoothgrad_sq'
     )
 
@@ -1092,6 +1092,9 @@ def visualize_occlusion(x: torch.Tensor, pred_label_idx: torch.Tensor, model: nn
 
     attributions_occ_np = attributions_occ.squeeze().cpu().detach().numpy()
     attributions_occ_max = np.around(attributions_occ_np.max(), 5)
+    if attributions_occ_max == 0:
+        logging.warning(f"Occlusion attributions returned zero for {filename}. Skipping.")
+        return
     occ_viz = viz.visualize_image_attr_multiple(
         np.transpose(attributions_occ_np, (1, 2, 0)),
         np.transpose(transformed_img.squeeze().cpu().detach().numpy(), (1, 2, 0)),
@@ -1115,20 +1118,20 @@ def prepare_inputs(input_img: torch.Tensor, dm: InatDataModule):
 
 
 def visualize_features(input_img: torch.Tensor, filename: Union[Path, str], model: nn.Module, dm: InatDataModule,
-                       out_dir: Union[Path, str], species=''):
+                       out_dir: Union[Path, str], species='', nt_samples: int = 10):
 
     x, transformed_img = prepare_inputs(input_img, dm)
 
     out = model(x)
     prediction_score, pred_label_idx = torch.topk(out, 1)
 
-    visualize_integrated_gradients(x, pred_label_idx, model, transformed_img, out_dir, filename, species)
+    visualize_integrated_gradients(x, pred_label_idx, model, transformed_img, out_dir, filename, species, nt_samples)
     visualize_occlusion(x, pred_label_idx, model, transformed_img, out_dir, filename, species)
 
 
 def visualize_class_features(data_dir: Union[Path, str], model_path: Union[Path, str], preds_path: Union[Path, str],
                              out_dir: Optional[Union[Path, str]] = None, samples_per_class: int = 5,
-                             model_class: str = 'InatSequentialClassifier'):
+                             model_class: str = 'InatSequentialClassifier', nt_samples: int = 10):
 
     if out_dir is None:
         out_dir = os.path.join(os.path.dirname(preds_path), "plots")
@@ -1150,7 +1153,7 @@ def visualize_class_features(data_dir: Union[Path, str], model_path: Union[Path,
         for pid in sample_pids:
             sample_img, t, path = dm.ds.dataset.get_item_by_pid(pid)
             species = os.path.basename(os.path.dirname(path))
-            visualize_features(sample_img, pid, model, dm, out_dir, species)
+            visualize_features(sample_img, pid, model, dm, out_dir, species, nt_samples)
 
 
 def visualize_grad_cam(input_img: torch.Tensor, filename: Union[Path, str], model: nn.Module, target_layer,
