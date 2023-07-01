@@ -16,9 +16,6 @@ from matplotlib import pyplot as plt
 from CitizenUAV.processes import predict_geotiff, pixel_conf_mat
 
 
-def get_model_checkpoint_in_dir(dir_path):
-    pass
-
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--log_dir", type=str, default='./lightning_logs')
@@ -124,7 +121,7 @@ if __name__ == "__main__":
         f1_df.to_csv(
             os.path.join(
                 dict_args['result_dir'],
-                f"{datetime.now().strftime('%y-%m-%d_%H-%M')}_n{n_supplement}_{dict_args['backbone_model']}_f1_df.csv"
+                f"{datetime.now().strftime('%y-%m-%d_%H-%M')}_n{n_supplement}_{dict_args['model_size']}_f1_df.csv"
             ),
             index=False
         )
