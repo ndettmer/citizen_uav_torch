@@ -819,7 +819,8 @@ def pixel_conf_mat(
         pred_file: Union[str, Path],
         class_map: Optional[str] = None,
         result_dir: Optional[Union[str, Path]] = None,
-        crop: Optional[str] = None,
+        crop_class: Optional[str] = None,
+        average: Optional[str] = 'macro',
         debug: bool = False
 ) -> tuple[pd.DataFrame, pd.DataFrame, float, Union[float, None], Union[float, None]]:
     """
@@ -830,8 +831,9 @@ def pixel_conf_mat(
     :param pred_file: Path to the probability map that came out of `predict_geotiff()`.
     :param class_map: JSON formatted mapping from raster classes to training dataset classes.
     :param result_dir: Directory where to store the confusion matrix as a PNG file.
-    :param crop: If set, calculate binary plant metrics, i. e. drop the soil class, put all weed classes into
+    :param crop_class: If set, calculate binary plant metrics, i. e. drop the soil class, put all weed classes into
         one class and calculate precision and recall for the weed class.
+    :param average: The averaging technique used for the calculation of the F1 score.
     :param debug: If True, make additional checks.
     :return: The pixel-wise confusion map, a DataFrame containing the pixel-wise predictions and targets, and the
         corresponding F1 score.
@@ -921,26 +923,28 @@ def pixel_conf_mat(
     # Compute binary plant metrics
     weed_precision = None
     weed_recall = None
-    if crop is not None:
-        if crop not in inat_classes:
-            raise ValueError(f"The crop class '{crop}' is not in the given classes.")
+    if crop_class is not None:
+        if crop_class not in inat_classes:
+            raise ValueError(f"The crop class '{crop_class}' is not in the given classes.")
 
         # drop soil
-        is_plant = targets != inat_class_to_idx['soil']
+        is_plant_target = targets != inat_class_to_idx['soil']
+        is_plant_pred = preds != inat_class_to_idx['soil']
+        is_plant = is_plant_pred & is_plant_target
         binary_targets = targets[is_plant].reshape(-1, 1)
         binary_preds = preds[is_plant].reshape(-1, 1)
         del is_plant
 
         # convert weed/non-weed
-        is_crop_target = binary_targets == inat_class_to_idx[crop]
+        is_crop_target = binary_targets == inat_class_to_idx[crop_class]
         is_weed_target = ~is_crop_target
         binary_targets[is_crop_target] = 0
         binary_targets[is_weed_target] = 1
         del is_crop_target
         del is_weed_target
 
-        is_crop_pred = binary_preds == inat_class_to_idx[crop]
-        is_weed_pred = binary_preds != inat_class_to_idx[crop]
+        is_crop_pred = binary_preds == inat_class_to_idx[crop_class]
+        is_weed_pred = binary_preds != inat_class_to_idx[crop_class]
         binary_preds[is_crop_pred] = 0
         binary_preds[is_weed_pred] = 1
         del is_crop_pred
@@ -964,7 +968,7 @@ def pixel_conf_mat(
     preds = torch.IntTensor(preds)
 
     # Calculate multi-class F1
-    f1 = F1Score(num_classes=3)
+    f1 = F1Score(num_classes=3, average='macro')
     f1_score = round(float(f1(preds, targets)), 2)
 
     # create confusion matrix
