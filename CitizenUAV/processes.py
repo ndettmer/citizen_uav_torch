@@ -1,5 +1,3 @@
-import warnings
-
 import pyinaturalist as pin
 import json
 
@@ -12,6 +10,7 @@ from captum.attr import IntegratedGradients, Occlusion, GuidedGradCam, NoiseTunn
 from captum.attr import visualization as viz
 from matplotlib.colors import LinearSegmentedColormap
 from torch import optim
+from torchmetrics.classification import BinaryPrecision, BinaryRecall
 
 from CitizenUAV.losses import ContentLoss, StyleLoss
 from CitizenUAV.math_utils import get_area_around_center, get_center_of_bb
@@ -820,8 +819,9 @@ def pixel_conf_mat(
         pred_file: Union[str, Path],
         class_map: Optional[str] = None,
         result_dir: Optional[Union[str, Path]] = None,
+        crop: Optional[str] = None,
         debug: bool = False
-) -> tuple[pd.DataFrame, pd.DataFrame, float]:
+) -> tuple[pd.DataFrame, pd.DataFrame, float, Union[float, None], Union[float, None]]:
     """
     Creating a pixel-wise confusion matrix for a trained model applied to a GeoTiff dataset.
     :param dataset_path: Path to the raster dataset.
@@ -830,6 +830,8 @@ def pixel_conf_mat(
     :param pred_file: Path to the probability map that came out of `predict_geotiff()`.
     :param class_map: JSON formatted mapping from raster classes to training dataset classes.
     :param result_dir: Directory where to store the confusion matrix as a PNG file.
+    :param crop: If set, calculate binary plant metrics, i. e. drop the soil class, put all weed classes into
+        one class and calculate precision and recall for the weed class.
     :param debug: If True, make additional checks.
     :return: The pixel-wise confusion map, a DataFrame containing the pixel-wise predictions and targets, and the
         corresponding F1 score.
@@ -916,13 +918,54 @@ def pixel_conf_mat(
     pred_dist = {inat_classes[k]: v for k, v in pred_dist.items()}
     logging.info(f"Prediction class distribution: {pred_dist}")
 
+    # Compute binary plant metrics
+    weed_precision = None
+    weed_recall = None
+    if crop is not None:
+        if crop not in inat_classes:
+            raise ValueError(f"The crop class '{crop}' is not in the given classes.")
+
+        # drop soil
+        is_plant = targets != inat_class_to_idx['soil']
+        binary_targets = targets[is_plant].reshape(-1, 1)
+        binary_preds = preds[is_plant].reshape(-1, 1)
+        del is_plant
+
+        # convert weed/non-weed
+        is_crop_target = binary_targets == inat_class_to_idx[crop]
+        is_weed_target = ~is_crop_target
+        binary_targets[is_crop_target] = 0
+        binary_targets[is_weed_target] = 1
+        del is_crop_target
+        del is_weed_target
+
+        is_crop_pred = binary_preds == inat_class_to_idx[crop]
+        is_weed_pred = binary_preds != inat_class_to_idx[crop]
+        binary_preds[is_crop_pred] = 0
+        binary_preds[is_weed_pred] = 1
+        del is_crop_pred
+        del is_weed_pred
+
+        # Compute metrics
+        binary_targets = torch.IntTensor(binary_targets)
+        binary_preds = torch.IntTensor(binary_preds)
+
+        bin_precision = BinaryPrecision()
+        bin_recall = BinaryRecall()
+
+        weed_precision = round(float(bin_precision(binary_preds, binary_targets)), 2)
+        weed_recall = round(float(bin_recall(binary_preds, binary_targets)), 2)
+
+        del binary_targets
+        del binary_preds
+
     # convert to tensors
     targets = torch.IntTensor(targets)
     preds = torch.IntTensor(preds)
 
-    # Calculate F1
+    # Calculate multi-class F1
     f1 = F1Score(num_classes=3)
-    f1_score = float(f1(torch.IntTensor(preds), torch.IntTensor(targets)))
+    f1_score = round(float(f1(preds, targets)), 2)
 
     # create confusion matrix
     cm = confusion_matrix(preds, targets, num_classes=3)
@@ -936,10 +979,11 @@ def pixel_conf_mat(
     # save figure
     plt.figure()
     sns.heatmap(df_cm, annot=True, cmap='Spectral', fmt='g').get_figure()
-    plt.title(f"F1Score: {f1_score}")
+    plt.title(f"Multi-class F1Score: {f1_score}, Weed Precision: {weed_precision}, Weed Recall: {weed_recall}")
     plt.savefig(os.path.join(result_dir, result_filename))
 
-    return df_cm, pd.DataFrame({'predictions': preds.numpy().flatten(), 'targets': targets.numpy().flatten()}), f1_score
+    return df_cm, pd.DataFrame({'predictions': preds.numpy().flatten(), 'targets': targets.numpy().flatten()}), \
+        f1_score, weed_precision, weed_recall
 
 
 def optimize_image_resnet(cnn: InatClassifier, stages: list[int], norm_module: nn.Module, target_image: torch.Tensor,
