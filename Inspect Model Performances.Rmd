@@ -150,7 +150,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 Seems like the model mistakes these green markers for maize plants. 
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop='zea mays')
 ```
 
 <!-- #region tags=[] -->
@@ -178,7 +178,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 Everything is weed!
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop='zea mays')
 ```
 
 version_8
@@ -202,7 +202,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 WTF
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop='zea mays')
 ```
 
 #### ResNet18
@@ -234,7 +234,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 Seems like the model mistakes these green markers for maize plants. 
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop='zea mays')
 ```
 
 <!-- #region jp-MarkdownHeadingCollapsed=true tags=[] -->
@@ -262,7 +262,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 Seems like the model mistakes these green markers for maize plants. 
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop='zea mays')
 ```
 
 Slight improvement with ImageNet weights
@@ -292,7 +292,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 Predictions are more clustered per class, but the confusion with weed is worse.
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop='zea mays')
 ```
 
 <!-- #region jp-MarkdownHeadingCollapsed=true tags=[] -->
@@ -320,7 +320,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 Predictions are more clustered per class, but the confusion with weed is worse.
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop='zea mays')
 ```
 
 Plot looks good, but the confusion matrix is total chaos. Apparently even soil can't be detected properly anymore. 
@@ -358,7 +358,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop='zea mays')
 ```
 
 ##### Pre-trained on ImageNet
@@ -383,7 +383,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop='zea mays')
 ```
 
 ##### Larger image size
@@ -409,7 +409,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop='zea mays')
 ```
 
 <!-- #region tags=[] -->
@@ -437,7 +437,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 That's not too bad! Destinction between plant and soil seems to wokr quite well. Maize and weed on the other hand can hardly be distinguished. 
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop='zea mays')
 ```
 
 #### ResNet18
@@ -461,7 +461,7 @@ for i in range(3):
 plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'png')))
 ```
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop='zea mays')
 ```
 
 ##### Pre-trained on ImageNet
@@ -488,7 +488,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 Respectively that looks great! A lot of maize predicitons between all the weed predicitons. Most we had so far!
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop='zea mays')
 ```
 
 #### ResNest50
@@ -512,7 +512,7 @@ for i in range(3):
 plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'png')))
 ```
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop='zea mays')
 ```
 
 ##### Pre-trained on ImageNet
@@ -536,7 +536,7 @@ for i in range(3):
 plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'png')))
 ```
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop='zea mays')
 ```
 
 ##### Stride 16, Pred size 16
@@ -557,7 +557,7 @@ for i in range(3):
 plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'png')))
 ```
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop='zea mays')
 ```
 
 ##### Stride 32, Pred size 32
@@ -578,7 +578,7 @@ for i in range(3):
 plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'png')))
 ```
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop='zea mays')
 ```
 
 <!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
@@ -627,7 +627,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
@@ -654,7 +654,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
@@ -681,7 +681,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
@@ -708,7 +708,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop='maize')
 ```
 
 ```{python}
@@ -763,7 +763,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop='maize')
 ```
 
 ```{python}
@@ -818,7 +818,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region tags=[] jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
@@ -847,7 +847,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
@@ -871,7 +871,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region tags=[] jp-MarkdownHeadingCollapsed=true tags=[] -->
@@ -911,7 +911,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop='maize')
 ```
 
 ```{python}
@@ -966,7 +966,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop='maize')
 ```
 
 ```{python}
@@ -1021,7 +1021,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
@@ -1048,7 +1048,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
@@ -1075,7 +1075,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
@@ -1102,7 +1102,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
@@ -1151,7 +1151,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
@@ -1175,7 +1175,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
@@ -1199,7 +1199,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region tags=[] jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
@@ -1246,7 +1246,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, json.dumps({c: c for c in train_classes}), result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, json.dumps({c: c for c in train_classes}), result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region tags=[] jp-MarkdownHeadingCollapsed=true -->
@@ -1273,7 +1273,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, json.dumps({c: c for c in train_classes}), result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, json.dumps({c: c for c in train_classes}), result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region tags=[] -->
@@ -1313,7 +1313,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, json.dumps({c: c for c in train_classes}), result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, json.dumps({c: c for c in train_classes}), result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region tags=[] jp-MarkdownHeadingCollapsed=true -->
@@ -1340,7 +1340,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, json.dumps({c: c for c in train_classes}), result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, json.dumps({c: c for c in train_classes}), result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true tags=[] -->
@@ -1382,7 +1382,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir, crop='maize')
 ```
 
 ##### single pixel predictions
@@ -1406,7 +1406,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region tags=[] -->
@@ -1446,7 +1446,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
@@ -1470,7 +1470,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
@@ -1494,7 +1494,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
@@ -1518,7 +1518,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
@@ -1542,7 +1542,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python tags=c()}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
@@ -1566,7 +1566,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region tags=[] jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
@@ -1590,7 +1590,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python tags=c()}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region tags=[] jp-MarkdownHeadingCollapsed=true tags=[] -->
@@ -1614,7 +1614,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python tags=c()}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region tags=[] jp-MarkdownHeadingCollapsed=true -->
@@ -1638,7 +1638,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python tags=c()}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region tags=[] jp-MarkdownHeadingCollapsed=true -->
@@ -1662,7 +1662,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python tags=c()}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region tags=[] -->
@@ -1699,7 +1699,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python tags=c()}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
@@ -1723,7 +1723,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region jp-MarkdownHeadingCollapsed=true tags=[] -->
@@ -1747,7 +1747,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python tags=c()}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region jp-MarkdownHeadingCollapsed=true tags=[] -->
@@ -1771,7 +1771,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python tags=c()}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region jp-MarkdownHeadingCollapsed=true tags=[] -->
@@ -1795,7 +1795,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python tags=c()}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region jp-MarkdownHeadingCollapsed=true tags=[] -->
@@ -1819,7 +1819,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python tags=c()}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir, crop='maize')
 ```
 
 <!-- #region tags=[] jp-MarkdownHeadingCollapsed=true -->
@@ -1843,7 +1843,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python tags=c()}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir, crop='maize')
 ```
 
 #### version_7
@@ -1865,7 +1865,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python tags=c()}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir, crop='maize')
 ```
 
 #### version_8
@@ -1887,7 +1887,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python tags=c()}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir, crop='maize')
 ```
 
 #### version_9
@@ -1909,7 +1909,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python tags=c()}
-cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir)
+cm, df, f1 = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir, crop='maize')
 ```
 
 ```{python}
