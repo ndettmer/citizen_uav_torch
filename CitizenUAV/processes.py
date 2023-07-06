@@ -957,8 +957,8 @@ def pixel_conf_mat(
         bin_precision = BinaryPrecision()
         bin_recall = BinaryRecall()
 
-        weed_precision = round(float(bin_precision(binary_preds, binary_targets)), 2)
-        weed_recall = round(float(bin_recall(binary_preds, binary_targets)), 2)
+        weed_precision = round(float(bin_precision(binary_preds, binary_targets)), 4)
+        weed_recall = round(float(bin_recall(binary_preds, binary_targets)), 4)
 
         del binary_targets
         del binary_preds
@@ -969,7 +969,7 @@ def pixel_conf_mat(
 
     # Calculate multi-class F1
     f1 = F1Score(num_classes=3, average='macro')
-    f1_score = round(float(f1(preds, targets)), 2)
+    f1_score = round(float(f1(preds, targets)), 4)
 
     # create confusion matrix
     cm = confusion_matrix(preds, targets, num_classes=3)
