@@ -11,6 +11,7 @@ if __name__ == "__main__":
     parser.add_argument("--pred_file", type=str)
     parser.add_argument("--class_map", type=str,
                         help="Mapping from iNaturalist classes to raster data classes in JSON format")
+    parser.add_argument("--crop", type=str, required=False, default=None)
 
     args = parser.parse_args()
     dict_args = vars(args)
