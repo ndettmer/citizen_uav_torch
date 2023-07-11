@@ -134,6 +134,7 @@ class InatSequentialClassifier(InatClassifier):
         parser.add_argument("--lr", type=float, required=False, default=.0001)
         parser.add_argument("--weight_decay", type=float, required=False, default=.001)
         parser.add_argument("--log_train_preds", type=bool, required=False, default=False)
+        parser.add_argument("--native_classifier", type=bool, required=False, default=False)
         return parent_parser
 
     def __init__(self, n_classes, backbone_model, lr, weight_decay, log_train_preds: bool = True, weights: Optional[str] = None,
@@ -151,39 +152,43 @@ class InatSequentialClassifier(InatClassifier):
         elif hub_link is not None:
             backbone = torch.hub.load(hub_link, backbone_model, pretrained=True)
         elif weights is not None:
-            backbone = eval(backbone_model)(weights=weights)
+            backbone = eval(backbone_model)(weights=weights, num_classes=n_classes)
         else:
             # default is weights=None
-            backbone = eval(backbone_model)()
+            backbone = eval(backbone_model)(num_classes=n_classes)
 
         if 'moganet' in backbone_model:
             n_backbone_features = backbone.head.in_features
         else:
             # Default is ResNet architecture
             n_backbone_features = backbone.fc.in_features
-        fe_layers = list(backbone.children())[:-2]
-        self.feature_extractor = nn.Sequential(*fe_layers)
 
-        # TODO try out less complex classifier
-        self.classifier = nn.Sequential(
-            nn.Linear(n_backbone_features, 256),
-            nn.ReLU(),
-            nn.Linear(256, 128),
-            nn.ReLU(),
-            nn.Linear(128, n_classes),
-            nn.Softmax(dim=1)
-        )
+        self.native_classifier = kwargs.get('native_classifier', True)
+        if self.native_classifier:
+            self.feature_extractor = backbone
+        else:
+            fe_layers = list(backbone.children())[:-2]
+            self.feature_extractor = nn.Sequential(*fe_layers)
+            self.classifier = nn.Sequential(
+                nn.Linear(n_backbone_features, 256),
+                nn.ReLU(),
+                nn.Linear(256, 128),
+                nn.ReLU(),
+                nn.Linear(128, n_classes),
+                nn.Softmax(dim=1)
+            )
 
         self.lr = lr
         self.weight_decay = weight_decay
 
     def forward(self, x):
         # 1. feature extraction
-        features = self.feature_extractor(x)
-        # 2. global max pooling
-        x = F.max_pool2d(features, kernel_size=features.size()[2:]).flatten(1)
-        # 3. classification
-        x = self.classifier(x)
+        x = self.feature_extractor(x)
+        if not self.native_classifier:
+            # 2. global max pooling
+            x = F.max_pool2d(x, kernel_size=x.size()[2:]).flatten(1)
+            # 3. classification
+            x = self.classifier(x)
         return x
 
     def configure_optimizers(self):
