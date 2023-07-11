@@ -166,6 +166,7 @@ class InatSequentialClassifier(InatClassifier):
         self.native_classifier = kwargs.get('native_classifier', True)
         if self.native_classifier:
             self.feature_extractor = backbone
+            self.classifier = nn.Softmax(dim=1)
         else:
             fe_layers = list(backbone.children())[:-2]
             self.feature_extractor = nn.Sequential(*fe_layers)
@@ -187,8 +188,8 @@ class InatSequentialClassifier(InatClassifier):
         if not self.native_classifier:
             # 2. global max pooling
             x = F.max_pool2d(x, kernel_size=x.size()[2:]).flatten(1)
-            # 3. classification
-            x = self.classifier(x)
+        # 3. classification
+        x = self.classifier(x)
         return x
 
     def configure_optimizers(self):

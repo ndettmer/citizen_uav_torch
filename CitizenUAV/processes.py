@@ -537,16 +537,14 @@ def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, 
 
     metadata = read_split_inat_metadata(data_dir, species)
 
+    dist_df = pd.DataFrame(columns=['pid', 'target_class', 'distance'], dtype=str)
+    dist_df.distance = dist_df.distance.astype(float)
+    dist_df.set_index('pid', inplace=True)
+
     if 'image_okay' not in metadata.columns:
         del metadata
         check_image_files(data_dir)
         metadata = read_split_inat_metadata(data_dir, species)
-
-    if not overwrite:
-        # only consider samples that don't have a distance assigned yet
-        na_pids = metadata[metadata.distance.isna()].index
-        idx = [i for i in idx if get_pid_from_path(ds.samples[i][0]) in na_pids]
-        del na_pids
 
     # filter for loadable images
     okay_pids = metadata[metadata.image_okay].index
@@ -557,10 +555,8 @@ def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, 
     if not len(idx):
         return metadata
 
-    if 'distance' in metadata.columns:
-        distances = metadata.distance
-    else:
-        distances = pd.Series(index=metadata.index, dtype='float32')
+    distances = pd.Series(index=metadata.index, dtype='float32')
+    target_classes = pd.Series(index=metadata.index, dtype='str')
 
     model = InatRegressor.load_from_checkpoint(model_path)
     model.eval()
@@ -583,11 +579,13 @@ def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, 
         pids = []
         images = []
         for i in idx[batch_no * batch_size:(batch_no + 1) * batch_size]:
-            path, _ = ds.samples[i]
+            path, t = ds.samples[i]
             filename = os.path.splitext(os.path.basename(path))[0]
 
             pid = filename
             pids.append(pid)
+
+            target_classes.loc[pid] = ds.classes[t]
 
             img, _ = ds[i]
             img = img.float()
@@ -609,15 +607,10 @@ def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, 
         for pid, dist in zip(pids, raw_distances):
             distances.loc[pid] = dist
 
-        # make intermediate saves
-        if not batch_no % 5:
-            metadata['distance'] = distances
-            if not debug:
-                store_split_inat_metadata(metadata, data_dir)
+    dist_df.distance = distances
+    dist_df.target_class = target_classes
+    dist_df.to_csv(os.path.join(data_dir, 'distances.csv'))
 
-    metadata['distance'] = distances
-    if not debug:
-        store_split_inat_metadata(metadata, data_dir)
     return metadata
 
 
