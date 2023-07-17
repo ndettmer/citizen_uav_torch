@@ -70,7 +70,7 @@ class InatImageFolderWithPath(ImageFolder):
         path, _ = self.samples[item]
         return img, t, path
 
-    def get_item_by_pid(self, pid):
+    def get_item_by_pid(self, pid: str):
         for idx, (path, t) in enumerate(self.samples):
             if get_pid_from_path(path) == pid:
                 return self[idx]

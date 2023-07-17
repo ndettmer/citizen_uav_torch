@@ -976,7 +976,7 @@ def pixel_conf_mat(
     # save figure
     plt.figure()
     sns.heatmap(df_cm, annot=True, cmap='Spectral', fmt='g').get_figure()
-    plt.title(f"Multi-class F1Score: {f1_score}, Weed Precision: {weed_precision}, Weed Recall: {weed_recall}")
+    plt.title(f"F1Score: {f1_score}, Weed Precision: {weed_precision}, Weed Recall: {weed_recall}")
     plt.savefig(os.path.join(result_dir, result_filename))
 
     return df_cm, pd.DataFrame({'predictions': preds.numpy().flatten(), 'targets': targets.numpy().flatten()}), \

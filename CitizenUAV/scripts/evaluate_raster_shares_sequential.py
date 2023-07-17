@@ -16,9 +16,6 @@ from matplotlib import pyplot as plt
 from CitizenUAV.processes import predict_geotiff, pixel_conf_mat
 
 
-def get_model_checkpoint_in_dir(dir_path):
-    pass
-
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--log_dir", type=str, default='./lightning_logs')
@@ -61,7 +58,8 @@ if __name__ == "__main__":
     dict_args['window_size'] = dict_args['img_size']
     dict_args['result_dir'] = dict_args['log_dir']
 
-    f1_df = pd.DataFrame(columns=['version', 'n_supplement', 'May F1', 'June F1'], dtype=float)
+    f1_df = pd.DataFrame(columns=[
+        'version', 'n_supplement', 'May F1', 'May Weed Precision', 'June F1', 'June Weed Precision'], dtype=float)
     f1_df.version = f1_df.version.astype(int)
     f1_df.n_supplement = f1_df.n_supplement.astype(int)
 
@@ -115,9 +113,17 @@ if __name__ == "__main__":
                     axs[i].set_title(label)
                 plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'png')))
 
-                cm, df, f1 = pixel_conf_mat(dict_args['dataset_path'], pred_shape_dir, dict_args['data_dir'], predfile,
-                                            None, result_dir=plot_dir)
+                cm, df, f1, weed_precision, weed_recall = pixel_conf_mat(
+                    dict_args['dataset_path'],
+                    pred_shape_dir,
+                    dict_args['data_dir'],
+                    predfile,
+                    None,
+                    result_dir=plot_dir,
+                    crop_class='maize'
+                )
                 f1_row.append(f1)
+                f1_row.append(weed_precision)
 
             f1_df.loc[version_no] = f1_row
 

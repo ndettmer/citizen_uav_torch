@@ -152,7 +152,7 @@ class InatSequentialClassifier(InatClassifier):
         elif hub_link is not None:
             backbone = torch.hub.load(hub_link, backbone_model, pretrained=True)
         elif weights is not None:
-            backbone = eval(backbone_model)(weights=weights, num_classes=n_classes)
+            backbone = eval(backbone_model)(weights=weights)
         else:
             # default is weights=None
             backbone = eval(backbone_model)(num_classes=n_classes)
@@ -163,7 +163,7 @@ class InatSequentialClassifier(InatClassifier):
             # Default is ResNet architecture
             n_backbone_features = backbone.fc.in_features
 
-        self.native_classifier = kwargs.get('native_classifier', True)
+        self.native_classifier = kwargs.get('native_classifier', True) and not bool(weights)
         if self.native_classifier:
             self.feature_extractor = backbone
             self.classifier = nn.Softmax(dim=1)
