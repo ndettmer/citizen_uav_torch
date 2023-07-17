@@ -37,7 +37,7 @@ class_map = json.dumps({
 test_data_dir = '/home/ndettmer/ssd_data/UOS_Data'
 ```
 
-<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
 ## Maize Ternary
 <!-- #endregion -->
 
@@ -833,7 +833,7 @@ class_map = json.dumps({
 })
 ```
 
-<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
 #### version_0
 - image size 128
 - pred size 16
@@ -864,7 +864,7 @@ cm, df, f1, weed_prec, weed_rec = pixel_conf_mat(ds_path, target_dir, train_data
 cm[1].sum() / len(df)
 ```
 
-<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
 #### version_1
 - image size 256
 - pred size 16
@@ -891,7 +891,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 cm, df, f1, weed_prec, weed_rec = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop_class='zea mays')
 ```
 
-<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
 #### version_2
 - image size 128
 - pred size 16
@@ -918,7 +918,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 cm, df, f1, weed_prec, weed_rec = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop_class='zea mays')
 ```
 
-<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
 #### version_3
 - image size 128
 - pred size 16
@@ -971,7 +971,7 @@ def plot_nlargest_preds(pred_df, n, cls_idx):
     
 plot_nlargest_preds(pred_df, 5, 2)
 
-<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
 #### version_4
 - image size 128
 - pred size 16
@@ -1024,7 +1024,7 @@ def plot_nlargest_preds(pred_df, n, cls_idx):
     
 plot_nlargest_preds(pred_df, 5, 2)
 
-<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
 #### version_5
 - image size 128
 - pred size 16
@@ -1051,7 +1051,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 cm, df, f1, weed_prec, weed_rec = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop_class='zea mays')
 ```
 
-<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
 #### version_10
 - MogaNet
 <!-- #endregion -->
@@ -1082,7 +1082,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 cm, df, f1, weed_prec, weed_rec = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop_class='maize')
 ```
 
-<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
 #### version_11
 <!-- #endregion -->
 
@@ -1110,7 +1110,7 @@ cm, df, f1, weed_prec, weed_rec = pixel_conf_mat(ds_path, target_dir, train_data
 cm[2].sum() / len(df)
 ```
 
-<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
 #### version_12
 <!-- #endregion -->
 
@@ -1134,7 +1134,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 cm, df, f1, weed_prec, weed_rec = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop_class='maize')
 ```
 
-<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
+<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
 #### version_16
 <!-- #endregion -->
 
@@ -1158,7 +1158,9 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 cm, df, f1, weed_prec, weed_rec = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop_class='maize')
 ```
 
+<!-- #region tags=[] -->
 #### version_17
+<!-- #endregion -->
 
 ```{python}
 predfile = os.path.join(pred_dir, 'version_17/23-07-11_16-49_probability_map.npy')
@@ -1178,10 +1180,6 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 
 ```{python}
 cm, df, f1, weed_prec, weed_rec = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir, crop_class='maize')
-```
-
-```{python}
-cm[2].sum() / len(df)
 ```
 
 <!-- #region tags=[] jp-MarkdownHeadingCollapsed=true tags=[] -->
@@ -1206,7 +1204,7 @@ class_map = json.dumps({
 })
 ```
 
-<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
 #### version_0
 - image size 128
 - pred size 16
@@ -1259,7 +1257,7 @@ def plot_nlargest_preds(pred_df, n, cls_idx):
     
 plot_nlargest_preds(pred_df, 5, 2)
 
-<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
 #### version_1
 - image size 256
 - pred size 16
@@ -1312,7 +1310,7 @@ def plot_nlargest_preds(pred_df, n, cls_idx):
     
 plot_nlargest_preds(pred_df, 5, 2)
 
-<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
+<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
 #### version_2
 - image_size 128
 - stride 16
@@ -1339,7 +1337,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 cm, df, f1, weed_prec, weed_rec = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop_class='zea mays')
 ```
 
-<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
+<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
 #### version_3
 - image_size 128
 - stride 16
@@ -1366,7 +1364,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 cm, df, f1, weed_prec, weed_rec = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop_class='zea mays')
 ```
 
-<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
+<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
 #### version_4
 - image_size 128
 - stride 16
@@ -1393,7 +1391,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 cm, df, f1, weed_prec, weed_rec = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop_class='zea mays')
 ```
 
-<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
+<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
 #### version_5
 - image_size 128
 - stride 16
@@ -1420,7 +1418,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 cm, df, f1, weed_prec, weed_rec = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop_class='zea mays')
 ```
 
-<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
+<!-- #region jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
 #### version_10
 - MogaNet
 <!-- #endregion -->
@@ -1451,7 +1449,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 cm, df, f1, weed_prec, weed_rec = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop_class='maize')
 ```
 
-<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
 #### version_11
 <!-- #endregion -->
 
@@ -1475,7 +1473,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 cm, df, f1, weed_prec, weed_rec = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop_class='maize')
 ```
 
-<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
 #### version_12
 <!-- #endregion -->
 
@@ -1499,7 +1497,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 cm, df, f1, weed_prec, weed_rec = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop_class='maize')
 ```
 
-<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
 #### version_16
 <!-- #endregion -->
 
@@ -1547,7 +1545,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 cm, df, f1, weed_prec, weed_rec = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop_class='maize')
 ```
 
-<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
 ## Maize ternary with raster data
 <!-- #endregion -->
 
@@ -1688,7 +1686,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 cm, df, f1, weed_prec, weed_rec = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, class_map, result_dir=plot_dir, crop_class='maize')
 ```
 
-<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true tags=[] -->
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true -->
 ## Maize ternary raster data only
 <!-- #endregion -->
 
@@ -2010,7 +2008,7 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 cm, df, f1, weed_prec, weed_rec = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir, crop_class='maize')
 ```
 
-<!-- #region tags=[] -->
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true -->
 ### 13.06.23
 <!-- #endregion -->
 
@@ -2254,6 +2252,126 @@ plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'pn
 ```
 
 ```{python tags=c()}
+cm, df, f1, weed_prec, weed_rec = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir, crop_class='maize')
+```
+
+## Raster Finetune
+
+```{python}
+plot_dir = '/home/ndettmer/experiments/ma/classification/maize_ternary_finetune_raster/plots'
+pred_dir = '/home/ndettmer/experiments/ma/classification/maize_ternary_finetune_raster/predictions/220518_maize_rgb_test_area/'
+train_data_dir = '/home/ndettmer/ssd_data/inat_subsets/maize_ternary_manual_preselect/'
+test_data_dir = '/home/ndettmer/ssd_data/UOS_Data/'
+ds_path = os.path.join(test_data_dir, '220518_maize_rgb_test_area.tif')
+target_dir = os.path.join(test_data_dir, '1805_maize')
+ds = GTiffDataset(ds_path, stride=4, normalize=True, shape_dir=target_dir)
+train_classes = ImageFolder(train_data_dir).classes
+```
+
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
+#### version_0
+<!-- #endregion -->
+
+```{python}
+predfile = os.path.join(pred_dir, 'version_0/23-07-17_20-10_probability_map.npy')
+prob_mask = np.load(predfile)
+prob_mask /= prob_mask.max()
+```
+
+```{python}
+figure, axs = plt.subplots(1, 3, figsize=(15, 15))
+for i in range(3):
+    label = train_classes[i]
+    #heat_map = sns.heatmap(pd.DataFrame(data=prob_mask[i]), annot=True, cmap='Spectral', fmt='g').get_figure()
+    axs[i].imshow(prob_mask[i])
+    axs[i].set_title(label)
+plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'png')))
+```
+
+```{python tags=c()}
+cm, df, f1, weed_prec, weed_rec = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir, crop_class='maize')
+```
+
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
+#### version_1
+<!-- #endregion -->
+
+```{python}
+predfile = os.path.join(pred_dir, 'version_1/23-07-17_20-14_probability_map.npy')
+prob_mask = np.load(predfile)
+prob_mask /= prob_mask.max()
+```
+
+```{python}
+figure, axs = plt.subplots(1, 3, figsize=(15, 15))
+for i in range(3):
+    label = train_classes[i]
+    #heat_map = sns.heatmap(pd.DataFrame(data=prob_mask[i]), annot=True, cmap='Spectral', fmt='g').get_figure()
+    axs[i].imshow(prob_mask[i])
+    axs[i].set_title(label)
+plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'png')))
+```
+
+```{python}
+cm, df, f1, weed_prec, weed_rec = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir, crop_class='maize')
+```
+
+### 13.06.
+
+```{python}
+plot_dir = '/home/ndettmer/experiments/ma/classification/maize_ternary_finetune_raster/plots'
+pred_dir = '/home/ndettmer/experiments/ma/classification/maize_ternary_finetune_raster/predictions/220613_maize_rgb_test_area/'
+train_data_dir = '/home/ndettmer/ssd_data/inat_subsets/maize_ternary_manual_preselect'
+ds_path = os.path.join(test_data_dir, '220613_maize_rgb_test_area.tif')
+target_dir = os.path.join(test_data_dir, '1306_maize')
+ds = GTiffDataset(ds_path, stride=4, normalize=True, shape_dir=target_dir)
+```
+
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
+#### version_0
+<!-- #endregion -->
+
+```{python}
+predfile = os.path.join(pred_dir, 'version_0/23-07-17_20-11_probability_map.npy')
+prob_mask = np.load(predfile)
+prob_mask /= prob_mask.max()
+```
+
+```{python}
+figure, axs = plt.subplots(1, 3, figsize=(15, 15))
+for i in range(3):
+    label = train_classes[i]
+    #heat_map = sns.heatmap(pd.DataFrame(data=prob_mask[i]), annot=True, cmap='Spectral', fmt='g').get_figure()
+    axs[i].imshow(prob_mask[i])
+    axs[i].set_title(label)
+plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'png')))
+```
+
+```{python tags=c()}
+cm, df, f1, weed_prec, weed_rec = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir, crop_class='maize')
+```
+
+<!-- #region tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[] -->
+#### version_1
+<!-- #endregion -->
+
+```{python}
+predfile = os.path.join(pred_dir, 'version_1/23-07-17_20-15_probability_map.npy')
+prob_mask = np.load(predfile)
+prob_mask /= prob_mask.max()
+```
+
+```{python}
+figure, axs = plt.subplots(1, 3, figsize=(15, 15))
+for i in range(3):
+    label = train_classes[i]
+    #heat_map = sns.heatmap(pd.DataFrame(data=prob_mask[i]), annot=True, cmap='Spectral', fmt='g').get_figure()
+    axs[i].imshow(prob_mask[i])
+    axs[i].set_title(label)
+plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'png')))
+```
+
+```{python}
 cm, df, f1, weed_prec, weed_rec = pixel_conf_mat(ds_path, target_dir, train_data_dir, predfile, None, result_dir=plot_dir, crop_class='maize')
 ```
 

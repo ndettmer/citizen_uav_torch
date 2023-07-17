@@ -137,8 +137,9 @@ class InatSequentialClassifier(InatClassifier):
         parser.add_argument("--native_classifier", type=bool, required=False, default=False)
         return parent_parser
 
-    def __init__(self, n_classes, backbone_model, lr, weight_decay, log_train_preds: bool = True, weights: Optional[str] = None,
-                 checkpoint_path: Optional[Union[str, Path]] = None, hub_link: Optional[str] = None, **kwargs):
+    def __init__(self, n_classes, backbone_model, lr, weight_decay, log_train_preds: bool = True,
+                 weights: Optional[str] = None, checkpoint_path: Optional[Union[str, Path]] = None,
+                 hub_link: Optional[str] = None, **kwargs):
 
         if sum([weights is not None, checkpoint_path is not None, hub_link is not None]) > 1:
             raise ValueError(f"Only one argument of weights and weight_path can be given.")
