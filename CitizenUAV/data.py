@@ -1044,7 +1044,7 @@ class RasterValidationDataModule(pl.LightningDataModule):
             transform=self.inat_dm.train_ds.dataset.dataset.transform
         )
 
-        val_idx = np.random.choice(range(len(self.val_ds)), size=int(len(self.val_ds) // self.val_size), replace=False)
+        val_idx = np.random.choice(range(len(self.val_ds)), size=int(len(self.val_ds) * self.val_size), replace=False)
         self.val_ds = Subset(self.val_ds, val_idx)
 
         # normalize over both datasets

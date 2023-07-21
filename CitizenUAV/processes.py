@@ -961,7 +961,7 @@ def pixel_conf_mat(
     preds = torch.IntTensor(preds)
 
     # Calculate multi-class F1
-    f1 = F1Score(num_classes=3, average='macro')
+    f1 = F1Score(num_classes=3, average=average)
     f1_score = round(float(f1(preds, targets)), 4)
 
     # create confusion matrix
@@ -981,6 +981,31 @@ def pixel_conf_mat(
 
     return df_cm, pd.DataFrame({'predictions': preds.numpy().flatten(), 'targets': targets.numpy().flatten()}), \
         f1_score, weed_precision, weed_recall
+
+
+def visualize_prediction_maps(
+        prediction_file: Union[Path, str],
+        train_data_dir: Union[Path, str],
+        result_dir: Union[Path, str]
+):
+    """
+    Create a PyPlot of numpy prediction maps.
+    :param prediction_file: Path to numpy prediction dump.
+    :param train_data_dir: Path to directory containing the training data of the model.
+    :param result_dir: Path to directory where the resulting plots are supposed to be saved.
+    """
+
+    prob_mask = np.load(prediction_file)
+    prob_mask /= prob_mask.max()
+    train_classes = ImageFolder(train_data_dir).classes
+
+    figure, axs = plt.subplots(1, 3)
+    # visualize prediction maps
+    for i in range(len(train_classes)):
+        label = train_classes[i]
+        axs[i].imshow(prob_mask[i])
+        axs[i].set_title(label)
+    plt.savefig(os.path.join(result_dir, os.path.basename(prediction_file).replace('npy', 'png')))
 
 
 def optimize_image_resnet(cnn: InatClassifier, stages: list[int], norm_module: nn.Module, target_image: torch.Tensor,
@@ -1259,4 +1284,30 @@ def visualize_confusion_resnet(data_dir: Union[Path, str], model_path: Union[Pat
         species = os.path.basename(os.path.dirname(path))
 
         visualize_grad_cam(sample_img, pid, model, target_layer, dm, out_dir, species)
+
+
+def evaluate_raster_predictions(
+        prediction_file: Union[Path, str],
+        ds_path: Union[Path, str],
+        target_dir: Union[Path, str],
+        train_data_dir: Union[Path, str],
+        class_map: Optional[str] = None,
+        result_dir: Optional[Union[Path, str]] = None,
+        crop_class: Optional[str] = None
+):
+    """
+    Create evaluation plots for a numpy prediction file.
+    :param prediction_file: Path to the numpy prediction dump.
+    :param ds_path: Path to the orthomosaic dataset.
+    :param target_dir: Path to directory containing the orthomosaic targets.
+    :param train_data_dir: Path to directory containing the training data used for the model.
+    :param class_map: JSON formatted string containing the mapping between training classes and target classes.
+    :param result_dir: Path to the directory where the resulting plots are supposed to be saved.
+    :param crop_class: Name of the class that represents the crop plant.
+    """
+
+    visualize_prediction_maps(prediction_file, train_data_dir, result_dir)
+
+    pixel_conf_mat(ds_path, target_dir, train_data_dir, prediction_file, class_map, result_dir, crop_class)
+
 
