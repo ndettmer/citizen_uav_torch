@@ -20,7 +20,7 @@ from rasterio.windows import Window
 import fiona
 from tqdm import tqdm
 
-from typing import Optional, Union, Sequence
+from typing import Optional, Union, Sequence, Tuple
 from pathlib import Path
 import os
 from collections import Counter
@@ -65,12 +65,21 @@ def validate_data_dir(data_dir: Union[str, Path]) -> bool:
 
 
 class InatImageFolderWithPath(ImageFolder):
+    """
+    Subclass of torchvision.datasets.ImageFolder that also outputs the path to an image and that makes image samples
+    accessible by their assigned photo ID.
+    """
     def __getitem__(self, item):
         img, t = super().__getitem__(item)
         path, _ = self.samples[item]
         return img, t, path
 
     def get_item_by_pid(self, pid: str):
+        """
+        Get item by photo ID.
+        :param pid: photo ID
+        :return: image tensor, target, path
+        """
         for idx, (path, t) in enumerate(self.samples):
             if get_pid_from_path(path) == pid:
                 return self[idx]
@@ -167,6 +176,9 @@ class InatDataModule(pl.LightningDataModule):
         self.train_ds, self.val_ds, self.test_ds = random_split(self.ds, abs_split)
 
     def _filter_broken_images(self):
+        """
+        Exclude samples that have a non-accessible image file.
+        """
         if 'image_okay' not in self.metadata and 'broken' not in self.metadata:
             logging.warning("No information about broken images in the metadata!")
         if 'image_okay' in self.metadata:
@@ -246,7 +258,11 @@ class InatDataModule(pl.LightningDataModule):
         self.ds = new_ds
         self.idx = range(len(self.ds))
 
-    def get_channel_mean_std(self):
+    def get_channel_mean_std(self) -> Tuple[torch.FloatTensor, torch.FloatTensor]:
+        """
+        Determine or load channel means and standard deviations for the data in data_dir.
+        :return: Means and standard deviations as float tensors.
+        """
         filename = os.path.join(self.data_dir, 'mean_std.yml')
         if os.path.exists(filename):
             with open(filename, 'r') as file:
@@ -264,11 +280,19 @@ class InatDataModule(pl.LightningDataModule):
 
         return means, stds
 
-    def get_normalize_module(self):
+    def get_normalize_module(self) -> transforms.Normalize:
+        """
+        Create a torchvision.transforms.Normalize module using the channel-wise means and standard deviations for
+        the data in data_dir.
+        :return: Normalize module.
+        """
         means, stds = self.get_channel_mean_std()
         return transforms.Normalize(means, stds)
 
     def add_normalize(self, norm: Optional[nn.Module] = None):
+        """
+        Append a normalizing module to the end of the transforms for the dataset.
+        """
 
         if isinstance(self.ds, Subset):
             normalize_exists = sum(['Normalize' in str(t) for t in self.ds.dataset.transform.transforms]) > 0
@@ -299,6 +323,9 @@ class InatDataModule(pl.LightningDataModule):
 
 
 class InatDistDataset(Dataset):
+    """
+    Dataset for distance training data.
+    """
 
     def __init__(self, data_dir, transform, use_normalized=True):
         super().__init__()
@@ -325,7 +352,7 @@ class InatDistDataset(Dataset):
             subset = df[['Image', 'Distance']]
         self.samples = list(subset.itertuples(index=False, name=None))
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx) -> T_co:
         filename, y = self.samples[idx]
         filepath = os.path.join(self.data_dir, filename)
         img = Image.open(filepath)
@@ -343,6 +370,9 @@ class InatDistDataset(Dataset):
 
 
 class InatDistDataModule(pl.LightningDataModule):
+    """
+    Data module for distance training data.
+    """
 
     @staticmethod
     def add_dm_specific_args(parent_parser):
@@ -505,11 +535,6 @@ class GTiffDataset(Dataset):
             self.min_cls_cover_factor = .01
             self.min_cls_cover = self.window_size ** self.min_cls_cover_factor
 
-        # TODO: For training take bounding boxes, that surround single shapes
-        #   Idea: for each shape take the centroid of that shape
-        #   and move window_size//2 in each direction to create the BB
-        #   Realization exists already in "Maize Validation Set.Rmd"
-
         cache_filename = f"{os.path.splitext(self.filename)[0]}-{self.window_size}-{self.stride}{'-labeled' if self.shape_dir else ''}"
 
         # only use bounding boxes that contain a minimum amount of data
@@ -532,13 +557,23 @@ class GTiffDataset(Dataset):
         if self.return_targets:
             np.save(self.targets_path, self.targets)
 
-    def get_labeled_area(self):
+    def get_labeled_area(self) -> Union[np.ndarray, None]:
+        """
+        Load boolean mask for labeled pixels cropped to the dataset extent or None if no labels exist.
+        :return: Boolean mask for labeled pixels or None.
+        """
         if self.labeled_area_cropped is None:
             return None
         labeled_area = self.uncrop_mask(self.labeled_area_cropped, self.labeled_area_transform)
         return labeled_area
 
-    def get_shapes_from_file(self, filename, crop_mask: bool = True):
+    def get_shapes_from_file(self, filename, crop_mask: bool = True) -> Tuple[np.ndarray, affine.Affine]:
+        """
+        Load label shapes from file and return as a boolean mask together with dataset transformation.
+        :param filename: Name of the shape file. The complete path is created using the shape_dir parameter.
+        :param crop_mask: If True, crop the label mask to its content.
+        :return: Boolean label mask and transformation
+        """
         # Then the retrieving the class coverage is just a simple lookup without any I/O operation.
         # I need to transform between the cropped mask and the full area.
         shape_path = os.path.join(self.shape_dir, filename)
@@ -553,9 +588,10 @@ class GTiffDataset(Dataset):
         shape_mask = shape_mask[3] > 0
         return shape_mask, shape_transform
 
-    def _get_n_windows_x(self):
+    def _get_n_windows_x(self) -> int:
         """
         Simple but a little costly approach for determining the number of windows in the x axis.
+        :return: Number of windows in x axis.
         """
         n = 1
         x = 0
@@ -568,9 +604,10 @@ class GTiffDataset(Dataset):
 
         return n
 
-    def _get_n_windows_y(self):
+    def _get_n_windows_y(self) -> int:
         """
         Simple but a little costly approach for determining the number of windows in the y axis.
+        :return: Number of windows in y axis.
         """
         n = 1
         y = 0
@@ -583,10 +620,11 @@ class GTiffDataset(Dataset):
 
         return n
 
-    def _get_bounding_box_from_index(self, index):
+    def _get_bounding_box_from_index(self, index) -> Tuple[int, int, int, int]:
         """
         Calculate the bounding box of the window with given index before filtering.
         :param index: window index
+        :return x_min, x_max, y_min, y_max
         """
         x_min = (index % self.n_windows_x) * self.stride
         y_min = (index // self.n_windows_x) * self.stride
@@ -646,10 +684,11 @@ class GTiffDataset(Dataset):
             tensor = self.norm(tensor)
         return tensor
 
-    def getitem_raw(self, index):
+    def getitem_raw(self, index) -> T_co:
         """
         Get window by non-filtered index.
         :param index: Index of the window without filtering in self._preselect_windows()
+        :return: Sample image as a Tensor and target.
         """
         bb = self._get_bounding_box_from_index(index)
         sample = self.get_bb_data(bb)
@@ -673,7 +712,11 @@ class GTiffDataset(Dataset):
 
         return sample, target
 
-    def get_non_normalized_item(self, index):
+    def get_non_normalized_item(self, index) -> T_co:
+        """
+        Get item without normalization.
+        :return: Sample image and target.
+        """
         bb = self.bbs[index]
         sample = self.get_bb_data(bb, False)
 
@@ -762,6 +805,10 @@ class GTiffDataset(Dataset):
         return cls_mask
 
     def get_cls_mask_in_bb(self, bb: Union[tuple | np.ndarray], cls_idx: int) -> np.ndarray:
+        """
+        Get class mask for given bounding box.
+        :return: Class mask for bounding box.
+        """
         x_min, x_max, y_min, y_max = bb
 
         cls_mask = self.get_cls_mask(cls_idx)
@@ -788,6 +835,11 @@ class GTiffDataset(Dataset):
         return coverage
 
     def get_all_bb_class_coverages(self, bb: Union[tuple | np.ndarray], share: bool = False):
+        """
+        Collection of class coverages in given bounding box.
+        :param bb: Bounding box coordinates x_min, x_max, y_min, y_max
+        :param share: If True, the proportion of coverage will be returned, the absolute number of pixels otherwise.
+        """
         coverages = []
         # soil is always the last class
         # here it is excluded
@@ -797,23 +849,23 @@ class GTiffDataset(Dataset):
 
         return np.array(coverages)
 
-    def raw_len(self):
+    def raw_len(self) -> int:
         return self.n_windows_x * self.n_windows_y
 
-    def get_red(self):
+    def get_red(self) -> np.ndarray:
         return self.rds.read(1) / 255.
 
-    def get_green(self):
+    def get_green(self) -> np.ndarray:
         return self.rds.read(2) / 255.
 
-    def get_blue(self):
+    def get_blue(self) -> np.ndarray:
         return self.rds.read(3) / 255.
 
-    def get_mask(self):
+    def get_mask(self) -> np.ndarray:
         return self.rds.read(4)
 
-    def get_mask_bool(self):
-        return self.rds.read(4) > 0
+    def get_mask_bool(self) -> np.ndarray:
+        return self.get_mask() > 0
 
 
 class MixedDataModule(pl.LightningDataModule):
