@@ -497,7 +497,7 @@ class MogaNet(nn.Module):
         init_value (float): Init value for Layer Scale. Defaults to 1e-5.
         head_init_scale (float): Rescale init of classifier for high-resolution
             fine-tuning. Defaults to 1.
-        patch_sizes (List[int | tuple]): The patch size in patch embeddings.
+        patch_sizes (List[int, tuple]): The patch size in patch embeddings.
             Defaults to [3, 3, 3, 3].
         stem_norm_type (str): The type for normalization layer for stems.
             Defaults to 'BN'.

@@ -5,7 +5,7 @@ import numpy as np
 
 from CitizenUAV.models import InatSequentialClassifier
 from CitizenUAV.data import MixedDataModule
-from CitizenUAV.io_utils import write_params
+from CitizenUAV.io import write_params
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import EarlyStopping

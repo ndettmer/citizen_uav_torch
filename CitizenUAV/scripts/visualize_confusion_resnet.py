@@ -1,8 +1,7 @@
 from CitizenUAV.processes import visualize_confusion_resnet
-from CitizenUAV.io_utils import write_params
+from CitizenUAV.io import write_params
 from argparse import ArgumentParser
 from plyer import notification
-from typing import Optional
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@ from PySide6.QtGui import QPixmap, QKeySequence, QPalette, QColor
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QPushButton, QWidget, QProgressBar, QLineEdit
 import pandas as pd
 import numpy as np
-from CitizenUAV.io_utils import get_pid_from_path, read_split_inat_metadata, store_split_inat_metadata
+from CitizenUAV.io import get_pid_from_path, store_split_inat_metadata
 from CitizenUAV.data import InatDataModule
 
 from typing import Union, Optional
@@ -63,7 +63,7 @@ class SelectorWidget(QWidget):
         self.start_from_scratch_button.clicked.connect(self.start_from_scratch)
 
         self.save_button = QPushButton("Save (Ctrl + S)")
-        self.save_button.setShortcut(QKeySequence(Qt.CTRL | Qt.Key_S))
+        self.save_button.setShortcut(QKeySequence(Qt.CTRL, Qt.Key_S))
         self.save_button.clicked.connect(self.save_action)
 
         self.progress_bar = QProgressBar()

@@ -1,5 +1,5 @@
-torch~=1.12.1+cu116
-torchvision~=0.13.1+cu116
+torch~=1.12.1
+torchvision~=0.13.1
 pandas~=1.5.0
 tqdm~=4.64.1
 Pillow~=9.2.0
@@ -14,3 +14,12 @@ fiona~=1.8.22
 seaborn~=0.12.1
 torchmetrics~=0.10.0
 matplotlib~=3.6.2
+captum~=0.7.0
+resnest~=0.0.5
+plyer~=2.1.0
+
+# SampleSelector
+PySide6~=6.6.1
+
+# MogaNet
+timm~=0.9.12

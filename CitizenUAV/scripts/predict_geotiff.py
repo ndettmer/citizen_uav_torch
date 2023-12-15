@@ -1,5 +1,5 @@
 from CitizenUAV.processes import predict_geotiff
-from CitizenUAV.io_utils import write_params
+from CitizenUAV.io import write_params
 
 from argparse import ArgumentParser
 import os

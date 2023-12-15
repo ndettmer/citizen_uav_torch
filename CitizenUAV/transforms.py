@@ -1,6 +1,5 @@
 from torchvision.transforms.functional import crop, adjust_brightness, adjust_saturation, adjust_contrast
 import torch
-from torch import nn
 import numpy as np
 import math
 

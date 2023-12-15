@@ -1,9 +1,10 @@
-import pyinaturalist as pin
 import json
+from io import BytesIO
+from pathlib import Path
 
+import pyinaturalist as pin
 import torch.cuda
 from PIL import UnidentifiedImageError
-from io import BytesIO
 from scipy.stats import zscore
 
 from captum.attr import IntegratedGradients, Occlusion, GuidedGradCam, NoiseTunnel
@@ -13,13 +14,13 @@ from torch import optim
 from torchmetrics.classification import BinaryPrecision, BinaryRecall
 
 from CitizenUAV.losses import ContentLoss, StyleLoss
-from CitizenUAV.math_utils import get_area_around_center, get_center_of_bb
+from CitizenUAV.math import get_area_around_center, get_center_of_bb
 from CitizenUAV.models import *
 from CitizenUAV.data import *
-from CitizenUAV.io_utils import *
+from CitizenUAV.io import *
 
 
-def download_data(species: str, output_dir: os.PathLike, max_images: Optional[int] = None,
+def download_data(species: str, output_dir: Path, max_images: Optional[int] = None,
                   min_year: Optional[int] = 2010, max_year: Optional[int] = 2024):
     """
     Download inaturalist image data for a certain species.
@@ -276,7 +277,7 @@ def extend_dist_metadata(data_dir, consider_augmented=False):
     return metadata
 
 
-def offline_augmentation_regression_data(data_dir: os.PathLike, target_n, debug: bool = False):
+def offline_augmentation_regression_data(data_dir: Path, target_n, debug: bool = False):
     """
     Perform offline augmentation on distance-labeled image dataset.
     :param data_dir: The directory where the data lies. (There has to be a single subdirectory containing the data.
@@ -614,7 +615,7 @@ def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, 
     return metadata
 
 
-def create_image_metadata(data_dir: os.PathLike, classes: list = None, debug: bool = False):
+def create_image_metadata(data_dir: Path, classes: list = None, debug: bool = False):
     metadata = pd.DataFrame(columns=["photo_id", "species", "distance", "obs_id", "n_photos", "label", "image_okay"])
     metadata.set_index('photo_id', inplace=True)
 
@@ -701,8 +702,8 @@ def predict_inat(model_path: Union[str, Path], data_dir: Union[str, Path], resul
     pred_df.to_csv(os.path.join(result_dir, result_filename), index=False)
 
 
-def predict_geotiff(model_path: Union[str | os.PathLike], dataset_path: Union[str | os.PathLike],
-                    result_dir: Optional[Union[str | os.PathLike]] = None,
+def predict_geotiff(model_path: Union[str, Path], dataset_path: Union[str, Path],
+                    result_dir: Optional[Union[str, Path]] = None,
                     window_size: int = 128, stride: int = 1, gpu: bool = False, batch_size: int = 1,
                     normalize: bool = False, means: Optional[tuple] = None, stds: Optional[tuple] = None,
                     probabilities: bool = False, pred_size: int = None, model_class: str = 'InatSequentialClassifier',

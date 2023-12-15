@@ -7,7 +7,7 @@ import numpy as np
 
 from CitizenUAV.data import InatDistDataModule
 from CitizenUAV.models import InatRegressor
-from CitizenUAV.io_utils import write_params
+from CitizenUAV.io import write_params
 
 if __name__ == "__main__":
     parser = ArgumentParser()

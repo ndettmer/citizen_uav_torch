@@ -4,7 +4,7 @@ from plyer import notification
 from CitizenUAV.models import InatClassifier
 from CitizenUAV.data import *
 from CitizenUAV.processes import *
-from CitizenUAV.io_utils import write_params
+from CitizenUAV.io import write_params
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import EarlyStopping

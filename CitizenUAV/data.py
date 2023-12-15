@@ -27,8 +27,8 @@ from collections import Counter
 import logging
 
 from CitizenUAV.transforms import *
-from CitizenUAV.io_utils import get_pid_from_path, read_split_inat_metadata, empty_dir
-from CitizenUAV.math_utils import channel_mean_std
+from CitizenUAV.io import get_pid_from_path, read_split_inat_metadata, empty_dir
+from CitizenUAV.math import channel_mean_std
 
 
 def validate_split(split: tuple) -> bool:
@@ -107,7 +107,7 @@ class InatDataModule(pl.LightningDataModule):
         return parent_parser
 
     # 10% test, split rest into 80% train and 20% val by default
-    def __init__(self, data_dir: Union[str, Path], species: Optional[Union[list | str]] = None, batch_size: int = 4,
+    def __init__(self, data_dir: Union[str, Path], species: Optional[Union[list, str]] = None, batch_size: int = 4,
                  split: tuple = (.72, .18, .1), img_size: int = 128, min_distance: float = None, balance: bool = False,
                  sample_per_class: int = -1, normalize: bool = False, return_path: bool = False, **kwargs):
         """
@@ -383,7 +383,7 @@ class InatDistDataModule(pl.LightningDataModule):
         parser.add_argument("--img_size", type=int, default=128, choices=[2 ** x for x in range(6, 10)])
         return parent_parser
 
-    def __init__(self, data_dir: os.PathLike, batch_size: int = 4, split: tuple = (.72, .18, .1), img_size: int = 128,
+    def __init__(self, data_dir: Path, batch_size: int = 4, split: tuple = (.72, .18, .1), img_size: int = 128,
                  **kwargs):
         """
         :param data_dir: Directory where the data lies.
@@ -431,7 +431,7 @@ class GTiffDataset(Dataset):
     Pytorch dataset creating samples form a GeoTiff dataset using a moving window approach
     """
 
-    def __init__(self, filename: Union[str | os.PathLike], shape_dir: Optional[Union[str | os.PathLike]] = None,
+    def __init__(self, filename: Union[str, Path], shape_dir: Optional[Union[str, Path]] = None,
                  window_size: int = 128, stride: int = 1, normalize: bool = False, means: Optional[tuple] = None,
                  stds: Optional[tuple] = None):
         """
@@ -667,7 +667,7 @@ class GTiffDataset(Dataset):
         np.save(self.bb_path, bbs)
         return bbs
 
-    def get_bb_data(self, bb: Union[tuple | np.ndarray], normalize: Optional[bool] = None) -> torch.Tensor:
+    def get_bb_data(self, bb: Union[tuple, np.ndarray], normalize: Optional[bool] = None) -> torch.Tensor:
         """
         Get RGB data in the given bounding box
         :param bb: bounding box (x_min, x_max, y_min, y_max)
@@ -804,7 +804,7 @@ class GTiffDataset(Dataset):
         cls_mask = self.uncrop_mask(cls_mask_cropped, cls_mask_transform)
         return cls_mask
 
-    def get_cls_mask_in_bb(self, bb: Union[tuple | np.ndarray], cls_idx: int) -> np.ndarray:
+    def get_cls_mask_in_bb(self, bb: Union[tuple, np.ndarray], cls_idx: int) -> np.ndarray:
         """
         Get class mask for given bounding box.
         :return: Class mask for bounding box.
@@ -815,8 +815,8 @@ class GTiffDataset(Dataset):
 
         return cls_mask[x_min:x_max, y_min:y_max]
 
-    def get_bb_cls_coverage(self, bb: Union[tuple | np.ndarray], cls_idx: int, share: bool = False) \
-            -> Union[int | float]:
+    def get_bb_cls_coverage(self, bb: Union[tuple, np.ndarray], cls_idx: int, share: bool = False) \
+            -> Union[int, float]:
         """
         Get the number of pixels in the given bounding box that are covered with the given class.
         :param bb: Bounding box.
@@ -834,7 +834,7 @@ class GTiffDataset(Dataset):
             coverage /= self.window_size ** 2
         return coverage
 
-    def get_all_bb_class_coverages(self, bb: Union[tuple | np.ndarray], share: bool = False):
+    def get_all_bb_class_coverages(self, bb: Union[tuple, np.ndarray], share: bool = False):
         """
         Collection of class coverages in given bounding box.
         :param bb: Bounding box coordinates x_min, x_max, y_min, y_max
