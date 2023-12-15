@@ -6,6 +6,7 @@ import affine
 import pytorch_lightning as pl
 import yaml
 from pytorch_lightning.utilities.types import TRAIN_DATALOADERS
+from torch import nn
 from torch.utils.data import DataLoader, random_split, Subset, Dataset, IterableDataset
 from torch.utils.data.dataset import T_co
 from torchvision.datasets import ImageFolder
@@ -15,7 +16,6 @@ from torchvision.transforms.functional import to_pil_image
 import pandas as pd
 from PIL import Image
 import rasterio as rio
-import rasterio.mask
 from rasterio.windows import Window
 import fiona
 from tqdm import tqdm
