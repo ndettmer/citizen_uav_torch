@@ -146,7 +146,14 @@ def download_data(species: str, output_dir: Path, max_images: Optional[int] = No
     return metadata
 
 
-def extend_metadata(data_dir, consider_augmented=False):
+def extend_metadata(data_dir, consider_augmented=False) -> pd.DataFrame:
+    """
+    Extend metadata of distance regression dataset.
+    :param data_dir: Path to the image dataset.
+    :param consider_augmented: If true, also consider images created in an augmentation process
+        (currently not implemented).
+    :return pd.DataFrame: Extended metadata.
+    """
     ds = ImageFolder(data_dir, transform=transforms.ToTensor())
     metadata = read_split_inat_metadata(data_dir)
 
@@ -461,6 +468,11 @@ def offline_augmentation_classification_data(data_dir: Union[str, Path], target_
 
 
 def remove_augmented_classification_images(data_dir: Union[str, Path], subdirs: Optional[list[str]] = None):
+    """
+    Remove all entries of augmented samples from the metadata of an image dataset and store the updated dataframe.
+    :param data_dir: Path to the image dataset.
+    :param subdirs: Only consider given subdirectories.
+    """
     metadata = read_split_inat_metadata(data_dir, subdirs)
     ds = ImageFolder(data_dir)
     idx = range(len(ds))
@@ -616,6 +628,12 @@ def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, 
 
 
 def create_image_metadata(data_dir: Path, classes: list = None, debug: bool = False):
+    """
+    Create a metadata CSV file for an image dataset.
+    :param data_dir: Path to the image dataset.
+    :param classes: List of classes to consider.
+    :param debug: If true, don't store the result.
+    """
     metadata = pd.DataFrame(columns=["photo_id", "species", "distance", "obs_id", "n_photos", "label", "image_okay"])
     metadata.set_index('photo_id', inplace=True)
 
@@ -647,6 +665,18 @@ def predict_inat(model_path: Union[str, Path], data_dir: Union[str, Path], resul
                  img_size: int = 128,
                  min_distance: float = None, gpu: Optional[bool] = None, batch_size: int = 1, normalize: bool = False,
                  model_class: str = 'InatSequentialClassifier'):
+    """
+    Make predictions on an iNaturalist image dataset and store results in a given directory.
+    :param model_path: Path to the model checkpoint to use. 
+    :param data_dir: Path to the image dataset.
+    :param result_dir: Directory to store the predictions in.
+    :param img_size: Side length of the quadratic image inputs.
+    :param min_distance: Minimal assigned acquisition distance to consider.
+    :param gpu: If true, use GPU acceleration.
+    :param batch_size: Number of predictions to do at once.
+    :param normalize: If true, normalize pixel values channel-wise accross dataset.
+    :param model_class: Model class to use. Options are 'InatSequentialClassifier' and 'InatMogaNetClassifier'.
+    """
     dm = InatDataModule(data_dir, img_size=img_size, normalize=normalize, min_distance=min_distance, split=(0, 0, 1),
                         batch_size=batch_size, return_path=True)
     dm.setup()
@@ -1114,6 +1144,18 @@ def visualize_integrated_gradients(x: torch.Tensor, pred_label_idx: torch.Tensor
                                    transformed_img: torch.Tensor, out_dir: Union[Path, str],
                                    filename: Union[Path, str], species: str = '', nt_samples: int = 10):
 
+    """
+    Use integrated gradients method to visualize pixel attribution for a given image sample and model.
+    :param x: Input image sample as a PyTorch tensor.
+    :param pred_label_idx: Numerical class label.
+    :param model: Model to visualize for.
+    :param transformed_img: Non-normalized input image for display.
+    :param out_dir: Output direcotry.
+    :param filename: Input image filename.
+    :param species: Textual class label of the input image.
+    :param nt_smaples: Number of noise tunnel samples to be used.
+    """
+
     integrated_gradients = IntegratedGradients(model)
     noise_tunnel = NoiseTunnel(integrated_gradients)
     attributions_ig_nt = noise_tunnel.attribute(
@@ -1146,6 +1188,16 @@ def visualize_integrated_gradients(x: torch.Tensor, pred_label_idx: torch.Tensor
 def visualize_occlusion(x: torch.Tensor, pred_label_idx: torch.Tensor, model: nn.Module,
                         transformed_img: torch.Tensor, out_dir: Union[Path, str],
                         filename: Union[Path, str], species=''):
+    """
+    Use occlusion method to visualize pixel attribution for a given image sample and model.
+    :param x: Input image sample as a PyTorch tensor.
+    :param pred_label_idx: Numerical class label.
+    :param model: Model to visualize for.
+    :param transformed_img: Non-normalized input image for display.
+    :param out_dir: Output direcotry.
+    :param filename: Input image filename.
+    :param species: Textual class label of the input image.
+    """
 
     occlusion = Occlusion(model)
     attributions_occ = occlusion.attribute(
@@ -1177,6 +1229,12 @@ def visualize_occlusion(x: torch.Tensor, pred_label_idx: torch.Tensor, model: nn
 
 
 def prepare_inputs(input_img: torch.Tensor, dm: InatDataModule):
+    """
+    Prepare transformed normalized and non-normalized inputs from an input image tensor. 
+    :param input_img: Input image tensor.
+    :param dm: Data module object to retrieve the normalization from.
+    :return: Normalized an non-normalized image.
+    """
     norm = dm.get_normalize_module()
     transformed_img = input_img.unsqueeze(0)
     x = norm(transformed_img)
@@ -1186,6 +1244,17 @@ def prepare_inputs(input_img: torch.Tensor, dm: InatDataModule):
 
 def visualize_features(input_img: torch.Tensor, filename: Union[Path, str], model: nn.Module, dm: InatDataModule,
                        out_dir: Union[Path, str], species='', nt_samples: int = 10):
+    """
+    Use integrated gradients and occlusion methods to visualize pixel attribution for a given image sample and model.
+    :param x: Input image sample as a PyTorch tensor.
+    :param pred_label_idx: Numerical class label.
+    :param model: Model to visualize for.
+    :param transformed_img: Non-normalized input image for display.
+    :param out_dir: Output direcotry.
+    :param filename: Input image filename.
+    :param species: Textual class label of the input image.
+    :param nt_smaples: Number of noise tunnel samples to be used.
+    """
 
     x, transformed_img = prepare_inputs(input_img, dm)
 
@@ -1199,6 +1268,15 @@ def visualize_features(input_img: torch.Tensor, filename: Union[Path, str], mode
 def visualize_class_features(data_dir: Union[Path, str], model_path: Union[Path, str], preds_path: Union[Path, str],
                              out_dir: Optional[Union[Path, str]] = None, samples_per_class: int = 5,
                              model_class: str = 'InatSequentialClassifier', nt_samples: int = 10):
+    """
+    Use integrated gradients and occlusion methods to visualize pixel attribution for a given number of image samples per class for a given image dataset and model.
+    :param data_dir: Path to image dataset.
+    :param model: Model to visualize for.
+    :param out_dir: Output direcotry.
+    :param samples_per_class: Number of samples per class.
+    :param model_class: Model class to use. Options are 'InatSequentialClassifier' and 'InatMogaNetClassifier'.
+    :param nt_smaples: Number of noise tunnel samples to be used.
+    """
 
     if out_dir is None:
         out_dir = os.path.join(os.path.dirname(preds_path), "plots")
@@ -1225,6 +1303,15 @@ def visualize_class_features(data_dir: Union[Path, str], model_path: Union[Path,
 
 def visualize_grad_cam(input_img: torch.Tensor, filename: Union[Path, str], model: nn.Module, target_layer,
                        dm: InatDataModule, out_dir: Union[Path, str], species=''):
+    """
+    Use Guided GradCAM method to visualize feature confusion for a given image sample and model.
+    :param input_img: Input image sample as a PyTorch tensor.
+    :param filename: Input image filename.
+    :param model: Model to visualize for.
+    :param out_dir: Output direcotry.
+    :param dm: Data module to get the channel normalization from.
+    :param species: Textual class label of the input image.
+    """
 
     x, transformed_img = prepare_inputs(input_img, dm)
     pred_scores = model(x).squeeze()
@@ -1254,6 +1341,14 @@ def visualize_grad_cam(input_img: torch.Tensor, filename: Union[Path, str], mode
 
 def visualize_confusion_resnet(data_dir: Union[Path, str], model_path: Union[Path, str], preds_path: Union[Path, str],
                                out_dir: Optional[Union[Path, str]] = None, n_samples: Optional[int] = None):
+    """
+    Use Guided GradCAM method to visualize feature confusion for a given number of image samples and model.
+    :param data_dir: Path to image dataset.
+    :param model_path: Path to model to visualize for.
+    :param preds_path: Path to class predictions.
+    :param out_dir: Output direcotry.
+    :param n_samples: Number of samples to investigate.
+    """
 
     if out_dir is None:
         out_dir = os.path.join(os.path.dirname(preds_path), "plots")
