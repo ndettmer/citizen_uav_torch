@@ -1,0 +1,31 @@
+version: "3.8"
+
+services:
+  app:
+    user: "${USER_ID:-1000}"
+    hostname: "${HOST_NAME:-ndettmer}"
+    image: citizenuav
+    container_name: cuav-container
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile
+      args:
+        USER_NAME: "${USER_NAME:-ndettmer}"
+        USER_ID: "${USER_ID:-1000}"
+        USER_EMAIL: "${USER_EMAIL:-}"
+    volumes:
+      - ./:/app/
+    ports:
+      - 8080:8080
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    ipc: host
+    init: true
+
+
