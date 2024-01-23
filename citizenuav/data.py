@@ -1,34 +1,34 @@
+import logging
+import os
+
 from abc import ABC
+from collections import Counter
 from copy import deepcopy
 from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Optional, Sequence, Tuple, Union
 
 import affine
-import pytorch_lightning as pl
-import yaml
-from pytorch_lightning.utilities.types import TRAIN_DATALOADERS
-from torch import nn
-from torch.utils.data import DataLoader, random_split, Subset, Dataset, IterableDataset
-from torch.utils.data.dataset import T_co
-from torchvision.datasets import ImageFolder
-from torchvision import transforms
-from torchvision.transforms.functional import to_pil_image
-
-import pandas as pd
-from PIL import Image
-import rasterio as rio
-from rasterio.windows import Window
 import fiona
+import pandas as pd
+import pytorch_lightning as pl
+import rasterio as rio
+import yaml
+
+from PIL import Image
+from pytorch_lightning.utilities.types import TRAIN_DATALOADERS
+from rasterio.windows import Window
+from torch import nn
+from torch.utils.data import DataLoader, Dataset, IterableDataset, Subset, random_split
+from torch.utils.data.dataset import T_co
+from torchvision import transforms
+from torchvision.datasets import ImageFolder
+from torchvision.transforms.functional import to_pil_image
 from tqdm import tqdm
 
-from typing import Optional, Union, Sequence, Tuple
-from pathlib import Path
-import os
-from collections import Counter
-import logging
-
-from citizenuav.transforms import *
-from citizenuav.io import get_pid_from_path, read_split_inat_metadata, empty_dir
+from citizenuav.io import empty_dir, get_pid_from_path, read_split_inat_metadata
 from citizenuav.math import channel_mean_std
+from citizenuav.transforms import *
 
 
 def validate_split(split: tuple) -> bool:
@@ -37,7 +37,7 @@ def validate_split(split: tuple) -> bool:
     :param split: Split
     :return: True, if valid.
     """
-    if (split_sum := np.round(np.sum(split), 10)) != 1.:
+    if (split_sum := np.round(np.sum(split), 10)) != 1.0:
         raise ValueError(f"The sum of split has to be 1. Got {split_sum}")
     return True
 
@@ -53,7 +53,6 @@ def validate_data_dir(data_dir: Union[str, Path]) -> bool:
 
     # Check if distance dataset
     if not os.path.exists(os.path.join(data_dir, "distances.csv")):
-
         # Has to be classification dataset
         # Check for metadata
         _, subdirs, _ = next(os.walk(data_dir))
@@ -69,6 +68,7 @@ class InatImageFolderWithPath(ImageFolder):
     Subclass of torchvision.datasets.ImageFolder that also outputs the path to an image and that makes image samples
     accessible by their assigned photo ID.
     """
+
     def __getitem__(self, item):
         img, t = super().__getitem__(item)
         path, _ = self.samples[item]
@@ -96,10 +96,10 @@ class InatDataModule(pl.LightningDataModule):
     def add_dm_specific_args(parent_parser):
         parser = parent_parser.add_argument_group("InatDataModule")
         parser.add_argument("--data_dir", type=str)
-        parser.add_argument("--species", type=str, nargs='+', required=False)
+        parser.add_argument("--species", type=str, nargs="+", required=False)
         parser.add_argument("--batch_size", type=int, default=4)
-        parser.add_argument("--split", type=tuple, default=(.72, .18, .1))
-        parser.add_argument("--img_size", type=int, default=128, choices=[2 ** x for x in range(6, 10)])
+        parser.add_argument("--split", type=tuple, default=(0.72, 0.18, 0.1))
+        parser.add_argument("--img_size", type=int, default=128, choices=[2**x for x in range(6, 10)])
         parser.add_argument("--balance", type=bool, default=False, required=False)
         parser.add_argument("--min_distance", type=int, default=None, required=False)
         parser.add_argument("--sample_per_class", type=int, default=None, required=False)
@@ -107,9 +107,20 @@ class InatDataModule(pl.LightningDataModule):
         return parent_parser
 
     # 10% test, split rest into 80% train and 20% val by default
-    def __init__(self, data_dir: Union[str, Path], species: Optional[Union[list, str]] = None, batch_size: int = 4,
-                 split: tuple = (.72, .18, .1), img_size: int = 128, min_distance: float = None, balance: bool = False,
-                 sample_per_class: int = -1, normalize: bool = False, return_path: bool = False, **kwargs):
+    def __init__(
+        self,
+        data_dir: Union[str, Path],
+        species: Optional[Union[list, str]] = None,
+        batch_size: int = 4,
+        split: tuple = (0.72, 0.18, 0.1),
+        img_size: int = 128,
+        min_distance: float = None,
+        balance: bool = False,
+        sample_per_class: int = -1,
+        normalize: bool = False,
+        return_path: bool = False,
+        **kwargs,
+    ):
         """
         :param data_dir: Directory where the data lies.
         :param species: Species to consider.
@@ -133,8 +144,8 @@ class InatDataModule(pl.LightningDataModule):
         self.data_dir = data_dir
 
         self.metadata = read_split_inat_metadata(self.data_dir, species)
-        if 'label' in self.metadata.columns:
-            self.metadata.drop(columns=['label'], inplace=True)
+        if "label" in self.metadata.columns:
+            self.metadata.drop(columns=["label"], inplace=True)
         self.batch_size = batch_size
         self.normalize = normalize
         self.return_path = return_path
@@ -150,7 +161,7 @@ class InatDataModule(pl.LightningDataModule):
         self.idx = range(len(self.ds))
 
         self.species = species
-        self.min_distance = min_distance or 0.
+        self.min_distance = min_distance or 0.0
         self.balance = balance
         self.num_workers = os.cpu_count()
         self.sample_per_class = sample_per_class
@@ -179,14 +190,14 @@ class InatDataModule(pl.LightningDataModule):
         """
         Exclude samples that have a non-accessible image file.
         """
-        if 'image_okay' not in self.metadata and 'broken' not in self.metadata:
+        if "image_okay" not in self.metadata and "broken" not in self.metadata:
             logging.warning("No information about broken images in the metadata!")
-        if 'image_okay' in self.metadata:
+        if "image_okay" in self.metadata:
             okay_pids = self.metadata[self.metadata.image_okay].index
             self.idx = [i for i in self.idx if get_pid_from_path(self.ds.samples[i][0]) in okay_pids]
             # prioritize image_okay column
             return
-        if 'broken' in self.metadata:
+        if "broken" in self.metadata:
             okay_pids = self.metadata[~self.metadata.broken].index
             self.idx = [i for i in self.idx if get_pid_from_path(self.ds.samples[i][0]) in okay_pids]
 
@@ -199,7 +210,7 @@ class InatDataModule(pl.LightningDataModule):
 
     def _filter_distance(self):
         """Filter dataset for samples with a minimum distance."""
-        if 'distance' not in self.metadata:
+        if "distance" not in self.metadata:
             raise KeyError("The samples have no acquisition distance assigned.")
         min_dist_subset = self.metadata[self.metadata.distance >= self.min_distance].index
         self.idx = [i for i in self.idx if get_pid_from_path(self.ds.samples[i][0]) in min_dist_subset]
@@ -235,9 +246,14 @@ class InatDataModule(pl.LightningDataModule):
 
         # randomly choose samples from classes
         if not balanced:
-            self.idx = list(np.concatenate(
-                [np.random.choice(np.argwhere(tmp_targets == t).flatten(), size=min_n, replace=False) for t in
-                 n_samples.keys()]))
+            self.idx = list(
+                np.concatenate(
+                    [
+                        np.random.choice(np.argwhere(tmp_targets == t).flatten(), size=min_n, replace=False)
+                        for t in n_samples.keys()
+                    ]
+                )
+            )
 
         logging.info(f"Class sample distribution after balancing procedure: {self.get_target_distribution()}")
 
@@ -263,19 +279,16 @@ class InatDataModule(pl.LightningDataModule):
         Determine or load channel means and standard deviations for the data in data_dir.
         :return: Means and standard deviations as float tensors.
         """
-        filename = os.path.join(self.data_dir, 'mean_std.yml')
+        filename = os.path.join(self.data_dir, "mean_std.yml")
         if os.path.exists(filename):
-            with open(filename, 'r') as file:
+            with open(filename, "r") as file:
                 data = yaml.safe_load(file)
-            means = torch.FloatTensor(data['means'])
-            stds = torch.FloatTensor(data['stds'])
+            means = torch.FloatTensor(data["means"])
+            stds = torch.FloatTensor(data["stds"])
         else:
             means, stds = channel_mean_std(self.ds)
-            data = {
-                'means': means.numpy().tolist(),
-                'stds': stds.numpy().tolist()
-            }
-            with open(filename, 'w') as file:
+            data = {"means": means.numpy().tolist(), "stds": stds.numpy().tolist()}
+            with open(filename, "w") as file:
                 yaml.dump(data, file)
 
         return means, stds
@@ -295,9 +308,9 @@ class InatDataModule(pl.LightningDataModule):
         """
 
         if isinstance(self.ds, Subset):
-            normalize_exists = sum(['Normalize' in str(t) for t in self.ds.dataset.transform.transforms]) > 0
+            normalize_exists = sum(["Normalize" in str(t) for t in self.ds.dataset.transform.transforms]) > 0
         elif isinstance(self.ds, ImageFolder):
-            normalize_exists = sum(['Normalize' in str(t) for t in self.ds.transform.transforms]) > 0
+            normalize_exists = sum(["Normalize" in str(t) for t in self.ds.transform.transforms]) > 0
         else:
             raise TypeError(f"The dataset has the wrong type: {type(self.ds)}")
 
@@ -338,18 +351,17 @@ class InatDistDataset(Dataset):
         self.max_dist = df.Distance.max()
 
         # normalize between 0 and 1
-        if 'standard_dist' not in df or ('standard_dist' in df and sum(df.standard_dist.isna())):
-            df['standard_dist'] = \
-                (df.Distance - self.min_dist) / (self.max_dist - self.min_dist)
+        if "standard_dist" not in df or ("standard_dist" in df and sum(df.standard_dist.isna())):
+            df["standard_dist"] = (df.Distance - self.min_dist) / (self.max_dist - self.min_dist)
             df.to_csv(df_path)
 
         self.use_normalized = use_normalized
         if self.use_normalized:
             self.targets = df.standard_dist.values.astype(np.float32)
-            subset = df[['Image', 'standard_dist']]
+            subset = df[["Image", "standard_dist"]]
         else:
             self.targets = df.Distance.values.astype(np.float32)
-            subset = df[['Image', 'Distance']]
+            subset = df[["Image", "Distance"]]
         self.samples = list(subset.itertuples(index=False, name=None))
 
     def __getitem__(self, idx) -> T_co:
@@ -379,12 +391,13 @@ class InatDistDataModule(pl.LightningDataModule):
         parser = parent_parser.add_argument_group("InatDistDataModule")
         parser.add_argument("--data_dir", type=str)
         parser.add_argument("--batch_size", type=int, default=4)
-        parser.add_argument("--split", type=tuple, default=(.72, .18, .1))
-        parser.add_argument("--img_size", type=int, default=128, choices=[2 ** x for x in range(6, 10)])
+        parser.add_argument("--split", type=tuple, default=(0.72, 0.18, 0.1))
+        parser.add_argument("--img_size", type=int, default=128, choices=[2**x for x in range(6, 10)])
         return parent_parser
 
-    def __init__(self, data_dir: Path, batch_size: int = 4, split: tuple = (.72, .18, .1), img_size: int = 128,
-                 **kwargs):
+    def __init__(
+        self, data_dir: Path, batch_size: int = 4, split: tuple = (0.72, 0.18, 0.1), img_size: int = 128, **kwargs
+    ):
         """
         :param data_dir: Directory where the data lies.
         :param batch_size: Batch size.
@@ -431,9 +444,16 @@ class GTiffDataset(Dataset):
     Pytorch dataset creating samples form a GeoTiff dataset using a moving window approach
     """
 
-    def __init__(self, filename: Union[str, Path], shape_dir: Optional[Union[str, Path]] = None,
-                 window_size: int = 128, stride: int = 1, normalize: bool = False, means: Optional[tuple] = None,
-                 stds: Optional[tuple] = None):
+    def __init__(
+        self,
+        filename: Union[str, Path],
+        shape_dir: Optional[Union[str, Path]] = None,
+        window_size: int = 128,
+        stride: int = 1,
+        normalize: bool = False,
+        means: Optional[tuple] = None,
+        stds: Optional[tuple] = None,
+    ):
         """
         :param filename: Path to the GeoTiff file
         :param shape_dir: Path to the directory containing the shape files needed for determining class labels.
@@ -454,19 +474,11 @@ class GTiffDataset(Dataset):
             if means is not None:
                 norm_means = np.array(means)
             else:
-                norm_means = np.array([
-                    self.get_red().mean(),
-                    self.get_green().mean(),
-                    self.get_blue().mean()
-                ])
+                norm_means = np.array([self.get_red().mean(), self.get_green().mean(), self.get_blue().mean()])
             if stds is not None:
                 norm_stds = np.array(stds)
             else:
-                norm_stds = np.array([
-                    self.get_red().std(),
-                    self.get_green().std(),
-                    self.get_blue().std()
-                ])
+                norm_stds = np.array([self.get_red().std(), self.get_green().std(), self.get_blue().std()])
             self.norm = transforms.Normalize(norm_means, norm_stds)
 
         # load shape masks
@@ -476,7 +488,6 @@ class GTiffDataset(Dataset):
         self.labeled_area_cropped = None
 
         if self.shape_dir is not None:
-
             # get labeled-area
             prefix = os.path.basename(self.shape_dir)
             la_shapes, la_transform = self.get_shapes_from_file(f"{prefix}_labeled-area.shp", True)
@@ -486,7 +497,7 @@ class GTiffDataset(Dataset):
             self.return_targets = True
             for root, directory, files in os.walk(self.shape_dir):
                 for file in files:
-                    if 'labeled-area' in file:
+                    if "labeled-area" in file:
                         # skip mask for labeled area
                         continue
                     if os.path.splitext(file)[1] == ".shp":
@@ -499,7 +510,7 @@ class GTiffDataset(Dataset):
                         self.class_mask_transforms.append(shape_transform)
 
             # add soil mask
-            self.classes.append('soil')
+            self.classes.append("soil")
             # the soil mask is each pixel of the labeled area that is not labeled as any other class
             soil_mask = self.uncrop_mask(self.labeled_area_cropped, self.labeled_area_transform).copy()
             for cls_transform, cls_mask in zip(self.class_mask_transforms, self.class_masks):
@@ -512,8 +523,9 @@ class GTiffDataset(Dataset):
 
             # crop soil mask to the extent of the labeled area
             soil_mask_cropped = soil_mask[
-                                int(min_point_ds[0]):int(min_point_ds[0]) + self.labeled_area_cropped.shape[0],
-                                int(min_point_ds[1]):int(min_point_ds[1]) + self.labeled_area_cropped.shape[1]]
+                int(min_point_ds[0]) : int(min_point_ds[0]) + self.labeled_area_cropped.shape[0],
+                int(min_point_ds[1]) : int(min_point_ds[1]) + self.labeled_area_cropped.shape[1],
+            ]
             self.class_masks.append(soil_mask_cropped.copy())
             self.class_mask_transforms.append(deepcopy(self.labeled_area_transform))
             del soil_mask
@@ -528,12 +540,12 @@ class GTiffDataset(Dataset):
 
         # Minimum coverage of any data in a window to be considered as a sample
         self.min_cover_factor = 3 / 4
-        self.min_cover = self.window_size ** 2 * self.min_cover_factor
+        self.min_cover = self.window_size**2 * self.min_cover_factor
 
         if self.return_targets:
             # Minimum coverage of a class in a window to be considered a sample for that class
-            self.min_cls_cover_factor = .01
-            self.min_cls_cover = self.window_size ** self.min_cls_cover_factor
+            self.min_cls_cover_factor = 0.01
+            self.min_cls_cover = self.window_size**self.min_cls_cover_factor
 
         cache_filename = f"{os.path.splitext(self.filename)[0]}-{self.window_size}-{self.stride}{'-labeled' if self.shape_dir else ''}"
 
@@ -679,7 +691,7 @@ class GTiffDataset(Dataset):
 
         x_min, x_max, y_min, y_max = bb
         window = Window.from_slices((x_min, x_max), (y_min, y_max))
-        tensor = torch.from_numpy(self.rds.read((1, 2, 3), window=window)).float() / 255.
+        tensor = torch.from_numpy(self.rds.read((1, 2, 3), window=window)).float() / 255.0
         if normalize:
             tensor = self.norm(tensor)
         return tensor
@@ -744,7 +756,7 @@ class GTiffDataset(Dataset):
         coverages = self.get_all_bb_class_coverages(bb, True)
 
         if not (coverages >= self.min_cls_cover_factor).any():
-            return self.class_to_idx['soil']
+            return self.class_to_idx["soil"]
 
         return int(np.argmax(coverages))
 
@@ -756,9 +768,9 @@ class GTiffDataset(Dataset):
         :return: Label in position (x, y).
         """
         for cls_idx in range(len(self.classes) - 1):
-            if self.get_cls_mask_in_bb((x, x+1, y, y+1), cls_idx).all():
+            if self.get_cls_mask_in_bb((x, x + 1, y, y + 1), cls_idx).all():
                 return cls_idx
-        return self.class_to_idx['soil']
+        return self.class_to_idx["soil"]
 
     def uncrop_mask(self, mask: np.ndarray, transform: affine.Affine) -> np.ndarray:
         """
@@ -815,8 +827,7 @@ class GTiffDataset(Dataset):
 
         return cls_mask[x_min:x_max, y_min:y_max]
 
-    def get_bb_cls_coverage(self, bb: Union[tuple, np.ndarray], cls_idx: int, share: bool = False) \
-            -> Union[int, float]:
+    def get_bb_cls_coverage(self, bb: Union[tuple, np.ndarray], cls_idx: int, share: bool = False) -> Union[int, float]:
         """
         Get the number of pixels in the given bounding box that are covered with the given class.
         :param bb: Bounding box.
@@ -825,13 +836,15 @@ class GTiffDataset(Dataset):
         :return: Class coverage in the window.
         """
         if cls_idx > len(self.classes) - 2:
-            raise ValueError(f"Species with class index {cls_idx} does not exits. "
-                             f"Please choose from {list(np.array(self.classes)[:-1])}")
+            raise ValueError(
+                f"Species with class index {cls_idx} does not exits. "
+                f"Please choose from {list(np.array(self.classes)[:-1])}"
+            )
 
         # calculate numeric coverage
         coverage = int(np.sum(self.get_cls_mask_in_bb(bb, cls_idx)))
         if share:
-            coverage /= self.window_size ** 2
+            coverage /= self.window_size**2
         return coverage
 
     def get_all_bb_class_coverages(self, bb: Union[tuple, np.ndarray], share: bool = False):
@@ -853,13 +866,13 @@ class GTiffDataset(Dataset):
         return self.n_windows_x * self.n_windows_y
 
     def get_red(self) -> np.ndarray:
-        return self.rds.read(1) / 255.
+        return self.rds.read(1) / 255.0
 
     def get_green(self) -> np.ndarray:
-        return self.rds.read(2) / 255.
+        return self.rds.read(2) / 255.0
 
     def get_blue(self) -> np.ndarray:
-        return self.rds.read(3) / 255.
+        return self.rds.read(3) / 255.0
 
     def get_mask(self) -> np.ndarray:
         return self.rds.read(4)
@@ -882,27 +895,27 @@ class MixedDataModule(pl.LightningDataModule):
         parser.add_argument("--n_inat_samples_per_class", type=int)
         parser.add_argument("--n_raster_samples_per_class", type=int)
         parser.add_argument("--batch_size", type=int, default=4, required=False)
-        parser.add_argument("--split", type=float, nargs=3, default=(.72, .18, .1), required=False)
-        parser.add_argument("--img_size", type=int, default=128, required=False, choices=[2 ** x for x in range(6, 10)])
+        parser.add_argument("--split", type=float, nargs=3, default=(0.72, 0.18, 0.1), required=False)
+        parser.add_argument("--img_size", type=int, default=128, required=False, choices=[2**x for x in range(6, 10)])
         parser.add_argument("--balance", type=bool, default=False, required=False)
         parser.add_argument("--normalize", type=bool, default=True, required=False)
 
         return parent_parser
 
     def __init__(
-            self,
-            data_dir: Union[str, Path],
-            inat_dir: Union[str, Path],
-            raster_dir: Union[str, Path],
-            n_inat_samples_per_class: int,
-            n_raster_samples_per_class: int,
-            batch_size: int = 4,
-            split: tuple = (.72, .18, .1),
-            img_size: int = 128,
-            balance: bool = True,
-            normalize: bool = True,
-            return_path: bool = False,
-            **kwargs
+        self,
+        data_dir: Union[str, Path],
+        inat_dir: Union[str, Path],
+        raster_dir: Union[str, Path],
+        n_inat_samples_per_class: int,
+        n_raster_samples_per_class: int,
+        batch_size: int = 4,
+        split: tuple = (0.72, 0.18, 0.1),
+        img_size: int = 128,
+        balance: bool = True,
+        normalize: bool = True,
+        return_path: bool = False,
+        **kwargs,
     ):
         super().__init__()
 
@@ -928,8 +941,7 @@ class MixedDataModule(pl.LightningDataModule):
         self.img_transform = transforms.Compose([transforms.ToTensor(), QuadCrop(), transforms.Resize(img_size)])
 
         if not self.ready() or True:
-
-            cache_file = os.path.join(self.data_dir, 'mean_std.yml')
+            cache_file = os.path.join(self.data_dir, "mean_std.yml")
             if os.path.exists(cache_file):
                 os.remove(cache_file)
 
@@ -942,7 +954,7 @@ class MixedDataModule(pl.LightningDataModule):
                 raise KeyError(f"Classes of given datasets do not match! {inat_ds.classes}, {raster_ds.classes}")
 
             for cls_name in inat_ds.classes:
-                for source in ['inat', 'raster']:
+                for source in ["inat", "raster"]:
                     sink_class_path = os.path.join(self.data_dir, cls_name, source)
                     if not os.path.exists(sink_class_path):
                         os.makedirs(sink_class_path)
@@ -967,10 +979,10 @@ class MixedDataModule(pl.LightningDataModule):
                         img_source_path, _ = source_ds.samples[i]
                         img_name = f"{get_pid_from_path(img_source_path)}.png"
                         img_sink_path = os.path.join(sink_class_path, img_name)
-                        img.save(img_sink_path, 'png')
+                        img.save(img_sink_path, "png")
 
         self.ds = ImageFolder(self.data_dir, self.img_transform)
-        self.ds.raster = [os.path.basename(os.path.dirname(s[0])) == 'raster' for s in self.ds.samples]
+        self.ds.raster = [os.path.basename(os.path.dirname(s[0])) == "raster" for s in self.ds.samples]
         if normalize:
             self._add_normalize()
 
@@ -979,17 +991,17 @@ class MixedDataModule(pl.LightningDataModule):
         inat_split = list(np.floor(np.array(split)[:2] * len(inat_idx)).astype(np.int32))
         inat_split.append(len(inat_idx) - np.sum(inat_split))
         np.random.shuffle(inat_idx)
-        inat_train_idx = inat_idx[:inat_split[0]]
-        inat_val_idx = inat_idx[inat_split[0]:inat_split[0] + inat_split[1]]
-        inat_test_idx = inat_idx[inat_split[0] + inat_split[1]:]
+        inat_train_idx = inat_idx[: inat_split[0]]
+        inat_val_idx = inat_idx[inat_split[0] : inat_split[0] + inat_split[1]]
+        inat_test_idx = inat_idx[inat_split[0] + inat_split[1] :]
 
         raster_idx = list(set(list(idx)) ^ set(inat_idx))
         raster_split = list(np.floor(np.array(split)[:2] * len(raster_idx)).astype(np.int32))
         raster_split.append(len(raster_idx) - np.sum(raster_split))
         np.random.shuffle(raster_idx)
-        raster_train_idx = raster_idx[:raster_split[0]]
-        raster_val_idx = raster_idx[raster_split[0]:raster_split[0] + raster_split[1]]
-        raster_test_idx = raster_idx[raster_split[0] + raster_split[1]:]
+        raster_train_idx = raster_idx[: raster_split[0]]
+        raster_val_idx = raster_idx[raster_split[0] : raster_split[0] + raster_split[1]]
+        raster_test_idx = raster_idx[raster_split[0] + raster_split[1] :]
 
         train_idx = list(inat_train_idx) + list(raster_train_idx)
         self.train_ds = Subset(self.ds, train_idx)
@@ -1002,12 +1014,12 @@ class MixedDataModule(pl.LightningDataModule):
         ready = True
         classes = ImageFolder(self.inat_dir).classes
         for cls_name in classes:
-            for source in ['inat', 'raster']:
+            for source in ["inat", "raster"]:
                 sink_class_path = os.path.join(self.data_dir, cls_name, source)
                 n_source_samples_per_class = eval(f"self.n_{source}_samples_per_class")
                 if self.balance:
                     source_class_path = os.path.join(eval(f"self.{source}_dir"), cls_name)
-                    possible_samples_per_class = len([fn for fn in os.listdir(source_class_path) if fn[-4:] == '.png'])
+                    possible_samples_per_class = len([fn for fn in os.listdir(source_class_path) if fn[-4:] == ".png"])
                     n_source_samples_per_class = min([n_source_samples_per_class, possible_samples_per_class])
                 if not os.path.exists(sink_class_path) or len(os.listdir(sink_class_path)) < n_source_samples_per_class:
                     ready = False
@@ -1025,9 +1037,9 @@ class MixedDataModule(pl.LightningDataModule):
 
     def _add_normalize(self, norm: Optional[nn.Module] = None):
         if isinstance(self.ds, Subset):
-            normalize_exists = sum(['Normalize' in str(t) for t in self.ds.dataset.transform.transforms]) > 0
+            normalize_exists = sum(["Normalize" in str(t) for t in self.ds.dataset.transform.transforms]) > 0
         elif isinstance(self.ds, ImageFolder):
-            normalize_exists = sum(['Normalize' in str(t) for t in self.ds.transform.transforms]) > 0
+            normalize_exists = sum(["Normalize" in str(t) for t in self.ds.transform.transforms]) > 0
         else:
             raise TypeError(f"The dataset has the wrong type: {type(self.ds)}")
 
@@ -1044,19 +1056,16 @@ class MixedDataModule(pl.LightningDataModule):
         return transforms.Normalize(means, stds)
 
     def get_channel_mean_std(self):
-        filename = os.path.join(self.data_dir, 'mean_std.yml')
+        filename = os.path.join(self.data_dir, "mean_std.yml")
         if os.path.exists(filename):
-            with open(filename, 'r') as file:
+            with open(filename, "r") as file:
                 data = yaml.safe_load(file)
-            means = torch.FloatTensor(data['means'])
-            stds = torch.FloatTensor(data['stds'])
+            means = torch.FloatTensor(data["means"])
+            stds = torch.FloatTensor(data["stds"])
         else:
             means, stds = channel_mean_std(self.ds)
-            data = {
-                'means': means.numpy().tolist(),
-                'stds': stds.numpy().tolist()
-            }
-            with open(filename, 'w') as file:
+            data = {"means": means.numpy().tolist(), "stds": stds.numpy().tolist()}
+            with open(filename, "w") as file:
                 yaml.dump(data, file)
 
         return means, stds
@@ -1073,28 +1082,25 @@ class RasterValidationDataModule(pl.LightningDataModule):
         inat_parser = InatDataModule.add_dm_specific_args(parent_parser)
         parser = inat_parser.add_argument_group("MixedDataModule")
         parser.add_argument("--val_data_dir", type=str, required=True)
-        parser.add_argument("--val_size", type=float, required=False, default=1.)
+        parser.add_argument("--val_size", type=float, required=False, default=1.0)
         return parent_parser
 
     def __init__(self, **kwargs):
         super().__init__()
 
-        self.val_data_dir = kwargs.pop('val_data_dir')
-        self.val_size = kwargs.pop('val_size', 1.)
-        normalize_mixed = kwargs.pop('normalize', False)
-        kwargs['normalize'] = False
+        self.val_data_dir = kwargs.pop("val_data_dir")
+        self.val_size = kwargs.pop("val_size", 1.0)
+        normalize_mixed = kwargs.pop("normalize", False)
+        kwargs["normalize"] = False
 
         # use iNat data for training only
-        kwargs['split'] = (1., 0., 0.)
+        kwargs["split"] = (1.0, 0.0, 0.0)
 
         self.inat_dm = InatDataModule(**kwargs)
         self.batch_size = self.inat_dm.batch_size
         self.num_workers = self.inat_dm.num_workers
 
-        self.val_ds = ImageFolder(
-            self.val_data_dir,
-            transform=self.inat_dm.train_ds.dataset.dataset.transform
-        )
+        self.val_ds = ImageFolder(self.val_data_dir, transform=self.inat_dm.train_ds.dataset.dataset.transform)
 
         val_idx = np.random.choice(range(len(self.val_ds)), size=int(len(self.val_ds) * self.val_size), replace=False)
         self.val_ds = Subset(self.val_ds, val_idx)
@@ -1105,20 +1111,17 @@ class RasterValidationDataModule(pl.LightningDataModule):
                 self._add_normalize()
 
     def get_channel_mean_std(self):
-        filename = os.path.join(self.inat_dm.data_dir, 'mean_std_mixed.yml')
+        filename = os.path.join(self.inat_dm.data_dir, "mean_std_mixed.yml")
         if os.path.exists(filename):
-            with open(filename, 'r') as file:
+            with open(filename, "r") as file:
                 data = yaml.safe_load(file)
-            means = torch.FloatTensor(data['means'])
-            stds = torch.FloatTensor(data['stds'])
+            means = torch.FloatTensor(data["means"])
+            stds = torch.FloatTensor(data["stds"])
         else:
             # calculate means and stds over both datasets combined
             means, stds = channel_mean_std(IterDataset(self.all_samples_gen))
-            data = {
-                'means': means.numpy().tolist(),
-                'stds': stds.numpy().tolist()
-            }
-            with open(filename, 'w') as file:
+            data = {"means": means.numpy().tolist(), "stds": stds.numpy().tolist()}
+            with open(filename, "w") as file:
                 yaml.dump(data, file)
 
         return means, stds
@@ -1148,7 +1151,7 @@ class RasterValidationDataModule(pl.LightningDataModule):
         return DataLoader(self.val_ds, batch_size=self.batch_size, num_workers=self.num_workers)
 
     def test_dataloader(self) -> TRAIN_DATALOADERS:
-        #return DataLoader(self.test_ds, batch_size=self.batch_size, num_workers=self.num_workers)
+        # return DataLoader(self.test_ds, batch_size=self.batch_size, num_workers=self.num_workers)
         raise NotImplemented()
 
 
@@ -1167,7 +1170,6 @@ class IterDataset(IterableDataset):
 
 
 class CUAVDataClass(ABC):
-
     def dict(self):
         return asdict(self)
 
@@ -1207,6 +1209,7 @@ class BoxPred(CUAVDataClass):
     """
     Box prediction in a raster dataset.
     """
+
     x_min: int
     x_max: int
     y_min: int

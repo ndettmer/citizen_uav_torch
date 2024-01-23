@@ -1,13 +1,15 @@
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QPixmap, QKeySequence, QPalette, QColor
-from PySide6.QtWidgets import QLabel, QVBoxLayout, QPushButton, QWidget, QProgressBar, QLineEdit
-import pandas as pd
-import numpy as np
-from citizenuav.io import get_pid_from_path, store_split_inat_metadata
-from citizenuav.data import InatDataModule
-
-from typing import Union, Optional
 from pathlib import Path
+from typing import Optional, Union
+
+import numpy as np
+import pandas as pd
+
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor, QKeySequence, QPalette, QPixmap
+from PySide6.QtWidgets import QLabel, QLineEdit, QProgressBar, QPushButton, QVBoxLayout, QWidget
+
+from citizenuav.data import InatDataModule
+from citizenuav.io import get_pid_from_path, store_split_inat_metadata
 
 
 class SelectorWidget(QWidget):
@@ -20,8 +22,8 @@ class SelectorWidget(QWidget):
         self.metadata = self.dm.metadata
         self.current_index = 0
 
-        if 'hand_picked' not in self.dm.metadata.columns:
-            self.metadata['hand_picked'] = pd.Series(index=self.metadata.index, dtype=bool)
+        if "hand_picked" not in self.dm.metadata.columns:
+            self.metadata["hand_picked"] = pd.Series(index=self.metadata.index, dtype=bool)
             self.metadata.hand_picked = None
         else:
             # If we re-enter the process, start at the first sample that is not set yet.
@@ -102,7 +104,7 @@ class SelectorWidget(QWidget):
 
         text = f"{pid}, {class_text}{status_text}"
 
-        if 'distance' in sample:
+        if "distance" in sample:
             text = text + f", {np.around(sample.distance, 2)} m"
         return text
 
@@ -130,7 +132,7 @@ class SelectorWidget(QWidget):
 
     def _pick_image(self, value: bool):
         pid = self._get_current_pid()
-        self.metadata.loc[pid, 'hand_picked'] = value
+        self.metadata.loc[pid, "hand_picked"] = value
         self.next_image()
 
     def accept_image(self):
@@ -145,7 +147,7 @@ class SelectorWidget(QWidget):
         self.show_image()
 
     def __del__(self):
-        if hasattr(self, 'data_dir') and hasattr(self, 'metadata'):
+        if hasattr(self, "data_dir") and hasattr(self, "metadata"):
             store_split_inat_metadata(self.metadata, self.data_dir)
 
     def save_action(self):

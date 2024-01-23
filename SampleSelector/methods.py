@@ -1,6 +1,8 @@
-from SampleSelector.selector import SelectorWidget
-from PySide6.QtWidgets import QApplication
 import sys
+
+from PySide6.QtWidgets import QApplication
+
+from SampleSelector.selector import SelectorWidget
 
 
 def iter_files(data_dir, argv):
@@ -19,5 +21,3 @@ def iter_files(data_dir, argv):
     selector.show()
 
     sys.exit(app.exec())
-
-

@@ -1,18 +1,18 @@
 from argparse import ArgumentParser
+
 from plyer import notification
-
-from citizenuav.models import InatClassifier
-from citizenuav.data import *
-from citizenuav.processes import *
-from citizenuav.io import write_params
 from pytorch_lightning import Trainer, seed_everything
-from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import EarlyStopping
+from pytorch_lightning.loggers import TensorBoardLogger
 
+from citizenuav.data import *
+from citizenuav.io import write_params
+from citizenuav.models import InatClassifier
+from citizenuav.processes import *
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--log_dir", type=str, default='./lightning_logs')
+    parser.add_argument("--log_dir", type=str, default="./lightning_logs")
     parser.add_argument("--patience", type=int, default=-1)
     parser.add_argument("--min_delta", type=float, default=0)
     parser.add_argument("--seed", type=int, default=np.random.rand())
@@ -22,7 +22,7 @@ if __name__ == "__main__":
     parser = Trainer.add_argparse_args(parser)
 
     args = parser.parse_args()
-    write_params(args.log_dir, vars(args), 'train_classifier')
+    write_params(args.log_dir, vars(args), "train_classifier")
 
     species = args.species
     data_dir = args.data_dir
@@ -46,22 +46,13 @@ if __name__ == "__main__":
     callbacks = []
     if args.patience > 0:
         callbacks.append(
-            EarlyStopping(
-                monitor="val_cce",
-                mode="min",
-                patience=args.patience,
-                verbose=True,
-                min_delta=args.min_delta
-            )
+            EarlyStopping(monitor="val_cce", mode="min", patience=args.patience, verbose=True, min_delta=args.min_delta)
         )
 
     trainer = Trainer.from_argparse_args(args, logger=tb_logger)
 
     trainer.fit(model, dm)
 
-    trainer.test(ckpt_path='best', dataloaders=dm.test_dataloader())
+    trainer.test(ckpt_path="best", dataloaders=dm.test_dataloader())
 
-    notification.notify(
-        title="Classifier Training",
-        message="Training done."
-    )
+    notification.notify(title="Classifier Training", message="Training done.")

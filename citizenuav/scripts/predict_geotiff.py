@@ -1,11 +1,11 @@
-from citizenuav.processes import predict_geotiff
-from citizenuav.io import write_params
+import os
 
 from argparse import ArgumentParser
-import os
 
 from plyer import notification
 
+from citizenuav.io import write_params
+from citizenuav.processes import predict_geotiff
 
 if __name__ == "__main__":
     parser = ArgumentParser()
@@ -21,15 +21,17 @@ if __name__ == "__main__":
     parser.add_argument("--stds", nargs=3, type=float, required=False, default=None)
     parser.add_argument("--probabilities", type=bool, required=False, default=False)
     parser.add_argument("--pred_size", type=int, required=False, default=None)
-    parser.add_argument("--model_class", type=str, required=False, default='InatSequentialClassifier',
-                        choices=['InatSequentialClassifier', 'InatMogaNetClassifier'])
+    parser.add_argument(
+        "--model_class",
+        type=str,
+        required=False,
+        default="InatSequentialClassifier",
+        choices=["InatSequentialClassifier", "InatMogaNetClassifier"],
+    )
     parser.add_argument("--debug", type=bool, required=False, default=False)
     args = parser.parse_args()
     dict_args = vars(args)
     write_params(args.result_dir, dict_args, "predict_geotiff")
     predict_geotiff(**dict_args)
 
-    notification.notify(
-        title="GeoTiff Prediction",
-        message="Done predicting."
-    )
+    notification.notify(title="GeoTiff Prediction", message="Done predicting.")

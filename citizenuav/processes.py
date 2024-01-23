@@ -1,27 +1,33 @@
 import json
+
 from io import BytesIO
 from pathlib import Path
 
 import pyinaturalist as pin
 import torch.cuda
-from PIL import UnidentifiedImageError
-from scipy.stats import zscore
 
-from captum.attr import IntegratedGradients, Occlusion, GuidedGradCam, NoiseTunnel
+from captum.attr import GuidedGradCam, IntegratedGradients, NoiseTunnel, Occlusion
 from captum.attr import visualization as viz
 from matplotlib.colors import LinearSegmentedColormap
+from PIL import UnidentifiedImageError
+from scipy.stats import zscore
 from torch import optim
 from torchmetrics.classification import BinaryPrecision, BinaryRecall
 
+from citizenuav.data import *
+from citizenuav.io import *
 from citizenuav.losses import ContentLoss, StyleLoss
 from citizenuav.math import get_area_around_center, get_center_of_bb
 from citizenuav.models import *
-from citizenuav.data import *
-from citizenuav.io import *
 
 
-def download_data(species: str, output_dir: Path, max_images: Optional[int] = None,
-                  min_year: Optional[int] = 2010, max_year: Optional[int] = 2024):
+def download_data(
+    species: str,
+    output_dir: Path,
+    max_images: Optional[int] = None,
+    min_year: Optional[int] = 2010,
+    max_year: Optional[int] = 2024,
+):
     """
     Download inaturalist image data for a certain species.
     :param species: species to collect data for
@@ -39,26 +45,22 @@ def download_data(species: str, output_dir: Path, max_images: Optional[int] = No
         os.makedirs(output_dir)
 
     # load or create metadata DataFrame
-    metadata_path = os.path.join(output_dir, species, 'metadata.csv')
-    metadata_backup_path = os.path.join(output_dir, species, 'metadata_backup.csv')
+    metadata_path = os.path.join(output_dir, species, "metadata.csv")
+    metadata_backup_path = os.path.join(output_dir, species, "metadata_backup.csv")
     if os.path.exists(metadata_path):
         metadata = pd.read_csv(metadata_path)
         metadata.reset_index(drop=True, inplace=True)
-        metadata.set_index('photo_id', inplace=True)
+        metadata.set_index("photo_id", inplace=True)
     else:
-        metadata = pd.DataFrame(columns=['species', 'obs_id', 'n_photos', 'label'])
-        metadata.index.name = 'photo_id'
+        metadata = pd.DataFrame(columns=["species", "obs_id", "n_photos", "label"])
+        metadata.index.name = "photo_id"
 
     if max_images is not None and len(metadata[metadata.species == species]) >= max_images:
         return metadata
 
     # collect data from inaturalist
     response = pin.get_observations(
-        taxon_name=species,
-        quality_grade=quality,
-        photos=True,
-        page='all',
-        year=range(int(min_year), int(max_year))
+        taxon_name=species, quality_grade=quality, photos=True, page="all", year=range(int(min_year), int(max_year))
     )
     obss = pin.Observations.from_json_list(response)
 
@@ -77,16 +79,14 @@ def download_data(species: str, output_dir: Path, max_images: Optional[int] = No
     p_bar = tqdm(obss)
     p_bar.set_description(f"Downloading data for species {species} ...")
     for obs in p_bar:
-
         n_photos = len(obs.photos)
 
         n_changes = 0
 
         # iterate over images in observation
         for i, photo in enumerate(obs.photos):
-
             # set file name with photo id
-            filename = f'{photo.id}.png'
+            filename = f"{photo.id}.png"
             img_path = os.path.join(spec_img_dir, filename)
 
             # check if data already exists
@@ -109,9 +109,9 @@ def download_data(species: str, output_dir: Path, max_images: Optional[int] = No
                 fp = photo.open()
                 img = Image.open(BytesIO(fp.data))
                 try:
-                    img.save(img_path, 'png')
+                    img.save(img_path, "png")
                 except KeyboardInterrupt:
-                    img.save(img_path, 'png')
+                    img.save(img_path, "png")
                     sys.exit()
 
             # create entry in metadata
@@ -129,7 +129,7 @@ def download_data(species: str, output_dir: Path, max_images: Optional[int] = No
 
         # format class label column in metadata
         if n_changes > 0:
-            metadata.species = metadata.species.astype('category')
+            metadata.species = metadata.species.astype("category")
             metadata.label = metadata.species.cat.codes
             try:
                 metadata.to_csv(metadata_path)
@@ -163,14 +163,14 @@ def extend_metadata(data_dir, consider_augmented=False) -> pd.DataFrame:
         # skip augmented images
         idx = [i for i in idx if "augmented" not in os.path.basename(ds.samples[i][0])]
 
-    max_vals = pd.Series(index=metadata.index, dtype='float32')
-    min_vals = pd.Series(index=metadata.index, dtype='float32')
-    mean_vals = pd.Series(index=metadata.index, dtype='float32')
+    max_vals = pd.Series(index=metadata.index, dtype="float32")
+    min_vals = pd.Series(index=metadata.index, dtype="float32")
+    mean_vals = pd.Series(index=metadata.index, dtype="float32")
     paths = pd.Series(index=metadata.index, dtype=str)
-    heights = pd.Series(index=metadata.index, dtype='int32')
-    widths = pd.Series(index=metadata.index, dtype='int32')
-    contrasts = pd.Series(index=metadata.index, dtype='float32')
-    saturations = pd.Series(index=metadata.index, dtype='float32')
+    heights = pd.Series(index=metadata.index, dtype="int32")
+    widths = pd.Series(index=metadata.index, dtype="int32")
+    contrasts = pd.Series(index=metadata.index, dtype="float32")
+    saturations = pd.Series(index=metadata.index, dtype="float32")
     broken = pd.Series(index=metadata.index, dtype=bool)
     broken[:] = False
 
@@ -193,7 +193,11 @@ def extend_metadata(data_dir, consider_augmented=False) -> pd.DataFrame:
         min_val = float(torch.min(img).numpy())
         min_vals[pid] = min_val
         mean_vals[pid] = float(torch.mean(img).numpy())
-        channels, heights[pid], widths[pid], = img.size()
+        (
+            channels,
+            heights[pid],
+            widths[pid],
+        ) = img.size()
         contrast = max_val - min_val
         contrasts[pid] = contrast
         saturations[pid] = contrast / max_val
@@ -202,15 +206,15 @@ def extend_metadata(data_dir, consider_augmented=False) -> pd.DataFrame:
     # NaN entries might have been created. Replace them with the default value.
     broken.fillna(False, inplace=True)
 
-    metadata['max_val'] = max_vals
-    metadata['min_val'] = min_vals
-    metadata['mean_val'] = mean_vals
-    metadata['path'] = paths
-    metadata['height'] = heights
-    metadata['width'] = widths
-    metadata['contrast'] = contrasts
-    metadata['saturation'] = saturations
-    metadata['broken'] = broken
+    metadata["max_val"] = max_vals
+    metadata["min_val"] = min_vals
+    metadata["mean_val"] = mean_vals
+    metadata["path"] = paths
+    metadata["height"] = heights
+    metadata["width"] = widths
+    metadata["contrast"] = contrasts
+    metadata["saturation"] = saturations
+    metadata["broken"] = broken
 
     store_split_inat_metadata(metadata, data_dir)
 
@@ -225,25 +229,24 @@ def extend_dist_metadata(data_dir, consider_augmented=False):
         (currently not implemented).
     :return pd.DataFrame: Extended metadata.
     """
-    csv_path = os.path.join(data_dir, 'distances.csv')
+    csv_path = os.path.join(data_dir, "distances.csv")
     ds = InatDistDataset(data_dir, transforms.ToTensor())
     metadata = pd.read_csv(csv_path)
 
-    max_vals = pd.Series(index=metadata.index, dtype='float32')
-    min_vals = pd.Series(index=metadata.index, dtype='float32')
-    mean_vals = pd.Series(index=metadata.index, dtype='float32')
+    max_vals = pd.Series(index=metadata.index, dtype="float32")
+    min_vals = pd.Series(index=metadata.index, dtype="float32")
+    mean_vals = pd.Series(index=metadata.index, dtype="float32")
     paths = pd.Series(index=metadata.index, dtype=str)
-    heights = pd.Series(index=metadata.index, dtype='int32')
-    widths = pd.Series(index=metadata.index, dtype='int32')
-    contrasts = pd.Series(index=metadata.index, dtype='float32')
-    saturations = pd.Series(index=metadata.index, dtype='float32')
+    heights = pd.Series(index=metadata.index, dtype="int32")
+    widths = pd.Series(index=metadata.index, dtype="int32")
+    contrasts = pd.Series(index=metadata.index, dtype="float32")
+    saturations = pd.Series(index=metadata.index, dtype="float32")
     broken = pd.Series(index=metadata.index, dtype=bool)
     broken[:] = False
 
     p_bar = tqdm(range(len(ds)))
     p_bar.set_description("Extending metadata for dataset ...")
     for i in p_bar:
-
         filename, distance = ds.samples[i]
         path = os.path.join(data_dir, filename)
 
@@ -260,7 +263,11 @@ def extend_dist_metadata(data_dir, consider_augmented=False):
         min_val = float(torch.min(img).numpy())
         min_vals[i] = min_val
         mean_vals[i] = float(torch.mean(img).numpy())
-        channels, heights[i], widths[i], = img.size()
+        (
+            channels,
+            heights[i],
+            widths[i],
+        ) = img.size()
         contrast = max_val - min_val
         contrasts[i] = contrast
         saturations[i] = contrast / max_val
@@ -269,15 +276,15 @@ def extend_dist_metadata(data_dir, consider_augmented=False):
     # NaN entries might have been created. Replace them with the default value.
     broken.fillna(False, inplace=True)
 
-    metadata['max_val'] = max_vals
-    metadata['min_val'] = min_vals
-    metadata['mean_val'] = mean_vals
-    metadata['path'] = paths
-    metadata['height'] = heights
-    metadata['width'] = widths
-    metadata['contrast'] = contrasts
-    metadata['saturation'] = saturations
-    metadata['broken'] = broken
+    metadata["max_val"] = max_vals
+    metadata["min_val"] = min_vals
+    metadata["mean_val"] = mean_vals
+    metadata["path"] = paths
+    metadata["height"] = heights
+    metadata["width"] = widths
+    metadata["contrast"] = contrasts
+    metadata["saturation"] = saturations
+    metadata["broken"] = broken
 
     metadata.to_csv(csv_path, index=False)
 
@@ -300,18 +307,20 @@ def offline_augmentation_regression_data(data_dir: Path, target_n, debug: bool =
     idx = range(len(ds))
 
     # filter augmented samples
-    idx = [i for i in idx if 'augmented' not in os.path.basename(ds.samples[i][0])]
+    idx = [i for i in idx if "augmented" not in os.path.basename(ds.samples[i][0])]
 
     # define augmentation pipeline
-    transform = transforms.Compose([
-        RandomBrightness(),
-        RandomContrast(),
-        RandomSaturation(),
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomVerticalFlip(),
-        Clamp(),
-        transforms.ToPILImage()
-    ])
+    transform = transforms.Compose(
+        [
+            RandomBrightness(),
+            RandomContrast(),
+            RandomSaturation(),
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomVerticalFlip(),
+            Clamp(),
+            transforms.ToPILImage(),
+        ]
+    )
 
     # iterate over classes
     pbar = tqdm(range(target_n - len(ds)))
@@ -319,7 +328,7 @@ def offline_augmentation_regression_data(data_dir: Path, target_n, debug: bool =
 
     # load distances.csv
     subdir = next(os.walk(data_dir))[1][0]
-    dist_csv_path = os.path.join(data_dir, subdir, 'distances.csv')
+    dist_csv_path = os.path.join(data_dir, subdir, "distances.csv")
     dist_df = pd.read_csv(dist_csv_path)
 
     for _ in pbar:
@@ -354,9 +363,9 @@ def offline_augmentation_regression_data(data_dir: Path, target_n, debug: bool =
         row = pd.Series(index=dist_df.columns, dtype=float)
         row.Image = os.path.basename(filepath)
         row.Distance = orig_slice.iloc[0].Distance
-        if 'path' in dist_df.columns:
+        if "path" in dist_df.columns:
             row.path = filepath
-        if 'broken' in dist_df.columns:
+        if "broken" in dist_df.columns:
             row.broken = False
         dist_df.loc[len(dist_df)] = row
         if not debug:
@@ -364,13 +373,19 @@ def offline_augmentation_regression_data(data_dir: Path, target_n, debug: bool =
 
         # save new image
         if not debug:
-            augmented.save(filepath, 'png')
+            augmented.save(filepath, "png")
 
     return True
 
 
-def offline_augmentation_classification_data(data_dir: Union[str, Path], target_n, subdirs: list[str] = None,
-                                             no_metadata: bool = False, min_distance: float = None, debug: bool = False):
+def offline_augmentation_classification_data(
+    data_dir: Union[str, Path],
+    target_n,
+    subdirs: list[str] = None,
+    no_metadata: bool = False,
+    min_distance: float = None,
+    debug: bool = False,
+):
     """
     Perform offline augmentation on species-labeled image dataset.
     :param data_dir: The directory where the data lies.
@@ -406,22 +421,23 @@ def offline_augmentation_classification_data(data_dir: Union[str, Path], target_
         n_samples = dict(Counter(ds.targets))
 
     # filter augmented samples
-    idx = [i for i in idx if 'augmented' not in os.path.basename(ds.samples[i][0])]
+    idx = [i for i in idx if "augmented" not in os.path.basename(ds.samples[i][0])]
 
     # define augmentation pipeline
-    transform = transforms.Compose([
-        RandomBrightness(),
-        RandomContrast(),
-        RandomSaturation(),
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomVerticalFlip(),
-        Clamp(),
-        transforms.ToPILImage()
-    ])
+    transform = transforms.Compose(
+        [
+            RandomBrightness(),
+            RandomContrast(),
+            RandomSaturation(),
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomVerticalFlip(),
+            Clamp(),
+            transforms.ToPILImage(),
+        ]
+    )
 
     # iterate over classes
     for cls, n in n_samples.items():
-
         # Only consider indices of current class for augmentation sampling.
         cls_idx = [i for i in idx if ds.targets[i] == cls]
 
@@ -462,7 +478,7 @@ def offline_augmentation_classification_data(data_dir: Union[str, Path], target_
                     store_split_inat_metadata(metadata, data_dir)
 
                 # save new image
-                augmented.save(filepath, 'png')
+                augmented.save(filepath, "png")
 
     return True
 
@@ -516,13 +532,22 @@ def check_image_files(data_dir):
         except (OSError, UnidentifiedImageError):
             image_okay[pid] = False
 
-    metadata['image_okay'] = image_okay
+    metadata["image_okay"] = image_okay
     store_split_inat_metadata(metadata, data_dir)
 
 
-def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, species: Optional[list[str]] = None,
-                      batch_size: int = 1, gpu: Optional[bool] = None, overwrite: bool = False,
-                      debug: bool = False) -> pd.DataFrame:
+def predict_distances(
+    data_dir,
+    model_path,
+    train_min,
+    train_max,
+    img_size=256,
+    species: Optional[list[str]] = None,
+    batch_size: int = 1,
+    gpu: Optional[bool] = None,
+    overwrite: bool = False,
+    debug: bool = False,
+) -> pd.DataFrame:
     """
     Predicts acquisition distances for an image dataset.
     :param data_dir: Directory holding the image data
@@ -539,9 +564,10 @@ def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, 
     :return pd.DataFrame: Updated metadata containing distance predictions in column "distance"
     """
 
-    ds = ImageFolder(data_dir, transform=transforms.Compose([
-        transforms.ToTensor(), QuadCrop(), transforms.Resize(img_size), Log10()
-    ]))
+    ds = ImageFolder(
+        data_dir,
+        transform=transforms.Compose([transforms.ToTensor(), QuadCrop(), transforms.Resize(img_size), Log10()]),
+    )
 
     idx = range(len(ds))
 
@@ -550,11 +576,11 @@ def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, 
 
     metadata = read_split_inat_metadata(data_dir, species)
 
-    dist_df = pd.DataFrame(columns=['pid', 'target_class', 'distance'], dtype=str)
+    dist_df = pd.DataFrame(columns=["pid", "target_class", "distance"], dtype=str)
     dist_df.distance = dist_df.distance.astype(float)
-    dist_df.set_index('pid', inplace=True)
+    dist_df.set_index("pid", inplace=True)
 
-    if 'image_okay' not in metadata.columns:
+    if "image_okay" not in metadata.columns:
         del metadata
         check_image_files(data_dir)
         metadata = read_split_inat_metadata(data_dir, species)
@@ -568,8 +594,8 @@ def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, 
     if not len(idx):
         return metadata
 
-    distances = pd.Series(index=metadata.index, dtype='float32')
-    target_classes = pd.Series(index=metadata.index, dtype='str')
+    distances = pd.Series(index=metadata.index, dtype="float32")
+    target_classes = pd.Series(index=metadata.index, dtype="str")
 
     model = InatRegressor.load_from_checkpoint(model_path)
     model.eval()
@@ -587,11 +613,10 @@ def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, 
     p_bar = tqdm(range(len(idx) // batch_size))
     p_bar.set_description(f"Predicting distances ...")
     for batch_no in p_bar:
-
         # build batch
         pids = []
         images = []
-        for i in idx[batch_no * batch_size:(batch_no + 1) * batch_size]:
+        for i in idx[batch_no * batch_size : (batch_no + 1) * batch_size]:
             path, t = ds.samples[i]
             filename = os.path.splitext(os.path.basename(path))[0]
 
@@ -622,7 +647,7 @@ def predict_distances(data_dir, model_path, train_min, train_max, img_size=256, 
 
     dist_df.distance = distances
     dist_df.target_class = target_classes
-    dist_df.to_csv(os.path.join(data_dir, 'distances.csv'))
+    dist_df.to_csv(os.path.join(data_dir, "distances.csv"))
 
     return metadata
 
@@ -635,7 +660,7 @@ def create_image_metadata(data_dir: Path, classes: list = None, debug: bool = Fa
     :param debug: If true, don't store the result.
     """
     metadata = pd.DataFrame(columns=["photo_id", "species", "distance", "obs_id", "n_photos", "label", "image_okay"])
-    metadata.set_index('photo_id', inplace=True)
+    metadata.set_index("photo_id", inplace=True)
 
     ds = ImageFolder(str(data_dir))
     idx = range(len(ds))
@@ -649,25 +674,32 @@ def create_image_metadata(data_dir: Path, classes: list = None, debug: bool = Fa
         img, _ = ds[i]
 
         path, t = ds.samples[i]
-        row = [ds.classes[t], 150., np.nan, 1, np.nan, True]
+        row = [ds.classes[t], 150.0, np.nan, 1, np.nan, True]
 
         photo_id, _ = os.path.splitext(os.path.basename(path))
         metadata.loc[photo_id] = row
 
-    metadata.species = metadata.species.astype('category')
+    metadata.species = metadata.species.astype("category")
     metadata.label = metadata.species.cat.codes
 
     if not debug:
         metadata.to_csv(os.path.join(data_dir, "metadata.csv"))
 
 
-def predict_inat(model_path: Union[str, Path], data_dir: Union[str, Path], result_dir: Union[str, Path],
-                 img_size: int = 128,
-                 min_distance: float = None, gpu: Optional[bool] = None, batch_size: int = 1, normalize: bool = False,
-                 model_class: str = 'InatSequentialClassifier'):
+def predict_inat(
+    model_path: Union[str, Path],
+    data_dir: Union[str, Path],
+    result_dir: Union[str, Path],
+    img_size: int = 128,
+    min_distance: float = None,
+    gpu: Optional[bool] = None,
+    batch_size: int = 1,
+    normalize: bool = False,
+    model_class: str = "InatSequentialClassifier",
+):
     """
     Make predictions on an iNaturalist image dataset and store results in a given directory.
-    :param model_path: Path to the model checkpoint to use. 
+    :param model_path: Path to the model checkpoint to use.
     :param data_dir: Path to the image dataset.
     :param result_dir: Directory to store the predictions in.
     :param img_size: Side length of the quadratic image inputs.
@@ -677,8 +709,15 @@ def predict_inat(model_path: Union[str, Path], data_dir: Union[str, Path], resul
     :param normalize: If true, normalize pixel values channel-wise accross dataset.
     :param model_class: Model class to use. Options are 'InatSequentialClassifier' and 'InatMogaNetClassifier'.
     """
-    dm = InatDataModule(data_dir, img_size=img_size, normalize=normalize, min_distance=min_distance, split=(0, 0, 1),
-                        batch_size=batch_size, return_path=True)
+    dm = InatDataModule(
+        data_dir,
+        img_size=img_size,
+        normalize=normalize,
+        min_distance=min_distance,
+        split=(0, 0, 1),
+        batch_size=batch_size,
+        return_path=True,
+    )
     dm.setup()
     model = eval(model_class).load_from_checkpoint(model_path)
     model.eval()
@@ -689,7 +728,7 @@ def predict_inat(model_path: Union[str, Path], data_dir: Union[str, Path], resul
     if gpu:
         model.cuda()
 
-    columns = ['pid', 'target', 'target_text', 'prediction', 'prediction_text', 'path']
+    columns = ["pid", "target", "target_text", "prediction", "prediction_text", "path"]
     for inat_class in dm.ds.classes:
         columns.append(f"{inat_class}_prob")
     pred_df = pd.DataFrame(columns=columns)
@@ -710,34 +749,45 @@ def predict_inat(model_path: Union[str, Path], data_dir: Union[str, Path], resul
         for path, t, pred, probs in zip(paths, ts, preds, y_hat):
             row = pd.Series(index=pred_df.columns, dtype=object)
 
-            row['pid'] = get_pid_from_path(path)
-            row['target'] = int(t)
-            row['target_text'] = dm.ds.classes[int(t)]
-            row['prediction'] = int(pred)
-            row['prediction_text'] = dm.ds.classes[int(pred)]
-            row['path'] = path
+            row["pid"] = get_pid_from_path(path)
+            row["target"] = int(t)
+            row["target_text"] = dm.ds.classes[int(t)]
+            row["prediction"] = int(pred)
+            row["prediction_text"] = dm.ds.classes[int(pred)]
+            row["path"] = path
 
             for i, prob in enumerate(probs):
-                row[f'{dm.ds.classes[i]}_prob'] = float(prob)
+                row[f"{dm.ds.classes[i]}_prob"] = float(prob)
 
             pred_df.loc[len(pred_df)] = row
 
-    pred_df['model_path'] = model_path
+    pred_df["model_path"] = model_path
 
     model_version = os.path.basename(os.path.dirname(os.path.dirname(model_path)))
-    result_dir = os.path.join(result_dir, 'predictions', 'inat', model_version)
+    result_dir = os.path.join(result_dir, "predictions", "inat", model_version)
     if not os.path.exists(result_dir):
         os.makedirs(result_dir)
     result_filename = f"{datetime.now().strftime('%y-%m-%d_%H-%M')}_predictions.csv"
     pred_df.to_csv(os.path.join(result_dir, result_filename), index=False)
 
 
-def predict_geotiff(model_path: Union[str, Path], dataset_path: Union[str, Path],
-                    result_dir: Optional[Union[str, Path]] = None,
-                    window_size: int = 128, stride: int = 1, gpu: bool = False, batch_size: int = 1,
-                    normalize: bool = False, means: Optional[tuple] = None, stds: Optional[tuple] = None,
-                    probabilities: bool = False, pred_size: int = None, model_class: str = 'InatSequentialClassifier',
-                    debug: bool = False, **kwargs) -> tuple[np.ndarray, str]:
+def predict_geotiff(
+    model_path: Union[str, Path],
+    dataset_path: Union[str, Path],
+    result_dir: Optional[Union[str, Path]] = None,
+    window_size: int = 128,
+    stride: int = 1,
+    gpu: bool = False,
+    batch_size: int = 1,
+    normalize: bool = False,
+    means: Optional[tuple] = None,
+    stds: Optional[tuple] = None,
+    probabilities: bool = False,
+    pred_size: int = None,
+    model_class: str = "InatSequentialClassifier",
+    debug: bool = False,
+    **kwargs,
+) -> tuple[np.ndarray, str]:
     """
     Predict pixel-wise classes for a GeoTiff raster dataset with a given trained model using a moving window approach.
     :param model_path: Path to the model checkpoint.
@@ -761,8 +811,13 @@ def predict_geotiff(model_path: Union[str, Path], dataset_path: Union[str, Path]
         result_dir = os.getcwd()
     dataset_name = os.path.splitext(os.path.basename(dataset_path))[0]
     version_name = os.path.basename(os.path.dirname(os.path.dirname(model_path)))
-    result_path = os.path.join(result_dir, "predictions", dataset_name, version_name,
-                               f'{datetime.now().strftime("%y-%m-%d_%H-%M")}_{"probability_map" if probabilities else "label_map"}.npy')
+    result_path = os.path.join(
+        result_dir,
+        "predictions",
+        dataset_name,
+        version_name,
+        f'{datetime.now().strftime("%y-%m-%d_%H-%M")}_{"probability_map" if probabilities else "label_map"}.npy',
+    )
     result_box_path = result_path.replace(".npy", ".csv")
 
     if not os.path.exists(result_path):
@@ -777,8 +832,9 @@ def predict_geotiff(model_path: Union[str, Path], dataset_path: Union[str, Path]
         model.cuda()
 
     # count the predictions in here in order to take the class with the maximum votes afterwards for each pixel.
-    label_map = np.full((model.n_classes, ds.rds.height, ds.rds.width), 0,
-                        dtype=(np.float16 if probabilities else np.uint8))
+    label_map = np.full(
+        (model.n_classes, ds.rds.height, ds.rds.width), 0, dtype=(np.float16 if probabilities else np.uint8)
+    )
     box_preds = []
     if debug:
         assert ds.get_mask_bool().shape == label_map.shape[1:]
@@ -786,7 +842,7 @@ def predict_geotiff(model_path: Union[str, Path], dataset_path: Union[str, Path]
     p_bar = tqdm(range(len(ds) // batch_size))
     p_bar.set_description(f"Predicting classes in raster dataset")
     for batch_no in p_bar:
-        batch_bbs = ds.bbs[batch_no * batch_size:(batch_no + 1) * batch_size]
+        batch_bbs = ds.bbs[batch_no * batch_size : (batch_no + 1) * batch_size]
         batch = torch.stack([ds.get_bb_data(bb) for bb in batch_bbs], dim=0)
 
         if gpu and torch.cuda.is_available():
@@ -799,13 +855,18 @@ def predict_geotiff(model_path: Union[str, Path], dataset_path: Union[str, Path]
         for pred, probs, bb in zip(preds, y_hat, batch_bbs):
             x_min, x_max, y_min, y_max = bb
             conf = float(torch.max(probs).cpu().numpy())
-            box_preds.append(BoxPred(
-                x_min, x_max, y_min, y_max,
-                int(pred.cpu().numpy()),
-                ds_path=dataset_path,
-                model_path=model_path,
-                confidence=conf
-            ).dict())
+            box_preds.append(
+                BoxPred(
+                    x_min,
+                    x_max,
+                    y_min,
+                    y_max,
+                    int(pred.cpu().numpy()),
+                    ds_path=dataset_path,
+                    model_path=model_path,
+                    confidence=conf,
+                ).dict()
+            )
 
             if pred_size is not None:
                 # Calculate prediction bounding box
@@ -817,8 +878,9 @@ def predict_geotiff(model_path: Union[str, Path], dataset_path: Union[str, Path]
 
             if probabilities:
                 # add class probability
-                label_map[:, pred_x_min:pred_x_max, pred_y_min:pred_y_max] = probs.cpu().numpy().reshape(
-                    model.n_classes, 1, 1)
+                label_map[:, pred_x_min:pred_x_max, pred_y_min:pred_y_max] = (
+                    probs.cpu().numpy().reshape(model.n_classes, 1, 1)
+                )
             else:
                 # add one-hot prediction
                 label_map[pred, pred_x_min:pred_x_max, pred_y_min:pred_y_max] += 1
@@ -837,15 +899,15 @@ def predict_geotiff(model_path: Union[str, Path], dataset_path: Union[str, Path]
 
 
 def pixel_conf_mat(
-        dataset_path: Union[str, Path],
-        shape_dir: Union[str, Path],
-        train_data_dir: Union[str, Path],
-        pred_file: Union[str, Path],
-        class_map: Optional[str] = None,
-        result_dir: Optional[Union[str, Path]] = None,
-        crop_class: Optional[str] = None,
-        average: Optional[str] = 'macro',
-        debug: bool = False
+    dataset_path: Union[str, Path],
+    shape_dir: Union[str, Path],
+    train_data_dir: Union[str, Path],
+    pred_file: Union[str, Path],
+    class_map: Optional[str] = None,
+    result_dir: Optional[Union[str, Path]] = None,
+    crop_class: Optional[str] = None,
+    average: Optional[str] = "macro",
+    debug: bool = False,
 ) -> tuple[pd.DataFrame, pd.DataFrame, float, Union[float, None], Union[float, None]]:
     """
     Creating a pixel-wise confusion matrix for a trained model applied to a GeoTiff dataset.
@@ -911,8 +973,10 @@ def pixel_conf_mat(
     if debug:
         # check if targets are assigned correctly
         for inat_class in inat_classes:
-            assert np.sum(ds.targets == inat_cls_idx_to_rst_cls_idx[inat_class_to_idx[inat_class]]) \
-                   == target_map[inat_class_to_idx[inat_class]].sum()
+            assert (
+                np.sum(ds.targets == inat_cls_idx_to_rst_cls_idx[inat_class_to_idx[inat_class]])
+                == target_map[inat_class_to_idx[inat_class]].sum()
+            )
 
     # get pixel positions of labeled area
     labeled_idx = np.argwhere(ds.get_labeled_area())
@@ -952,8 +1016,8 @@ def pixel_conf_mat(
             raise ValueError(f"The crop class '{crop_class}' is not in the given classes.")
 
         # drop soil
-        is_plant_target = targets != inat_class_to_idx['soil']
-        is_plant_pred = preds != inat_class_to_idx['soil']
+        is_plant_target = targets != inat_class_to_idx["soil"]
+        is_plant_pred = preds != inat_class_to_idx["soil"]
         is_plant = is_plant_pred & is_plant_target
         binary_targets = targets[is_plant].reshape(-1, 1)
         binary_preds = preds[is_plant].reshape(-1, 1)
@@ -1006,18 +1070,21 @@ def pixel_conf_mat(
 
     # save figure
     plt.figure()
-    sns.heatmap(df_cm, annot=True, cmap='Spectral', fmt='g').get_figure()
+    sns.heatmap(df_cm, annot=True, cmap="Spectral", fmt="g").get_figure()
     plt.title(f"F1Score: {f1_score}, Weed Precision: {weed_precision}, Weed Recall: {weed_recall}")
     plt.savefig(os.path.join(result_dir, result_filename))
 
-    return df_cm, pd.DataFrame({'predictions': preds.numpy().flatten(), 'targets': targets.numpy().flatten()}), \
-        f1_score, weed_precision, weed_recall
+    return (
+        df_cm,
+        pd.DataFrame({"predictions": preds.numpy().flatten(), "targets": targets.numpy().flatten()}),
+        f1_score,
+        weed_precision,
+        weed_recall,
+    )
 
 
 def visualize_prediction_maps(
-        prediction_file: Union[Path, str],
-        train_data_dir: Union[Path, str],
-        result_dir: Union[Path, str]
+    prediction_file: Union[Path, str], train_data_dir: Union[Path, str], result_dir: Union[Path, str]
 ):
     """
     Create a PyPlot of numpy prediction maps.
@@ -1036,11 +1103,18 @@ def visualize_prediction_maps(
         label = train_classes[i]
         axs[i].imshow(prob_mask[i])
         axs[i].set_title(label)
-    plt.savefig(os.path.join(result_dir, os.path.basename(prediction_file).replace('npy', 'png')))
+    plt.savefig(os.path.join(result_dir, os.path.basename(prediction_file).replace("npy", "png")))
 
 
-def optimize_image_resnet(cnn: InatClassifier, stages: list[int], norm_module: nn.Module, target_image: torch.Tensor,
-                          loss_class: str, num_steps: int = 300, cuda: Optional[bool] = None):
+def optimize_image_resnet(
+    cnn: InatClassifier,
+    stages: list[int],
+    norm_module: nn.Module,
+    target_image: torch.Tensor,
+    loss_class: str,
+    num_steps: int = 300,
+    cuda: Optional[bool] = None,
+):
     """
     Create an image that approximates the activation in the last layer of a given CNN model slice that is created by
     feeding a given target image to that model in terms of either the content loss or the style loss from the Neural
@@ -1065,11 +1139,10 @@ def optimize_image_resnet(cnn: InatClassifier, stages: list[int], norm_module: n
 
     # build model slice
     model = nn.Sequential()
-    model.add_module('norm', norm_module)
+    model.add_module("norm", norm_module)
     losses = []
     targets = []
     for stage_no, stage in enumerate(cnn.feature_extractor.children()):
-
         model.add_module(str(stage_no), stage)
         if isinstance(stage, nn.Sequential) and stage_no in stages:
             target = model(target_image.unsqueeze(0)).detach()
@@ -1087,7 +1160,7 @@ def optimize_image_resnet(cnn: InatClassifier, stages: list[int], norm_module: n
         if isinstance(model[i], ContentLoss) or isinstance(model[i], StyleLoss):
             break
 
-    model = model[:(i + 1)]
+    model = model[: (i + 1)]
     del i
 
     if cuda is None:
@@ -1140,10 +1213,16 @@ def optimize_image_resnet(cnn: InatClassifier, stages: list[int], norm_module: n
     return x
 
 
-def visualize_integrated_gradients(x: torch.Tensor, pred_label_idx: torch.Tensor, model: nn.Module,
-                                   transformed_img: torch.Tensor, out_dir: Union[Path, str],
-                                   filename: Union[Path, str], species: str = '', nt_samples: int = 10):
-
+def visualize_integrated_gradients(
+    x: torch.Tensor,
+    pred_label_idx: torch.Tensor,
+    model: nn.Module,
+    transformed_img: torch.Tensor,
+    out_dir: Union[Path, str],
+    filename: Union[Path, str],
+    species: str = "",
+    nt_samples: int = 10,
+):
     """
     Use integrated gradients method to visualize pixel attribution for a given image sample and model.
     :param x: Input image sample as a PyTorch tensor.
@@ -1159,35 +1238,37 @@ def visualize_integrated_gradients(x: torch.Tensor, pred_label_idx: torch.Tensor
     integrated_gradients = IntegratedGradients(model)
     noise_tunnel = NoiseTunnel(integrated_gradients)
     attributions_ig_nt = noise_tunnel.attribute(
-        x,
-        target=pred_label_idx,
-        n_steps=200,
-        nt_samples=nt_samples,
-        nt_type='smoothgrad_sq'
+        x, target=pred_label_idx, n_steps=200, nt_samples=nt_samples, nt_type="smoothgrad_sq"
     )
 
-    cmap = LinearSegmentedColormap.from_list('custom blue', [(0, '#ffffff'), (.25, '#000000'), (1, '#000000')], N=256)
+    cmap = LinearSegmentedColormap.from_list("custom blue", [(0, "#ffffff"), (0.25, "#000000"), (1, "#000000")], N=256)
 
     attributions_ig_np = attributions_ig_nt.squeeze().cpu().detach().numpy()
     attributions_ig_max = np.around(attributions_ig_np.max(), 5)
     ig_viz = viz.visualize_image_attr_multiple(
         np.transpose(attributions_ig_np, (1, 2, 0)),
         np.transpose(transformed_img.squeeze().cpu().detach().numpy(), (1, 2, 0)),
-        methods=['original_image', 'masked_image', 'heat_map'],
+        methods=["original_image", "masked_image", "heat_map"],
         cmap=cmap,
         show_colorbar=True,
-        signs=['all', 'positive', 'positive'],
+        signs=["all", "positive", "positive"],
         outlier_perc=1,
-        use_pyplot=False
+        use_pyplot=False,
     )[0]
 
     ig_viz.suptitle(f"{filename}, {species}, Integrated Gradients, Max: {attributions_ig_max}")
     ig_viz.savefig(os.path.join(out_dir, f"{filename}_integrated_gradients.png"))
 
 
-def visualize_occlusion(x: torch.Tensor, pred_label_idx: torch.Tensor, model: nn.Module,
-                        transformed_img: torch.Tensor, out_dir: Union[Path, str],
-                        filename: Union[Path, str], species=''):
+def visualize_occlusion(
+    x: torch.Tensor,
+    pred_label_idx: torch.Tensor,
+    model: nn.Module,
+    transformed_img: torch.Tensor,
+    out_dir: Union[Path, str],
+    filename: Union[Path, str],
+    species="",
+):
     """
     Use occlusion method to visualize pixel attribution for a given image sample and model.
     :param x: Input image sample as a PyTorch tensor.
@@ -1201,12 +1282,7 @@ def visualize_occlusion(x: torch.Tensor, pred_label_idx: torch.Tensor, model: nn
 
     occlusion = Occlusion(model)
     attributions_occ = occlusion.attribute(
-        x,
-        strides=(3, 6, 6),
-        target=pred_label_idx,
-        sliding_window_shapes=(3, 12, 12),
-        baselines=0,
-        show_progress=True
+        x, strides=(3, 6, 6), target=pred_label_idx, sliding_window_shapes=(3, 12, 12), baselines=0, show_progress=True
     )
 
     attributions_occ_np = attributions_occ.squeeze().cpu().detach().numpy()
@@ -1221,7 +1297,7 @@ def visualize_occlusion(x: torch.Tensor, pred_label_idx: torch.Tensor, model: nn
         ["all", "positive"],
         show_colorbar=True,
         outlier_perc=2,
-        use_pyplot=False
+        use_pyplot=False,
     )[0]
 
     occ_viz.suptitle(f"{filename}, {species}, Occlusion, Max: {attributions_occ_max}")
@@ -1230,7 +1306,7 @@ def visualize_occlusion(x: torch.Tensor, pred_label_idx: torch.Tensor, model: nn
 
 def prepare_inputs(input_img: torch.Tensor, dm: InatDataModule):
     """
-    Prepare transformed normalized and non-normalized inputs from an input image tensor. 
+    Prepare transformed normalized and non-normalized inputs from an input image tensor.
     :param input_img: Input image tensor.
     :param dm: Data module object to retrieve the normalization from.
     :return: Normalized an non-normalized image.
@@ -1242,8 +1318,15 @@ def prepare_inputs(input_img: torch.Tensor, dm: InatDataModule):
     return x, transformed_img
 
 
-def visualize_features(input_img: torch.Tensor, filename: Union[Path, str], model: nn.Module, dm: InatDataModule,
-                       out_dir: Union[Path, str], species='', nt_samples: int = 10):
+def visualize_features(
+    input_img: torch.Tensor,
+    filename: Union[Path, str],
+    model: nn.Module,
+    dm: InatDataModule,
+    out_dir: Union[Path, str],
+    species="",
+    nt_samples: int = 10,
+):
     """
     Use integrated gradients and occlusion methods to visualize pixel attribution for a given image sample and model.
     :param x: Input image sample as a PyTorch tensor.
@@ -1265,9 +1348,15 @@ def visualize_features(input_img: torch.Tensor, filename: Union[Path, str], mode
     visualize_occlusion(x, pred_label_idx, model, transformed_img, out_dir, filename, species)
 
 
-def visualize_class_features(data_dir: Union[Path, str], model_path: Union[Path, str], preds_path: Union[Path, str],
-                             out_dir: Optional[Union[Path, str]] = None, samples_per_class: int = 5,
-                             model_class: str = 'InatSequentialClassifier', nt_samples: int = 10):
+def visualize_class_features(
+    data_dir: Union[Path, str],
+    model_path: Union[Path, str],
+    preds_path: Union[Path, str],
+    out_dir: Optional[Union[Path, str]] = None,
+    samples_per_class: int = 5,
+    model_class: str = "InatSequentialClassifier",
+    nt_samples: int = 10,
+):
     """
     Use integrated gradients and occlusion methods to visualize pixel attribution for a given number of image samples per class for a given image dataset and model.
     :param data_dir: Path to image dataset.
@@ -1290,10 +1379,11 @@ def visualize_class_features(data_dir: Union[Path, str], model_path: Union[Path,
     pred_df = pd.read_csv(preds_path)
 
     for cls_name in dm.ds.classes:
-        pred_df[f'{cls_name}_prob'] = pred_df[f'{cls_name}_prob'].astype(float)
+        pred_df[f"{cls_name}_prob"] = pred_df[f"{cls_name}_prob"].astype(float)
         cls_idx = dm.ds.dataset.class_to_idx[cls_name]
         samples = pred_df[(pred_df.target == cls_idx) & (pred_df.prediction == cls_idx)].nlargest(
-            samples_per_class, columns=[f'{cls_name}_prob'])
+            samples_per_class, columns=[f"{cls_name}_prob"]
+        )
         sample_pids = samples.pid.values
         for pid in sample_pids:
             sample_img, t, path = dm.ds.dataset.get_item_by_pid(pid)
@@ -1301,8 +1391,15 @@ def visualize_class_features(data_dir: Union[Path, str], model_path: Union[Path,
             visualize_features(sample_img, pid, model, dm, out_dir, species, nt_samples)
 
 
-def visualize_grad_cam(input_img: torch.Tensor, filename: Union[Path, str], model: nn.Module, target_layer,
-                       dm: InatDataModule, out_dir: Union[Path, str], species=''):
+def visualize_grad_cam(
+    input_img: torch.Tensor,
+    filename: Union[Path, str],
+    model: nn.Module,
+    target_layer,
+    dm: InatDataModule,
+    out_dir: Union[Path, str],
+    species="",
+):
     """
     Use Guided GradCAM method to visualize feature confusion for a given image sample and model.
     :param input_img: Input image sample as a PyTorch tensor.
@@ -1331,16 +1428,23 @@ def visualize_grad_cam(input_img: torch.Tensor, filename: Union[Path, str], mode
             ["all", "positive"],
             show_colorbar=True,
             outlier_perc=2,
-            use_pyplot=False
+            use_pyplot=False,
         )[0]
 
-        cam_viz.suptitle(f"{filename}, {species}, GuidedGradCAM, Max: {attr_cam_max}, "
-                         f"{dm.ds.classes[t]}: {np.around(pred_scores[t].item(), 4)}")
+        cam_viz.suptitle(
+            f"{filename}, {species}, GuidedGradCAM, Max: {attr_cam_max}, "
+            f"{dm.ds.classes[t]}: {np.around(pred_scores[t].item(), 4)}"
+        )
         cam_viz.savefig(os.path.join(out_dir, f"{filename}_guided_grad_cam_{dm.ds.classes[t]}.png"))
 
 
-def visualize_confusion_resnet(data_dir: Union[Path, str], model_path: Union[Path, str], preds_path: Union[Path, str],
-                               out_dir: Optional[Union[Path, str]] = None, n_samples: Optional[int] = None):
+def visualize_confusion_resnet(
+    data_dir: Union[Path, str],
+    model_path: Union[Path, str],
+    preds_path: Union[Path, str],
+    out_dir: Optional[Union[Path, str]] = None,
+    n_samples: Optional[int] = None,
+):
     """
     Use Guided GradCAM method to visualize feature confusion for a given number of image samples and model.
     :param data_dir: Path to image dataset.
@@ -1358,15 +1462,16 @@ def visualize_confusion_resnet(data_dir: Union[Path, str], model_path: Union[Pat
 
     dm = InatDataModule(data_dir, normalize=False, batch_size=1, return_path=True)
     model = InatSequentialClassifier.load_from_checkpoint(model_path)
-    target_layer = [layer for layer in list(model.feature_extractor[-1][-1].children())
-                    if isinstance(layer, nn.Conv2d)][-1]
+    target_layer = [
+        layer for layer in list(model.feature_extractor[-1][-1].children()) if isinstance(layer, nn.Conv2d)
+    ][-1]
     _ = model.eval()
     pred_df = pd.read_csv(preds_path)
-    prob_columns = [col for col in pred_df.columns if col.endswith('_prob')]
-    pred_df['prob_std'] = pred_df[prob_columns].std(1)
+    prob_columns = [col for col in pred_df.columns if col.endswith("_prob")]
+    pred_df["prob_std"] = pred_df[prob_columns].std(1)
 
     if n_samples is None:
-        pred_df['prob_std_zscore'] = np.abs(zscore(pred_df['prob_std']))
+        pred_df["prob_std_zscore"] = np.abs(zscore(pred_df["prob_std"]))
         prob_std_mean = pred_df.prob_std.mean()
         unconfident_samples = pred_df[(pred_df.prob_std_zscore > 3) & (pred_df.prob_std < prob_std_mean)]
     else:
@@ -1383,13 +1488,13 @@ def visualize_confusion_resnet(data_dir: Union[Path, str], model_path: Union[Pat
 
 
 def evaluate_raster_predictions(
-        prediction_file: Union[Path, str],
-        ds_path: Union[Path, str],
-        target_dir: Union[Path, str],
-        train_data_dir: Union[Path, str],
-        class_map: Optional[str] = None,
-        result_dir: Optional[Union[Path, str]] = None,
-        crop_class: Optional[str] = None
+    prediction_file: Union[Path, str],
+    ds_path: Union[Path, str],
+    target_dir: Union[Path, str],
+    train_data_dir: Union[Path, str],
+    class_map: Optional[str] = None,
+    result_dir: Optional[Union[Path, str]] = None,
+    crop_class: Optional[str] = None,
 ):
     """
     Create evaluation plots for a numpy prediction file.
@@ -1405,5 +1510,3 @@ def evaluate_raster_predictions(
     visualize_prediction_maps(prediction_file, train_data_dir, result_dir)
 
     pixel_conf_mat(ds_path, target_dir, train_data_dir, prediction_file, class_map, result_dir, crop_class)
-
-

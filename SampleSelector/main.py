@@ -1,7 +1,8 @@
-from argparse import ArgumentParser
-from SampleSelector.methods import iter_files
 import sys
 
+from argparse import ArgumentParser
+
+from SampleSelector.methods import iter_files
 
 if __name__ == "__main__":
     parser = ArgumentParser()

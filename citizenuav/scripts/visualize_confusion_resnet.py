@@ -1,8 +1,9 @@
-from citizenuav.processes import visualize_confusion_resnet
-from citizenuav.io import write_params
 from argparse import ArgumentParser
+
 from plyer import notification
 
+from citizenuav.io import write_params
+from citizenuav.processes import visualize_confusion_resnet
 
 if __name__ == "__main__":
     parser = ArgumentParser()
@@ -17,7 +18,4 @@ if __name__ == "__main__":
     write_params(args.out_dir, dict_args, "visualize_feature_attribution")
     visualize_confusion_resnet(**dict_args)
 
-    notification.notify(
-        title="Visualize Confusion ResNet",
-        message="Done visualizing."
-    )
+    notification.notify(title="Visualize Confusion ResNet", message="Done visualizing.")

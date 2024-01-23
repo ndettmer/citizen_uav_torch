@@ -12,7 +12,7 @@ class TensorBasedLoss(nn.Module, ABC):
     def to(self, device):
         self.target = self.target.to(device)
         return super().to(device)
-    
+
     def cuda(self, device=None):
         self.target = self.target.cuda()
         return super().cuda(device)
@@ -51,7 +51,10 @@ class ContentLoss(TensorBasedLoss):
     Source: https://pytorch.org/tutorials/advanced/neural_style_tutorial.html
     """
 
-    def __init__(self, target,):
+    def __init__(
+        self,
+        target,
+    ):
         super(ContentLoss, self).__init__()
         # we 'detach' the target content from the tree used
         # to dynamically compute the gradient: this is a stated value,

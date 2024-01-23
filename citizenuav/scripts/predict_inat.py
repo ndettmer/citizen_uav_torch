@@ -1,7 +1,8 @@
 from argparse import ArgumentParser
-from citizenuav.processes import predict_inat
+
 from plyer import notification
 
+from citizenuav.processes import predict_inat
 
 if __name__ == "__main__":
     parser = ArgumentParser()
@@ -13,14 +14,16 @@ if __name__ == "__main__":
     parser.add_argument("--gpu", type=bool, required=False, default=None)
     parser.add_argument("--batch_size", type=int, required=False, default=1)
     parser.add_argument("--normalize", type=bool, required=False, default=False)
-    parser.add_argument("--model_class", type=str, required=False, default='InatSequentialClassifier',
-                        choices=['InatSequentialClassifier', 'InatMogaNetClassifier'])
+    parser.add_argument(
+        "--model_class",
+        type=str,
+        required=False,
+        default="InatSequentialClassifier",
+        choices=["InatSequentialClassifier", "InatMogaNetClassifier"],
+    )
 
     args = parser.parse_args()
     dict_args = vars(args)
     predict_inat(**dict_args)
 
-    notification.notify(
-        title="Inat Predictions",
-        message="Predictions done."
-    )
+    notification.notify(title="Inat Predictions", message="Predictions done.")

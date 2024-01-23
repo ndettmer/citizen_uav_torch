@@ -1,7 +1,9 @@
+from typing import Tuple
+
 import torch
+
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
-from typing import Tuple
 
 
 def get_area_around_center(x_c: int, y_c: int, size: int) -> tuple[int, int, int, int]:
@@ -67,11 +69,11 @@ def channel_mean_std(ds: Dataset) -> Tuple[torch.Tensor, torch.Tensor]:
         b, c, h, w = images.shape
         n_batch_pixels = b * h * w
         sum_ = torch.sum(images, dim=[0, 2, 3])
-        sum_of_squares = torch.sum(images ** 2, dim=[0, 2, 3])
+        sum_of_squares = torch.sum(images**2, dim=[0, 2, 3])
         first_moment = (pixel_counter * first_moment + sum_) / (pixel_counter + n_batch_pixels)
         second_moment = (pixel_counter * second_moment + sum_of_squares) / (pixel_counter + n_batch_pixels)
         pixel_counter += n_batch_pixels
 
-    mean, std = first_moment, torch.sqrt(second_moment - first_moment ** 2)
+    mean, std = first_moment, torch.sqrt(second_moment - first_moment**2)
 
     return mean, std

@@ -19,7 +19,7 @@ CONTAINER_NAME = citizenuav-container
 DIRS_TO_VALIDATE = \
 	citizenuav \
 	MogaNet \
-	SampleDetector
+	SampleSelector
 DOCKER_COMPOSE_RUN = $(DOCKER_COMPOSE_COMMAND) run --rm $(SERVICE_NAME)
 DOCKER_COMPOSE_EXEC = $(DOCKER_COMPOSE_COMMAND) exec $(SERVICE_NAME)
 

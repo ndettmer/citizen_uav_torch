@@ -1,7 +1,9 @@
-from torchvision.transforms.functional import crop, adjust_brightness, adjust_saturation, adjust_contrast
-import torch
-import numpy as np
 import math
+
+import numpy as np
+import torch
+
+from torchvision.transforms.functional import adjust_brightness, adjust_contrast, adjust_saturation, crop
 
 
 class QuadCrop(object):
@@ -24,7 +26,7 @@ class QuadCrop(object):
         return crop(img, top, left, crop_size, crop_size)
 
     def __repr__(self):
-        return self.__class__.__name__+'()'
+        return self.__class__.__name__ + "()"
 
 
 class RandomBrightness(object):
@@ -32,12 +34,12 @@ class RandomBrightness(object):
     Adjust brightness by random.
     """
 
-    def __init__(self, rand_range: float = .1):
+    def __init__(self, rand_range: float = 0.1):
         self.rand_range = rand_range
 
     def __call__(self, img: torch.Tensor):
         # TODO: check scaling again! I think the source range is wrong. np.random.rand() is in [0;1], not [-1;1]
-        factor = np.random.rand() / 2. * self.rand_range + (1 - self.rand_range / 2.)
+        factor = np.random.rand() / 2.0 * self.rand_range + (1 - self.rand_range / 2.0)
         return adjust_brightness(img, factor)
 
 
@@ -46,11 +48,11 @@ class RandomContrast(object):
     Adjust contrast by random.
     """
 
-    def __init__(self, rand_range: float = .1):
+    def __init__(self, rand_range: float = 0.1):
         self.rand_range = rand_range
 
     def __call__(self, img: torch.Tensor):
-        factor = np.random.rand() / 2. * self.rand_range + (1 - self.rand_range / 2.)
+        factor = np.random.rand() / 2.0 * self.rand_range + (1 - self.rand_range / 2.0)
         return adjust_contrast(img, factor)
 
 
@@ -59,11 +61,11 @@ class RandomSaturation(object):
     Adjust saturation by random.
     """
 
-    def __init__(self, rand_range: float = .1):
+    def __init__(self, rand_range: float = 0.1):
         self.rand_range = rand_range
 
     def __call__(self, img: torch.Tensor):
-        factor = np.random.rand() / 2. * self.rand_range + (1 - self.rand_range / 2.)
+        factor = np.random.rand() / 2.0 * self.rand_range + (1 - self.rand_range / 2.0)
         return adjust_saturation(img, factor)
 
 
@@ -72,11 +74,11 @@ class Log10(object):
     Take the log10 of the image.
     """
 
-    def __init__(self, out_max: int = 1., in_max: int = 1.):
+    def __init__(self, out_max: int = 1.0, in_max: int = 1.0):
         self.c = out_max / math.log(float(in_max + 1), 10)
 
     def __call__(self, img: torch.Tensor):
-        return torch.log10(img + 1.) * self.c
+        return torch.log10(img + 1.0) * self.c
 
 
 class Clamp(object):
@@ -90,5 +92,3 @@ class Clamp(object):
 
     def __call__(self, img: torch.Tensor):
         return torch.clamp(img, min=self.min, max=self.max)
-
-

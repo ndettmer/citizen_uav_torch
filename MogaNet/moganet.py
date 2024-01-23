@@ -14,12 +14,13 @@
 
 import copy
 import math
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 from timm.data import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
-from timm.models.layers import trunc_normal_, DropPath
+from timm.models.layers import DropPath, trunc_normal_
 from timm.models.registry import register_model
 
 try:
@@ -30,6 +31,7 @@ except ImportError:
 try:
     from mmseg.models.builder import BACKBONES as seg_BACKBONES
     from mmseg.utils import get_root_logger
+
     has_mmseg = True
 except ImportError:
     print("If for semantic segmentation, please install mmsegmentation first.")
@@ -38,6 +40,7 @@ except ImportError:
 try:
     from mmdet.models.builder import BACKBONES as det_BACKBONES
     from mmdet.utils import get_root_logger
+
     has_mmdet = True
 except ImportError:
     print("If for detection, please install mmdetection first.")
@@ -46,6 +49,7 @@ except ImportError:
 try:
     from mmpose.models.builder import BACKBONES as pose_BACKBONES
     from mmpose.utils import get_root_logger
+
     has_mmpose = True
 except ImportError:
     print("If for detection, please install mmdetection first.")
@@ -56,10 +60,10 @@ def build_act_layer(act_type):
     """Build activation layer."""
     if act_type is None:
         return nn.Identity()
-    assert act_type in ['GELU', 'ReLU', 'SiLU']
-    if act_type == 'SiLU':
+    assert act_type in ["GELU", "ReLU", "SiLU"]
+    if act_type == "SiLU":
         return nn.SiLU()
-    elif act_type == 'ReLU':
+    elif act_type == "ReLU":
         return nn.ReLU()
     else:
         return nn.GELU()
@@ -67,35 +71,33 @@ def build_act_layer(act_type):
 
 def build_norm_layer(norm_type, embed_dims):
     """Build normalization layer."""
-    assert norm_type in ['BN', 'GN', 'LN2d', 'SyncBN']
-    if norm_type == 'GN':
+    assert norm_type in ["BN", "GN", "LN2d", "SyncBN"]
+    if norm_type == "GN":
         return nn.GroupNorm(embed_dims, embed_dims, eps=1e-5)
-    if norm_type == 'LN2d':
+    if norm_type == "LN2d":
         return LayerNorm2d(embed_dims, eps=1e-6)
-    if norm_type == 'SyncBN':
+    if norm_type == "SyncBN":
         return nn.SyncBatchNorm(embed_dims, eps=1e-5)
     else:
         return nn.BatchNorm2d(embed_dims, eps=1e-5)
 
 
 class LayerNorm2d(nn.Module):
-    r""" LayerNorm that supports two data formats: channels_last (default) or channels_first. 
-    The ordering of the dimensions in the inputs. channels_last corresponds to inputs with 
-    shape (batch_size, height, width, channels) while channels_first corresponds to inputs 
+    r"""LayerNorm that supports two data formats: channels_last (default) or channels_first.
+    The ordering of the dimensions in the inputs. channels_last corresponds to inputs with
+    shape (batch_size, height, width, channels) while channels_first corresponds to inputs
     with shape (batch_size, channels, height, width).
     """
-    def __init__(self,
-                 normalized_shape,
-                 eps=1e-6,
-                 data_format="channels_last"):
+
+    def __init__(self, normalized_shape, eps=1e-6, data_format="channels_last"):
         super().__init__()
         self.weight = nn.Parameter(torch.ones(normalized_shape))
         self.bias = nn.Parameter(torch.zeros(normalized_shape))
         self.eps = eps
         self.data_format = data_format
-        assert self.data_format in ["channels_last", "channels_first"] 
-        self.normalized_shape = (normalized_shape, )
-    
+        assert self.data_format in ["channels_last", "channels_first"]
+        self.normalized_shape = (normalized_shape,)
+
     def forward(self, x):
         if self.data_format == "channels_last":
             return F.layer_norm(x, self.normalized_shape, self.weight, self.bias, self.eps)
@@ -110,12 +112,9 @@ class LayerNorm2d(nn.Module):
 class ElementScale(nn.Module):
     """A learnable element-wise scaler."""
 
-    def __init__(self, embed_dims, init_value=0., requires_grad=True):
+    def __init__(self, embed_dims, init_value=0.0, requires_grad=True):
         super(ElementScale, self).__init__()
-        self.scale = nn.Parameter(
-            init_value * torch.ones((1, embed_dims, 1, 1)),
-            requires_grad=requires_grad
-        )
+        self.scale = nn.Parameter(init_value * torch.ones((1, embed_dims, 1, 1)), requires_grad=requires_grad)
 
     def forward(self, x):
         return x * self.scale
@@ -135,21 +134,13 @@ class ChannelAggregationFFN(nn.Module):
             zeroed in FFN. Default 0.0.
     """
 
-    def __init__(self,
-                 embed_dims,
-                 feedforward_channels,
-                 kernel_size=3,
-                 act_type='GELU',
-                 ffn_drop=0.):
+    def __init__(self, embed_dims, feedforward_channels, kernel_size=3, act_type="GELU", ffn_drop=0.0):
         super(ChannelAggregationFFN, self).__init__()
 
         self.embed_dims = embed_dims
         self.feedforward_channels = feedforward_channels
 
-        self.fc1 = nn.Conv2d(
-            in_channels=embed_dims,
-            out_channels=self.feedforward_channels,
-            kernel_size=1)
+        self.fc1 = nn.Conv2d(in_channels=embed_dims, out_channels=self.feedforward_channels, kernel_size=1)
         self.dwconv = nn.Conv2d(
             in_channels=self.feedforward_channels,
             out_channels=self.feedforward_channels,
@@ -157,20 +148,18 @@ class ChannelAggregationFFN(nn.Module):
             stride=1,
             padding=kernel_size // 2,
             bias=True,
-            groups=self.feedforward_channels)
+            groups=self.feedforward_channels,
+        )
         self.act = build_act_layer(act_type)
-        self.fc2 = nn.Conv2d(
-            in_channels=feedforward_channels,
-            out_channels=embed_dims,
-            kernel_size=1)
+        self.fc2 = nn.Conv2d(in_channels=feedforward_channels, out_channels=embed_dims, kernel_size=1)
         self.drop = nn.Dropout(ffn_drop)
 
         self.decompose = nn.Conv2d(
             in_channels=self.feedforward_channels,  # C -> 1
-            out_channels=1, kernel_size=1,
+            out_channels=1,
+            kernel_size=1,
         )
-        self.sigma = ElementScale(
-            self.feedforward_channels, init_value=1e-5, requires_grad=True)
+        self.sigma = ElementScale(self.feedforward_channels, init_value=1e-5, requires_grad=True)
         self.decompose_act = build_act_layer(act_type)
 
     def feat_decompose(self, x):
@@ -200,11 +189,20 @@ class MultiOrderDWConv(nn.Module):
         channel_split (list): The raletive ratio of three splited channels.
     """
 
-    def __init__(self,
-                 embed_dims,
-                 dw_dilation=[1, 2, 3,],
-                 channel_split=[1, 3, 4,],
-                ):
+    def __init__(
+        self,
+        embed_dims,
+        dw_dilation=[
+            1,
+            2,
+            3,
+        ],
+        channel_split=[
+            1,
+            3,
+            4,
+        ],
+    ):
         super(MultiOrderDWConv, self).__init__()
 
         self.split_ratio = [i / sum(channel_split) for i in channel_split]
@@ -223,7 +221,8 @@ class MultiOrderDWConv(nn.Module):
             kernel_size=5,
             padding=(1 + 4 * dw_dilation[0]) // 2,
             groups=self.embed_dims,
-            stride=1, dilation=dw_dilation[0],
+            stride=1,
+            dilation=dw_dilation[0],
         )
         # DW conv 1
         self.DW_conv1 = nn.Conv2d(
@@ -232,7 +231,8 @@ class MultiOrderDWConv(nn.Module):
             kernel_size=5,
             padding=(1 + 4 * dw_dilation[1]) // 2,
             groups=self.embed_dims_1,
-            stride=1, dilation=dw_dilation[1],
+            stride=1,
+            dilation=dw_dilation[1],
         )
         # DW conv 2
         self.DW_conv2 = nn.Conv2d(
@@ -241,22 +241,19 @@ class MultiOrderDWConv(nn.Module):
             kernel_size=7,
             padding=(1 + 6 * dw_dilation[2]) // 2,
             groups=self.embed_dims_2,
-            stride=1, dilation=dw_dilation[2],
+            stride=1,
+            dilation=dw_dilation[2],
         )
         # a channel convolution
         self.PW_conv = nn.Conv2d(  # point-wise convolution
-            in_channels=embed_dims,
-            out_channels=embed_dims,
-            kernel_size=1)
+            in_channels=embed_dims, out_channels=embed_dims, kernel_size=1
+        )
 
     def forward(self, x):
         x_0 = self.DW_conv0(x)
-        x_1 = self.DW_conv1(
-            x_0[:, self.embed_dims_0: self.embed_dims_0+self.embed_dims_1, ...])
-        x_2 = self.DW_conv2(
-            x_0[:, self.embed_dims-self.embed_dims_2:, ...])
-        x = torch.cat([
-            x_0[:, :self.embed_dims_0, ...], x_1, x_2], dim=1)
+        x_1 = self.DW_conv1(x_0[:, self.embed_dims_0 : self.embed_dims_0 + self.embed_dims_1, ...])
+        x_2 = self.DW_conv2(x_0[:, self.embed_dims - self.embed_dims_2 :, ...])
+        x = torch.cat([x_0[:, : self.embed_dims_0, ...], x_1, x_2], dim=1)
         x = self.PW_conv(x)
         return x
 
@@ -272,36 +269,33 @@ class MultiOrderGatedAggregation(nn.Module):
             Defaults to 'SiLU'.
     """
 
-    def __init__(self,
-                 embed_dims,
-                 attn_dw_dilation=[1, 2, 3],
-                 attn_channel_split=[1, 3, 4],
-                 attn_act_type='SiLU',
-                 attn_force_fp32=False,
-                ):
+    def __init__(
+        self,
+        embed_dims,
+        attn_dw_dilation=[1, 2, 3],
+        attn_channel_split=[1, 3, 4],
+        attn_act_type="SiLU",
+        attn_force_fp32=False,
+    ):
         super(MultiOrderGatedAggregation, self).__init__()
 
         self.embed_dims = embed_dims
         self.attn_force_fp32 = attn_force_fp32
-        self.proj_1 = nn.Conv2d(
-            in_channels=embed_dims, out_channels=embed_dims, kernel_size=1)
-        self.gate = nn.Conv2d(
-            in_channels=embed_dims, out_channels=embed_dims, kernel_size=1)
+        self.proj_1 = nn.Conv2d(in_channels=embed_dims, out_channels=embed_dims, kernel_size=1)
+        self.gate = nn.Conv2d(in_channels=embed_dims, out_channels=embed_dims, kernel_size=1)
         self.value = MultiOrderDWConv(
             embed_dims=embed_dims,
             dw_dilation=attn_dw_dilation,
             channel_split=attn_channel_split,
         )
-        self.proj_2 = nn.Conv2d(
-            in_channels=embed_dims, out_channels=embed_dims, kernel_size=1)
+        self.proj_2 = nn.Conv2d(in_channels=embed_dims, out_channels=embed_dims, kernel_size=1)
 
         # activation for gating and value
         self.act_value = build_act_layer(attn_act_type)
         self.act_gate = build_act_layer(attn_act_type)
 
         # decompose
-        self.sigma = ElementScale(
-            embed_dims, init_value=1e-5, requires_grad=True)
+        self.sigma = ElementScale(embed_dims, init_value=1e-5, requires_grad=True)
 
     def feat_decompose(self, x):
         x = self.proj_1(x)
@@ -312,7 +306,7 @@ class MultiOrderGatedAggregation(nn.Module):
         return x
 
     def forward_gating(self, g, v):
-        with torch.autocast(device_type='cuda', enabled=False):
+        with torch.autocast(device_type="cuda", enabled=False):
             g = g.to(torch.float32)
             v = v.to(torch.float32)
             return self.proj_2(self.act_gate(g) * self.act_gate(v))
@@ -352,19 +346,20 @@ class MogaBlock(nn.Module):
             Defaults to 'SiLU'.
     """
 
-    def __init__(self,
-                 embed_dims,
-                 ffn_ratio=4.,
-                 drop_rate=0.,
-                 drop_path_rate=0.,
-                 act_type='GELU',
-                 norm_type='BN',
-                 init_value=1e-5,
-                 attn_dw_dilation=[1, 2, 3],
-                 attn_channel_split=[1, 3, 4],
-                 attn_act_type='SiLU',
-                 attn_force_fp32=False,
-                ):
+    def __init__(
+        self,
+        embed_dims,
+        ffn_ratio=4.0,
+        drop_rate=0.0,
+        drop_path_rate=0.0,
+        act_type="GELU",
+        norm_type="BN",
+        init_value=1e-5,
+        attn_dw_dilation=[1, 2, 3],
+        attn_channel_split=[1, 3, 4],
+        attn_act_type="SiLU",
+        attn_force_fp32=False,
+    ):
         super(MogaBlock, self).__init__()
         self.out_channels = embed_dims
 
@@ -378,8 +373,7 @@ class MogaBlock(nn.Module):
             attn_act_type=attn_act_type,
             attn_force_fp32=attn_force_fp32,
         )
-        self.drop_path = DropPath(
-            drop_path_rate) if drop_path_rate > 0. else nn.Identity()
+        self.drop_path = DropPath(drop_path_rate) if drop_path_rate > 0.0 else nn.Identity()
 
         self.norm2 = build_norm_layer(norm_type, embed_dims)
 
@@ -393,10 +387,8 @@ class MogaBlock(nn.Module):
         )
 
         # init layer scale
-        self.layer_scale_1 = nn.Parameter(
-            init_value * torch.ones((1, embed_dims, 1, 1)), requires_grad=True)
-        self.layer_scale_2 = nn.Parameter(
-            init_value * torch.ones((1, embed_dims, 1, 1)), requires_grad=True)
+        self.layer_scale_1 = nn.Parameter(init_value * torch.ones((1, embed_dims, 1, 1)), requires_grad=True)
+        self.layer_scale_2 = nn.Parameter(init_value * torch.ones((1, embed_dims, 1, 1)), requires_grad=True)
 
     def forward(self, x):
         # spatial
@@ -422,17 +414,12 @@ class ConvPatchEmbed(nn.Module):
         norm_type (str): The type of normalization layer. Defaults to 'BN'.
     """
 
-    def __init__(self,
-                 in_channels,
-                 embed_dims,
-                 kernel_size=3,
-                 stride=2,
-                 norm_type='BN'):
+    def __init__(self, in_channels, embed_dims, kernel_size=3, stride=2, norm_type="BN"):
         super(ConvPatchEmbed, self).__init__()
 
         self.projection = nn.Conv2d(
-            in_channels, embed_dims, kernel_size=kernel_size,
-            stride=stride, padding=kernel_size // 2)
+            in_channels, embed_dims, kernel_size=kernel_size, stride=stride, padding=kernel_size // 2
+        )
         self.norm = build_norm_layer(norm_type, embed_dims)
 
     def forward(self, x):
@@ -456,22 +443,14 @@ class StackConvPatchEmbed(nn.Module):
         norm_type (str): The type of normalization layer. Defaults to 'BN'.
     """
 
-    def __init__(self,
-                 in_channels,
-                 embed_dims,
-                 kernel_size=3,
-                 stride=2,
-                 act_type='GELU',
-                 norm_type='BN'):
+    def __init__(self, in_channels, embed_dims, kernel_size=3, stride=2, act_type="GELU", norm_type="BN"):
         super(StackConvPatchEmbed, self).__init__()
 
         self.projection = nn.Sequential(
-            nn.Conv2d(in_channels, embed_dims // 2, kernel_size=kernel_size,
-                stride=stride, padding=kernel_size // 2),
+            nn.Conv2d(in_channels, embed_dims // 2, kernel_size=kernel_size, stride=stride, padding=kernel_size // 2),
             build_norm_layer(norm_type, embed_dims // 2),
             build_act_layer(act_type),
-            nn.Conv2d(embed_dims // 2, embed_dims, kernel_size=kernel_size,
-                stride=stride, padding=kernel_size // 2),
+            nn.Conv2d(embed_dims // 2, embed_dims, kernel_size=kernel_size, stride=stride, padding=kernel_size // 2),
             build_norm_layer(norm_type, embed_dims),
         )
 
@@ -482,7 +461,7 @@ class StackConvPatchEmbed(nn.Module):
 
 
 class MogaNet(nn.Module):
-    r""" MogaNet
+    r"""MogaNet
         A PyTorch implement of : `Efficient Multi-order Gated Aggregation
         Network <https://arxiv.org/abs/2211.03295>`_
 
@@ -526,79 +505,80 @@ class MogaNet(nn.Module):
             to load pretrained weights (old version). Defaults to None.
     """
     arch_zoo = {
-        **dict.fromkeys(['xt', 'x-tiny', 'xtiny'],
-                        {'embed_dims': [32, 64, 96, 192],
-                         'depths': [3, 3, 10, 2],
-                         'ffn_ratios': [8, 8, 4, 4]}),
-        **dict.fromkeys(['t', 'tiny'],
-                        {'embed_dims': [32, 64, 128, 256],
-                         'depths': [3, 3, 12, 2],
-                         'ffn_ratios': [8, 8, 4, 4]}),
-        **dict.fromkeys(['s', 'small'],
-                        {'embed_dims': [64, 128, 320, 512],
-                         'depths': [2, 3, 12, 2],
-                         'ffn_ratios': [8, 8, 4, 4]}),
-        **dict.fromkeys(['b', 'base'],
-                        {'embed_dims': [64, 160, 320, 512],
-                         'depths': [4, 6, 22, 3],
-                         'ffn_ratios': [8, 8, 4, 4]}),
-        **dict.fromkeys(['l', 'large'],
-                        {'embed_dims': [64, 160, 320, 640],
-                         'depths': [4, 6, 44, 4],
-                         'ffn_ratios': [8, 8, 4, 4]}),
-        **dict.fromkeys(['xl', 'x-large', 'xlarge'],
-                        {'embed_dims': [96, 192, 480, 960],
-                         'depths': [6, 6, 44, 4],
-                         'ffn_ratios': [8, 8, 4, 4]}),
+        **dict.fromkeys(
+            ["xt", "x-tiny", "xtiny"],
+            {"embed_dims": [32, 64, 96, 192], "depths": [3, 3, 10, 2], "ffn_ratios": [8, 8, 4, 4]},
+        ),
+        **dict.fromkeys(
+            ["t", "tiny"], {"embed_dims": [32, 64, 128, 256], "depths": [3, 3, 12, 2], "ffn_ratios": [8, 8, 4, 4]}
+        ),
+        **dict.fromkeys(
+            ["s", "small"], {"embed_dims": [64, 128, 320, 512], "depths": [2, 3, 12, 2], "ffn_ratios": [8, 8, 4, 4]}
+        ),
+        **dict.fromkeys(
+            ["b", "base"], {"embed_dims": [64, 160, 320, 512], "depths": [4, 6, 22, 3], "ffn_ratios": [8, 8, 4, 4]}
+        ),
+        **dict.fromkeys(
+            ["l", "large"], {"embed_dims": [64, 160, 320, 640], "depths": [4, 6, 44, 4], "ffn_ratios": [8, 8, 4, 4]}
+        ),
+        **dict.fromkeys(
+            ["xl", "x-large", "xlarge"],
+            {"embed_dims": [96, 192, 480, 960], "depths": [6, 6, 44, 4], "ffn_ratios": [8, 8, 4, 4]},
+        ),
     }  # yapf: disable
 
-    def __init__(self,
-                 arch='tiny',
-                 in_channels=3,
-                 num_classes=1000,
-                 drop_rate=0.,
-                 drop_path_rate=0.,
-                 init_value=1e-5,
-                 head_init_scale=1.,
-                 patch_sizes=[3, 3, 3, 3],
-                 stem_norm_type='BN',
-                 conv_norm_type='BN',
-                 patchembed_types=['ConvEmbed', 'Conv', 'Conv', 'Conv',],
-                 attn_dw_dilation=[1, 2, 3],
-                 attn_channel_split=[1, 3, 4],
-                 attn_act_type='SiLU',
-                 attn_final_dilation=True,
-                 attn_force_fp32=False,
-                 fork_feat=False,
-                 init_cfg=None,
-                 pretrained=None,
-                 **kwargs):
+    def __init__(
+        self,
+        arch="tiny",
+        in_channels=3,
+        num_classes=1000,
+        drop_rate=0.0,
+        drop_path_rate=0.0,
+        init_value=1e-5,
+        head_init_scale=1.0,
+        patch_sizes=[3, 3, 3, 3],
+        stem_norm_type="BN",
+        conv_norm_type="BN",
+        patchembed_types=[
+            "ConvEmbed",
+            "Conv",
+            "Conv",
+            "Conv",
+        ],
+        attn_dw_dilation=[1, 2, 3],
+        attn_channel_split=[1, 3, 4],
+        attn_act_type="SiLU",
+        attn_final_dilation=True,
+        attn_force_fp32=False,
+        fork_feat=False,
+        init_cfg=None,
+        pretrained=None,
+        **kwargs,
+    ):
         super().__init__()
 
         if isinstance(arch, str):
             arch = arch.lower()
-            assert arch in set(self.arch_zoo), \
-                f'Arch {arch} is not in default archs {set(self.arch_zoo)}'
+            assert arch in set(self.arch_zoo), f"Arch {arch} is not in default archs {set(self.arch_zoo)}"
             self.arch_settings = self.arch_zoo[arch]
         else:
-            essential_keys = {'embed_dims', 'depths', 'ffn_ratios'}
-            assert isinstance(arch, dict) and set(arch) == essential_keys, \
-                f'Custom arch needs a dict with keys {essential_keys}'
+            essential_keys = {"embed_dims", "depths", "ffn_ratios"}
+            assert (
+                isinstance(arch, dict) and set(arch) == essential_keys
+            ), f"Custom arch needs a dict with keys {essential_keys}"
             self.arch_settings = arch
 
-        self.embed_dims = self.arch_settings['embed_dims']
-        self.depths = self.arch_settings['depths']
-        self.ffn_ratios = self.arch_settings['ffn_ratios']
+        self.embed_dims = self.arch_settings["embed_dims"]
+        self.depths = self.arch_settings["depths"]
+        self.ffn_ratios = self.arch_settings["ffn_ratios"]
         self.num_stages = len(self.depths)
         self.attn_force_fp32 = attn_force_fp32
-        self.use_layer_norm = stem_norm_type == 'LN'
+        self.use_layer_norm = stem_norm_type == "LN"
         assert len(patchembed_types) == self.num_stages
         self.fork_feat = fork_feat
 
         total_depth = sum(self.depths)
-        dpr = [
-            x.item() for x in torch.linspace(0, drop_path_rate, total_depth)
-        ]  # stochastic depth decay rule
+        dpr = [x.item() for x in torch.linspace(0, drop_path_rate, total_depth)]  # stochastic depth decay rule
 
         cur_block_idx = 0
         for i, depth in enumerate(self.depths):
@@ -609,7 +589,7 @@ class MogaNet(nn.Module):
                     embed_dims=self.embed_dims[i],
                     kernel_size=patch_sizes[i],
                     stride=patch_sizes[i] // 2 + 1,
-                    act_type='GELU',
+                    act_type="GELU",
                     norm_type=conv_norm_type,
                 )
             else:
@@ -618,38 +598,41 @@ class MogaNet(nn.Module):
                     embed_dims=self.embed_dims[i],
                     kernel_size=patch_sizes[i],
                     stride=patch_sizes[i] // 2 + 1,
-                    norm_type=conv_norm_type)
+                    norm_type=conv_norm_type,
+                )
 
             if i == self.num_stages - 1 and not attn_final_dilation:
                 attn_dw_dilation = [1, 2, 1]
-            blocks = nn.ModuleList([
-                MogaBlock(
-                    embed_dims=self.embed_dims[i],
-                    ffn_ratio=self.ffn_ratios[i],
-                    drop_rate=drop_rate,
-                    drop_path_rate=dpr[cur_block_idx + j],
-                    norm_type=conv_norm_type,
-                    init_value=init_value,
-                    attn_dw_dilation=attn_dw_dilation,
-                    attn_channel_split=attn_channel_split,
-                    attn_act_type=attn_act_type,
-                    attn_force_fp32=attn_force_fp32,
-                ) for j in range(depth)
-            ])
+            blocks = nn.ModuleList(
+                [
+                    MogaBlock(
+                        embed_dims=self.embed_dims[i],
+                        ffn_ratio=self.ffn_ratios[i],
+                        drop_rate=drop_rate,
+                        drop_path_rate=dpr[cur_block_idx + j],
+                        norm_type=conv_norm_type,
+                        init_value=init_value,
+                        attn_dw_dilation=attn_dw_dilation,
+                        attn_channel_split=attn_channel_split,
+                        attn_act_type=attn_act_type,
+                        attn_force_fp32=attn_force_fp32,
+                    )
+                    for j in range(depth)
+                ]
+            )
             cur_block_idx += depth
             norm = build_norm_layer(stem_norm_type, self.embed_dims[i])
 
-            self.add_module(f'patch_embed{i + 1}', patch_embed)
-            self.add_module(f'blocks{i + 1}', blocks)
-            self.add_module(f'norm{i + 1}', norm)
+            self.add_module(f"patch_embed{i + 1}", patch_embed)
+            self.add_module(f"blocks{i + 1}", blocks)
+            self.add_module(f"norm{i + 1}", norm)
 
         if self.fork_feat:
             self.head = nn.Identity()
         else:
             # Classifier head
             self.num_classes = num_classes
-            self.head = nn.Linear(self.embed_dims[-1], num_classes) \
-                if num_classes > 0 else nn.Identity()
+            self.head = nn.Linear(self.embed_dims[-1], num_classes) if num_classes > 0 else nn.Identity()
 
             # init for classification
             self.apply(self._init_weights)
@@ -657,15 +640,14 @@ class MogaNet(nn.Module):
             self.head.bias.data.mul_(head_init_scale)
 
         self.init_cfg = copy.deepcopy(init_cfg)
-        # load pre-trained model 
-        if self.fork_feat and (
-                self.init_cfg is not None or pretrained is not None):
+        # load pre-trained model
+        if self.fork_feat and (self.init_cfg is not None or pretrained is not None):
             self.init_weights(pretrained)
 
     def _init_weights(self, m):
-        """ Init for timm image classification """
+        """Init for timm image classification"""
         if isinstance(m, nn.Linear):
-            trunc_normal_(m.weight, std=.02)
+            trunc_normal_(m.weight, std=0.02)
             if isinstance(m, nn.Linear) and m.bias is not None:
                 nn.init.constant_(m.bias, 0)
         elif isinstance(m, (nn.BatchNorm2d, nn.LayerNorm)):
@@ -679,33 +661,30 @@ class MogaNet(nn.Module):
                 m.bias.data.zero_()
 
     def init_weights(self, pretrained=None):
-        """ Init for mmdetection or mmsegmentation by loading pre-trained weights """
+        """Init for mmdetection or mmsegmentation by loading pre-trained weights"""
         logger = get_root_logger()
         if self.init_cfg is None and pretrained is None:
-            logger.warn(f'No pre-trained weights for '
-                        f'{self.__class__.__name__}, '
-                        f'training start from scratch')
+            logger.warn(f"No pre-trained weights for " f"{self.__class__.__name__}, " f"training start from scratch")
             pass
         else:
             if self.init_cfg is not None:
-                assert 'checkpoint' in self.init_cfg, f'Only support specify ' \
-                                                      f'`Pretrained` in `init_cfg` in ' \
-                                                      f'{self.__class__.__name__} '
-                ckpt_path = self.init_cfg['checkpoint']
+                assert "checkpoint" in self.init_cfg, (
+                    f"Only support specify " f"`Pretrained` in `init_cfg` in " f"{self.__class__.__name__} "
+                )
+                ckpt_path = self.init_cfg["checkpoint"]
             elif pretrained is not None:
                 ckpt_path = pretrained
 
-            ckpt = _load_checkpoint(ckpt_path, logger=logger, map_location='cpu')
-            if 'state_dict' in ckpt:
-                _state_dict = ckpt['state_dict']
-            elif 'model' in ckpt:
-                _state_dict = ckpt['model']
+            ckpt = _load_checkpoint(ckpt_path, logger=logger, map_location="cpu")
+            if "state_dict" in ckpt:
+                _state_dict = ckpt["state_dict"]
+            elif "model" in ckpt:
+                _state_dict = ckpt["model"]
             else:
                 _state_dict = ckpt
 
             state_dict = _state_dict
-            missing_keys, unexpected_keys = \
-                self.load_state_dict(state_dict, False)
+            missing_keys, unexpected_keys = self.load_state_dict(state_dict, False)
             # show for debug
             # print('missing_keys: ', missing_keys)
             # print('unexpected_keys: ', unexpected_keys)
@@ -721,17 +700,16 @@ class MogaNet(nn.Module):
     def get_classifier(self):
         return self.head
 
-    def reset_classifier(self, num_classes, global_pool=''):
+    def reset_classifier(self, num_classes, global_pool=""):
         self.num_classes = num_classes
-        self.head = nn.Linear(
-            self.embed_dims[-1], num_classes) if num_classes > 0 else nn.Identity()
+        self.head = nn.Linear(self.embed_dims[-1], num_classes) if num_classes > 0 else nn.Identity()
 
     def forward_features(self, x):
         outs = []
         for i in range(self.num_stages):
-            patch_embed = getattr(self, f'patch_embed{i + 1}')
-            blocks = getattr(self, f'blocks{i + 1}')
-            norm = getattr(self, f'norm{i + 1}')
+            patch_embed = getattr(self, f"patch_embed{i + 1}")
+            blocks = getattr(self, f"blocks{i + 1}")
+            norm = getattr(self, f"norm{i + 1}")
 
             x, hw_shape = patch_embed(x)
             for block in blocks:
@@ -739,8 +717,7 @@ class MogaNet(nn.Module):
             if self.use_layer_norm:
                 x = x.flatten(2).transpose(1, 2)
                 x = norm(x)
-                x = x.reshape(-1, *hw_shape,
-                            block.out_channels).permute(0, 3, 1, 2).contiguous()
+                x = x.reshape(-1, *hw_shape, block.out_channels).permute(0, 3, 1, 2).contiguous()
             else:
                 x = norm(x)
             if self.fork_feat:
@@ -766,23 +743,27 @@ class MogaNet(nn.Module):
             return self.forward_head(x)
 
 
-def _cfg(url='', **kwargs):
+def _cfg(url="", **kwargs):
     return {
-        'url': url,
-        'num_classes': 1000, 'input_size': (3, 224, 224),
-        'crop_pct': 0.90, 'interpolation': 'bicubic',
-        'mean': IMAGENET_DEFAULT_MEAN, 'std': IMAGENET_DEFAULT_STD, 
-        'classifier': 'head',
-        **kwargs
+        "url": url,
+        "num_classes": 1000,
+        "input_size": (3, 224, 224),
+        "crop_pct": 0.90,
+        "interpolation": "bicubic",
+        "mean": IMAGENET_DEFAULT_MEAN,
+        "std": IMAGENET_DEFAULT_STD,
+        "classifier": "head",
+        **kwargs,
     }
 
+
 default_cfgs = {
-    'moganet_xt': _cfg(crop_pct=0.9),
-    'moganet_t': _cfg(crop_pct=0.9),
-    'moganet_s': _cfg(crop_pct=0.9),
-    'moganet_b': _cfg(crop_pct=0.9),
-    'moganet_l': _cfg(crop_pct=0.9),
-    'moganet_xl': _cfg(crop_pct=0.9),
+    "moganet_xt": _cfg(crop_pct=0.9),
+    "moganet_t": _cfg(crop_pct=0.9),
+    "moganet_s": _cfg(crop_pct=0.9),
+    "moganet_b": _cfg(crop_pct=0.9),
+    "moganet_l": _cfg(crop_pct=0.9),
+    "moganet_xl": _cfg(crop_pct=0.9),
 }
 
 model_urls = {
@@ -800,72 +781,79 @@ model_urls = {
     "moganet_xlarge_21k": "",
 }
 
+
 @register_model
 def moganet_xtiny(pretrained=False, **kwargs):
-    model = MogaNet(arch='x-tiny', **kwargs)
-    model.default_cfg = default_cfgs['moganet_xt']
+    model = MogaNet(arch="x-tiny", **kwargs)
+    model.default_cfg = default_cfgs["moganet_xt"]
     if pretrained:
-        url = model_urls['moganet_xtiny_1k']
+        url = model_urls["moganet_xtiny_1k"]
         checkpoint = torch.hub.load_state_dict_from_url(url=url, map_location="cpu", check_hash=True)
         model.load_state_dict(checkpoint["state_dict"])
     return model
+
 
 @register_model
 def moganet_tiny(pretrained=False, **kwargs):
-    model = MogaNet(arch='tiny', **kwargs)
-    model.default_cfg = default_cfgs['moganet_t']
+    model = MogaNet(arch="tiny", **kwargs)
+    model.default_cfg = default_cfgs["moganet_t"]
     if pretrained:
-        url = model_urls['moganet_tiny_1k']
+        url = model_urls["moganet_tiny_1k"]
         checkpoint = torch.hub.load_state_dict_from_url(url=url, map_location="cpu", check_hash=True)
         model.load_state_dict(checkpoint["state_dict"])
     return model
+
 
 @register_model
 def moganet_tiny_sz256(pretrained=False, **kwargs):
-    model = MogaNet(arch='tiny', **kwargs)
-    model.default_cfg = default_cfgs['moganet_t']
+    model = MogaNet(arch="tiny", **kwargs)
+    model.default_cfg = default_cfgs["moganet_t"]
     if pretrained:
-        url = model_urls['moganet_tiny_1k_sz256']
+        url = model_urls["moganet_tiny_1k_sz256"]
         checkpoint = torch.hub.load_state_dict_from_url(url=url, map_location="cpu", check_hash=True)
         model.load_state_dict(checkpoint["state_dict"])
     return model
+
 
 @register_model
 def moganet_small(pretrained=False, **kwargs):
-    model = MogaNet(arch='small', **kwargs)
-    model.default_cfg = default_cfgs['moganet_s']
+    model = MogaNet(arch="small", **kwargs)
+    model.default_cfg = default_cfgs["moganet_s"]
     if pretrained:
-        url = model_urls['moganet_small_1k']
+        url = model_urls["moganet_small_1k"]
         checkpoint = torch.hub.load_state_dict_from_url(url=url, map_location="cpu", check_hash=True)
         model.load_state_dict(checkpoint["state_dict"])
     return model
+
 
 @register_model
 def moganet_base(pretrained=False, **kwargs):
-    model = MogaNet(arch='base', **kwargs)
-    model.default_cfg = default_cfgs['moganet_b']
+    model = MogaNet(arch="base", **kwargs)
+    model.default_cfg = default_cfgs["moganet_b"]
     if pretrained:
-        url = model_urls['moganet_base_1k']
+        url = model_urls["moganet_base_1k"]
         checkpoint = torch.hub.load_state_dict_from_url(url=url, map_location="cpu", check_hash=True)
         model.load_state_dict(checkpoint["state_dict"])
     return model
+
 
 @register_model
 def moganet_large(pretrained=False, **kwargs):
-    model = MogaNet(arch='large', **kwargs)
-    model.default_cfg = default_cfgs['moganet_l']
+    model = MogaNet(arch="large", **kwargs)
+    model.default_cfg = default_cfgs["moganet_l"]
     if pretrained:
-        url = model_urls['moganet_large_1k']
+        url = model_urls["moganet_large_1k"]
         checkpoint = torch.hub.load_state_dict_from_url(url=url, map_location="cpu", check_hash=True)
         model.load_state_dict(checkpoint["state_dict"])
     return model
 
+
 @register_model
 def moganet_xlarge(pretrained=False, **kwargs):
-    model = MogaNet(arch='x-large', **kwargs)
-    model.default_cfg = default_cfgs['moganet_xl']
+    model = MogaNet(arch="x-large", **kwargs)
+    model.default_cfg = default_cfgs["moganet_xl"]
     if pretrained:
-        url = model_urls['moganet_xlarge_1k']
+        url = model_urls["moganet_xlarge_1k"]
         checkpoint = torch.hub.load_state_dict_from_url(url=url, map_location="cpu", check_hash=True)
         model.load_state_dict(checkpoint["state_dict"])
     return model
@@ -876,28 +864,36 @@ if has_mmdet:
     The following models are for dense prediction tasks based on
     mmdetection, mmsegmentation, and mmpose.
     """
+
     @det_BACKBONES.register_module()
     class MogaNet_feat(MogaNet):
         """
         MogaNet Model for Dense Prediction.
         """
+
         def __init__(self, **kwargs):
             super().__init__(fork_feat=True, **kwargs)
 
+
 if has_mmseg:
+
     @seg_BACKBONES.register_module()
     class MogaNet_feat(MogaNet):
         """
         MogaNet Model for Dense Prediction.
         """
+
         def __init__(self, **kwargs):
             super().__init__(fork_feat=True, **kwargs)
 
+
 if has_mmpose:
+
     @pose_BACKBONES.register_module()
     class MogaNet_feat(MogaNet):
         """
         MogaNet Model for Dense Prediction.
         """
+
         def __init__(self, **kwargs):
             super().__init__(fork_feat=True, **kwargs)

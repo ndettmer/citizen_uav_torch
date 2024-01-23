@@ -1,19 +1,21 @@
-from argparse import ArgumentParser
-from plyer import notification
 import os
+
+from argparse import ArgumentParser
+
 import numpy as np
 
-from citizenuav.models import InatMogaNetClassifier
+from plyer import notification
+from pytorch_lightning import Trainer, seed_everything
+from pytorch_lightning.callbacks import EarlyStopping
+from pytorch_lightning.loggers import TensorBoardLogger
+
 from citizenuav.data import MixedDataModule
 from citizenuav.io import write_params
-from pytorch_lightning import Trainer, seed_everything
-from pytorch_lightning.loggers import TensorBoardLogger
-from pytorch_lightning.callbacks import EarlyStopping
-
+from citizenuav.models import InatMogaNetClassifier
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--log_dir", type=str, default='./lightning_logs')
+    parser.add_argument("--log_dir", type=str, default="./lightning_logs")
     parser.add_argument("--patience", type=int, default=-1)
     parser.add_argument("--min_delta", type=float, default=0)
     parser.add_argument("--seed", type=int, default=np.random.rand())
@@ -23,7 +25,7 @@ if __name__ == "__main__":
     parser = Trainer.add_argparse_args(parser)
 
     args = parser.parse_args()
-    write_params(args.log_dir, vars(args), 'train_classifier')
+    write_params(args.log_dir, vars(args), "train_classifier")
 
     data_dir = args.data_dir
     log_dir = args.log_dir
@@ -43,22 +45,13 @@ if __name__ == "__main__":
     callbacks = []
     if args.patience > 0:
         callbacks.append(
-            EarlyStopping(
-                monitor="val_cce",
-                mode="min",
-                patience=args.patience,
-                verbose=True,
-                min_delta=args.min_delta
-            )
+            EarlyStopping(monitor="val_cce", mode="min", patience=args.patience, verbose=True, min_delta=args.min_delta)
         )
 
     trainer = Trainer.from_argparse_args(args, logger=tb_logger)
 
     trainer.fit(model, dm)
 
-    trainer.test(ckpt_path='best', dataloaders=dm.test_dataloader())
+    trainer.test(ckpt_path="best", dataloaders=dm.test_dataloader())
 
-    notification.notify(
-        title="Classifier Training",
-        message="Training done."
-    )
+    notification.notify(title="Classifier Training", message="Training done.")

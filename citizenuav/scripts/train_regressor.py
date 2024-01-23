@@ -1,19 +1,22 @@
+import os
+
 from argparse import ArgumentParser
+
+import numpy as np
+
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.callbacks import EarlyStopping
 from pytorch_lightning.loggers import TensorBoardLogger
-import os
-import numpy as np
 
 from citizenuav.data import InatDistDataModule
-from citizenuav.models import InatRegressor
 from citizenuav.io import write_params
+from citizenuav.models import InatRegressor
 
 if __name__ == "__main__":
     parser = ArgumentParser()
 
     parser.add_argument("--patience", type=int, default=-1, required=False)
-    parser.add_argument("--log_dir", type=str, default='./lightning_logs')
+    parser.add_argument("--log_dir", type=str, default="./lightning_logs")
     parser.add_argument("--seed", type=int, default=int(np.random.rand() * 100))
 
     parser = InatDistDataModule.add_dm_specific_args(parser)
@@ -21,7 +24,7 @@ if __name__ == "__main__":
     parser = Trainer.add_argparse_args(parser)
 
     args = parser.parse_args()
-    write_params(args.log_dir, vars(args), 'train_regressor')
+    write_params(args.log_dir, vars(args), "train_regressor")
 
     data_dir = args.data_dir
     log_dir = args.log_dir
@@ -43,4 +46,4 @@ if __name__ == "__main__":
 
     trainer.fit(model, dm)
 
-    trainer.test(ckpt_path='best', dataloaders=dm.test_dataloader())
+    trainer.test(ckpt_path="best", dataloaders=dm.test_dataloader())

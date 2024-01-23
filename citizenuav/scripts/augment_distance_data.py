@@ -1,4 +1,5 @@
 from argparse import ArgumentParser
+
 from citizenuav.processes import offline_augmentation_regression_data
 
 if __name__ == "__main__":

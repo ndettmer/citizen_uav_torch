@@ -1,6 +1,6 @@
 from argparse import ArgumentParser, ArgumentTypeError
-from citizenuav.processes import download_data
 
+from citizenuav.processes import download_data
 
 MIN_YEAR = 2010
 MAX_YEAR = 2024
@@ -22,8 +22,12 @@ if __name__ == "__main__":
     parser.add_argument("--species", type=str, required=True)
     parser.add_argument("--output_dir", type=str, required=True)
     parser.add_argument("--max_images", type=int)
-    parser.add_argument("--min_year", type=obs_year_type, help=f"Integer between {MIN_YEAR} and {MAX_YEAR}", default=MIN_YEAR)
-    parser.add_argument("--max_year", type=obs_year_type, help=f"Integer between {MIN_YEAR} and {MAX_YEAR}", default=MAX_YEAR)
+    parser.add_argument(
+        "--min_year", type=obs_year_type, help=f"Integer between {MIN_YEAR} and {MAX_YEAR}", default=MIN_YEAR
+    )
+    parser.add_argument(
+        "--max_year", type=obs_year_type, help=f"Integer between {MIN_YEAR} and {MAX_YEAR}", default=MAX_YEAR
+    )
 
     args = parser.parse_args()
     dict_args = vars(args)
