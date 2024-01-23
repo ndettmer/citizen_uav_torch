@@ -14,7 +14,7 @@ else
 endif
 
 SERVICE_NAME = app
-CONTAINER_NAME = cybulde-template-container
+CONTAINER_NAME = citizenuav-container
 
 DIRS_TO_VALIDATE = \
 	citizenuav \

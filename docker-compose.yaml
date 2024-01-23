@@ -5,7 +5,7 @@ services:
     user: "${USER_ID:-1000}"
     hostname: "${HOST_NAME:-ndettmer}"
     image: citizenuav
-    container_name: cuav-container
+    container_name: citizenuav-container
     build:
       context: .
       dockerfile: ./docker/Dockerfile
