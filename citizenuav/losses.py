@@ -3,7 +3,7 @@ from abc import ABC
 from torch import nn
 from torch.nn import functional as F
 
-from CitizenUAV.math import gram_matrix
+from citizenuav.math import gram_matrix
 
 
 class TensorBasedLoss(nn.Module, ABC):

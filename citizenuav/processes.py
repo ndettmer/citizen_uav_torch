@@ -13,11 +13,11 @@ from matplotlib.colors import LinearSegmentedColormap
 from torch import optim
 from torchmetrics.classification import BinaryPrecision, BinaryRecall
 
-from CitizenUAV.losses import ContentLoss, StyleLoss
-from CitizenUAV.math import get_area_around_center, get_center_of_bb
-from CitizenUAV.models import *
-from CitizenUAV.data import *
-from CitizenUAV.io import *
+from citizenuav.losses import ContentLoss, StyleLoss
+from citizenuav.math import get_area_around_center, get_center_of_bb
+from citizenuav.models import *
+from citizenuav.data import *
+from citizenuav.io import *
 
 
 def download_data(species: str, output_dir: Path, max_images: Optional[int] = None,

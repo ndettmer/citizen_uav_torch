@@ -26,9 +26,9 @@ import os
 from collections import Counter
 import logging
 
-from CitizenUAV.transforms import *
-from CitizenUAV.io import get_pid_from_path, read_split_inat_metadata, empty_dir
-from CitizenUAV.math import channel_mean_std
+from citizenuav.transforms import *
+from citizenuav.io import get_pid_from_path, read_split_inat_metadata, empty_dir
+from citizenuav.math import channel_mean_std
 
 
 def validate_split(split: tuple) -> bool:

@@ -1,4 +1,4 @@
-from CitizenUAV.processes import pixel_conf_mat
+from citizenuav.processes import pixel_conf_mat
 
 from argparse import ArgumentParser
 

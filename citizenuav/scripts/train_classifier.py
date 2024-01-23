@@ -1,10 +1,9 @@
 from argparse import ArgumentParser
 from plyer import notification
 
-from CitizenUAV.models import InatClassifier
-from CitizenUAV.data import *
-from CitizenUAV.processes import *
-from CitizenUAV.io import write_params
+from citizenuav.data import *
+from citizenuav.processes import *
+from citizenuav.io import write_params
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import EarlyStopping
@@ -18,7 +17,7 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=np.random.rand())
 
     parser = InatDataModule.add_dm_specific_args(parser)
-    parser = InatMogaNetClassifier.add_model_specific_args(parser)
+    parser = InatSequentialClassifier.add_model_specific_args(parser)
     parser = Trainer.add_argparse_args(parser)
 
     args = parser.parse_args()
@@ -41,7 +40,7 @@ if __name__ == "__main__":
 
     dict_args = vars(args)
     dm = InatDataModule(**dict_args)
-    model = InatMogaNetClassifier(**dict_args)
+    model = InatSequentialClassifier(**dict_args)
 
     callbacks = []
     if args.patience > 0:

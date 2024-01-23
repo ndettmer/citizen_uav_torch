@@ -5,15 +5,15 @@ import os
 import numpy as np
 import pandas as pd
 
-from CitizenUAV.models import InatMogaNetClassifier
-from CitizenUAV.data import MixedDataModule
-from CitizenUAV.io import write_params
+from citizenuav.models import InatSequentialClassifier
+from citizenuav.data import MixedDataModule
+from citizenuav.io import write_params
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.loggers import TensorBoardLogger
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 from matplotlib import pyplot as plt
 
-from CitizenUAV.processes import predict_geotiff, pixel_conf_mat
+from citizenuav.processes import predict_geotiff, pixel_conf_mat
 
 
 if __name__ == "__main__":
@@ -36,7 +36,7 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=np.random.rand())
 
     parser = MixedDataModule.add_dm_specific_args(parser)
-    parser = InatMogaNetClassifier.add_model_specific_args(parser)
+    parser = InatSequentialClassifier.add_model_specific_args(parser)
     parser = Trainer.add_argparse_args(parser)
 
     args = parser.parse_args()
@@ -54,11 +54,12 @@ if __name__ == "__main__":
 
     dict_args = vars(args)
     dict_args['gpu'] = dict_args['accelerator'] == 'cuda'
-    dict_args['model_class'] = 'InatMogaNetClassifier'
+    dict_args['model_class'] = 'InatSequentialClassifier'
     dict_args['window_size'] = dict_args['img_size']
     dict_args['result_dir'] = dict_args['log_dir']
 
-    f1_df = pd.DataFrame(columns=['version', 'n_supplement', 'May F1', 'June F1'], dtype=float)
+    f1_df = pd.DataFrame(columns=[
+        'version', 'n_supplement', 'May F1', 'May Weed Precision', 'June F1', 'June Weed Precision'], dtype=float)
     f1_df.version = f1_df.version.astype(int)
     f1_df.n_supplement = f1_df.n_supplement.astype(int)
 
@@ -69,7 +70,7 @@ if __name__ == "__main__":
 
             tb_logger = TensorBoardLogger(save_dir=log_dir)
             dm = MixedDataModule(**dict_args)
-            model = InatMogaNetClassifier(**dict_args)
+            model = InatSequentialClassifier(**dict_args)
             train_classes = dm.ds.classes
 
             callbacks = []
@@ -112,16 +113,24 @@ if __name__ == "__main__":
                     axs[i].set_title(label)
                 plt.savefig(os.path.join(plot_dir, os.path.basename(predfile).replace('npy', 'png')))
 
-                cm, df, f1 = pixel_conf_mat(dict_args['dataset_path'], pred_shape_dir, dict_args['data_dir'], predfile,
-                                            None, result_dir=plot_dir)
+                cm, df, f1, weed_precision, weed_recall = pixel_conf_mat(
+                    dict_args['dataset_path'],
+                    pred_shape_dir,
+                    dict_args['data_dir'],
+                    predfile,
+                    None,
+                    result_dir=plot_dir,
+                    crop_class='maize'
+                )
                 f1_row.append(f1)
+                f1_row.append(weed_precision)
 
             f1_df.loc[version_no] = f1_row
 
         f1_df.to_csv(
             os.path.join(
                 dict_args['result_dir'],
-                f"{datetime.now().strftime('%y-%m-%d_%H-%M')}_n{n_supplement}_{dict_args['model_size']}_f1_df.csv"
+                f"{datetime.now().strftime('%y-%m-%d_%H-%M')}_n{n_supplement}_{dict_args['backbone_model']}_f1_df.csv"
             ),
             index=False
         )

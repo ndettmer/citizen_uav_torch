@@ -1,5 +1,5 @@
-from CitizenUAV.processes import visualize_confusion_resnet
-from CitizenUAV.io import write_params
+from citizenuav.processes import visualize_confusion_resnet
+from citizenuav.io import write_params
 from argparse import ArgumentParser
 from plyer import notification
 

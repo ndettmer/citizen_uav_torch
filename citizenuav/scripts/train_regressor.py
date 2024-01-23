@@ -5,9 +5,9 @@ from pytorch_lightning.loggers import TensorBoardLogger
 import os
 import numpy as np
 
-from CitizenUAV.data import InatDistDataModule
-from CitizenUAV.models import InatRegressor
-from CitizenUAV.io import write_params
+from citizenuav.data import InatDistDataModule
+from citizenuav.models import InatRegressor
+from citizenuav.io import write_params
 
 if __name__ == "__main__":
     parser = ArgumentParser()

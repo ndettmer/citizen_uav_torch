@@ -1,5 +1,5 @@
 from argparse import ArgumentParser
-from CitizenUAV.processes import predict_inat
+from citizenuav.processes import predict_inat
 from plyer import notification
 
 

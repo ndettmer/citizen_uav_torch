@@ -1,7 +1,7 @@
 from argparse import ArgumentParser
 from plyer import notification
 
-from CitizenUAV.processes import extend_metadata
+from citizenuav.processes import extend_metadata
 
 
 if __name__ == "__main__":

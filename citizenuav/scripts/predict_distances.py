@@ -1,4 +1,4 @@
-from CitizenUAV.processes import predict_distances
+from citizenuav.processes import predict_distances
 from argparse import ArgumentParser
 
 

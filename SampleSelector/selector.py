@@ -3,8 +3,8 @@ from PySide6.QtGui import QPixmap, QKeySequence, QPalette, QColor
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QPushButton, QWidget, QProgressBar, QLineEdit
 import pandas as pd
 import numpy as np
-from CitizenUAV.io import get_pid_from_path, store_split_inat_metadata
-from CitizenUAV.data import InatDataModule
+from citizenuav.io import get_pid_from_path, store_split_inat_metadata
+from citizenuav.data import InatDataModule
 
 from typing import Union, Optional
 from pathlib import Path
